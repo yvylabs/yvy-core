@@ -1,0 +1,6 @@
+# Yvy Explorer — pnpm v12
+# Proyecto de paquete único (no monorepo). Este archivo es requerido
+# por pnpm v12 para aprobar build scripts de dependencias.
+# Formato vigente: allowBuilds (ya no se lee pnpm.onlyBuiltDependencies).
+allowBuilds:
+  esbuild: true

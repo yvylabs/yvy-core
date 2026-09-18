@@ -1,0 +1,32 @@
+# ==============================================================
+# YVY Explorer — Headers (Vite copia public/ a dist/)
+# Seguridad + cache. Los assets versionados (pmtiles/fgb/hash)
+# son inmutables; el index.html nunca se cachea.
+# X-Frame-Options: SAMEORIGIN (decisión: permite el propio dominio,
+# bloquea embeds de terceros).
+# ==============================================================
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/index.html
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.pmtiles
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+/*.fgb
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+/data/*
+  Access-Control-Allow-Origin: *
+
+/tiles/*
+  Access-Control-Allow-Origin: *

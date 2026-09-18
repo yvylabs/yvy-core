@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# Build & Caché
+dist/
+build/
+.vite/
+
+# Entorno y Secretos
+.env
+.env.*
+!.env.example
+
+# Logs y Cobertura
+*.log
+logs/
+coverage/
+
+# Sistema Operativo y Editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

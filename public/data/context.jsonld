@@ -1,0 +1,49 @@
+{
+  "@context": {
+    "yvy": "https://yvyexplorer.org/id/",
+    "yvyont": "https://yvyexplorer.org/ontology#",
+    "schema": "https://schema.org/",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "geo": "http://www.opengis.net/ont/geosparql#",
+    "dct": "http://purl.org/dc/terms/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "id": "@id",
+    "type": "@type",
+    "yvy_id": {
+      "@id": "yvyont:identifier",
+      "@type": "xsd:integer"
+    },
+    "nombre_oficial": "schema:name",
+    "nivel": {
+      "@id": "yvyont:nivel",
+      "@type": "@id"
+    },
+    "parent_yvy_id": {
+      "@id": "skos:broader",
+      "@type": "@id"
+    },
+    "georef_id": "dct:identifier",
+    "sup_oficial_km2": {
+      "@id": "yvyont:supOficialKm2",
+      "@type": "xsd:double"
+    },
+    "sup_fuente": "dct:source",
+    "sup_fuente_corta": "dct:bibliographicCitation",
+    "centro": {
+      "@id": "geo:hasCentroid",
+      "@type": "geo:wktLiteral"
+    },
+    "pmtiles": {
+      "@id": "yvyont:pmtiles",
+      "@type": "@id"
+    },
+    "tiene_geometria": {
+      "@id": "yvyont:tieneGeometria",
+      "@type": "xsd:boolean"
+    },
+    "bounds_objeto": {
+      "@id": "geo:hasBoundingBox",
+      "@type": "geo:wktLiteral"
+    }
+  }
+}
