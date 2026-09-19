@@ -9,7 +9,7 @@
 
 let datos = null;
 let objetoActivo = null;
-let navigator = null;
+let navegarFn = null;
 let hijosIndex = null; // Map<parent_yvy_id, objeto[]>
 
 export const NIVEL_LABEL = {
@@ -26,11 +26,12 @@ export const NIVEL_ORDEN = ['pais', 'provincia', 'depto', 'municipio', 'concesio
 export async function cargarDatos() {
   if (datos) return datos;
 
+  const base = import.meta.env.BASE_URL || './';
   const [mr, rr] = await Promise.all([
-    fetch('data/manifest.json')
+    fetch(`${base}data/manifest.json`)
       .then((r) => (r.ok ? r.json() : { objetos: [] }))
       .catch(() => ({ objetos: [] })),
-    fetch('data/relaciones.json')
+    fetch(`${base}data/relaciones.json`)
       .then((r) => (r.ok ? r.json() : { relaciones: [] }))
       .catch(() => ({ relaciones: [] })),
   ]);
@@ -116,11 +117,11 @@ export function getObjetoActivo() {
  * main.js para evitar import circular).
  */
 export function setNavegador(fn) {
-  navigator = fn;
+  navegarFn = fn;
 }
 
 export function navegarA(yvyId) {
-  if (navigator) navigator(Number(yvyId));
+  if (navegarFn) navegarFn(Number(yvyId));
 }
 
 // --------------------------------------------------------------

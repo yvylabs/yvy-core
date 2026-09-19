@@ -1,0 +1,5 @@
+# CODEOWNERS — repo privado, dueño único (scaffold para escalar)
+* @JuanjoCorrea
+/src/js/ @JuanjoCorrea
+/functions/ @JuanjoCorrea
+SPEC.md @JuanjoCorrea

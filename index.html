@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Yvy Explorer — Visor Territorial</title>
   <meta name="description" content="Explorá jurisdicciones, concesiones y datos territoriales. Geointeligencia para minería, agro y gobierno." />
 
@@ -47,15 +47,14 @@
       <img src="./assets/yvy_logo.png" alt="" class="topbar__logo" />
       <span class="topbar__brand-text">
         <span class="topbar__name">Yvy Explorer</span>
-        <span class="topbar__tagline">Soporte a la decisión · Geointeligencia territorial</span>
+        <span class="topbar__tagline">Soporte a la acción</span>
       </span>
     </a>
 
     <nav class="topbar__crumbs" id="topbar-crumbs" aria-label="Jerarquía activa"></nav>
 
     <div class="topbar__right">
-      <span class="topbar__telemetry" id="topbar-telemetry">Z – · YVY –</span>
-      <a class="topbar__demo-btn" href="https://tally.so/r/Y5K2Z6" target="_blank" rel="noopener">Agendar Demo</a>
+      <span class="topbar__fps" id="topbar-fps" title="Cuadros por segundo" hidden></span>
     </div>
   </header>
 
@@ -71,13 +70,13 @@
   <section class="welcome" id="welcome" aria-label="Consulta territorial">
     <div class="welcome__panel">
       <header class="welcome__head">
-        <span class="welcome__eyebrow">INTELIGENCIA TERRITORIAL</span>
+        <span class="welcome__eyebrow">GRAFO DE ENTIDADES</span>
         <h1 class="welcome__title">¿Qué jurisdicción querés consultar?</h1>
       </header>
 
       <div class="welcome__search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar provincia, departamento o municipio…" autocomplete="off" spellcheck="false" aria-label="Buscar jurisdicción" />
+        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar en Salta…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar jurisdicción" />
         <span class="welcome__hint" id="welcome-hint"></span>
       </div>
 
@@ -191,13 +190,10 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- BARRA DE PRODUCTO (coords · zoom · objeto activo) -->
+  <!-- BARRA DE PRODUCTO (objeto activo) -->
   <!-- ============================================================ -->
   <footer class="status-bar" id="status-bar">
-    <span class="status-bar__item"><span class="status-bar__k">Coords:</span><span class="status-bar__v" id="st-coords">–</span></span>
-    <span class="status-bar__sep">│</span>
-    <span class="status-bar__item"><span class="status-bar__k">Zoom:</span><span class="status-bar__v" id="st-zoom">–</span></span>
-    <span class="status-bar__item status-bar__item--objeto"><span class="status-bar__k">Objeto:</span><span class="status-bar__v" id="st-objeto">–</span></span>
+    <span class="status-bar__item status-bar__item--objeto"><span class="status-bar__v" id="st-objeto">Ninguna jurisdicción seleccionada</span></span>
   </footer>
 
   <script type="module" src="./src/js/main.js"></script>

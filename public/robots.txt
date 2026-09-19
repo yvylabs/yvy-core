@@ -2,10 +2,13 @@ User-agent: *
 Allow: /
 
 User-agent: GPTBot
-Allow: /
+Disallow: /data/
+Disallow: /tiles/
 
 User-agent: PerplexityBot
-Allow: /
+Disallow: /data/
+Disallow: /tiles/
 
 User-agent: Google-Extended
-Allow: /
+Disallow: /data/
+Disallow: /tiles/

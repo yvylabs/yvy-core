@@ -378,7 +378,7 @@ async function leerCentrosNivel(nivel, metaNivel) {
       st += a.lat * a.w;
       sw += a.w;
     }
-    // Bounds: unión de TODOS los segmentos (incluye islas alejadas como Malvinas)
+    // Bounds: unión de TODOS los segmentos (incluye islas alejadas)
     // Centro: solo del segmento principal (evita que islas tiren el centro lejos)
     let minLon = Infinity;
     let maxLon = -Infinity;
@@ -602,41 +602,6 @@ async function construirManifest() {
 }
 
 // --------------------------------------------------------------
-// JSON de provincias derivado (alineado 1000-1023 + padre ARG)
-// --------------------------------------------------------------
-function jsonProvincias(objetos, advertencias) {
-  const provincias = objetos
-    .filter((o) => o.nivel === 'provincia')
-    .map((o) => {
-      const p = {
-        yvy_id: o.yvy_id,
-        georef_id: o.georef_id,
-        pais_yvy_id: o.parent_yvy_id ?? 0,
-        pais_georef_id: 'ARG',
-        nombre_oficial: o.nombre_oficial,
-        sup_oficial_km2: o.sup_oficial_km2,
-        sup_fuente: o.sup_fuente,
-        sup_fuente_url: o.sup_fuente_url,
-        sup_oficial_tipo: o.sup_oficial_tipo,
-      };
-      if (o.prov_id_ign) p.prov_id_ign = o.prov_id_ign;
-      return p;
-    });
-  for (const p of provincias) {
-    if (p.yvy_id < 1000 || p.yvy_id > 1023) {
-      advertencias.push(`tabla_provincias_yvy_join.json: yvy_id ${p.yvy_id} (${p.nombre_oficial}) fuera del rango oficial 1000-1023.`);
-    }
-    if (p.pais_yvy_id !== 0) {
-      advertencias.push(`tabla_provincias_yvy_join.json: ${p.nombre_oficial} tiene pais_yvy_id ${p.pais_yvy_id}; se normalizó a 0 (ARG).`);
-    }
-    if (p.pais_georef_id !== 'ARG') {
-      advertencias.push(`tabla_provincias_yvy_join.json: ${p.nombre_oficial} tiene pais_georef_id ${p.pais_georef_id}; se normalizó a "ARG".`);
-    }
-  }
-  return provincias;
-}
-
-// --------------------------------------------------------------
 // Escritura de los archivos
 // --------------------------------------------------------------
 async function escribirManifest() {
@@ -649,9 +614,6 @@ async function escribirManifest() {
   };
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(path.join(DATA_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
-
-  const provincias = jsonProvincias(objetos, advertencias);
-  await fs.writeFile(path.join(DATA_DIR, 'tabla_provincias_yvy_join.json'), JSON.stringify(provincias, null, 2) + '\n', 'utf8');
 
   const contextPath = path.join(DATA_DIR, 'context.jsonld');
   try { await fs.access(contextPath); } catch {
@@ -703,7 +665,7 @@ async function escribirManifest() {
     console.log(`[yvy-manifest] ${f.nivel.padEnd(10)} ${f.archivo}: ${f.filas} objetos, ${f.pmtiles}/${f.filas} con geometría`);
   }
   for (const w of advertencias) console.warn(`[yvy-manifest] ⚠ ${w}`);
-  console.log(`[yvy-manifest] manifest.json + tabla_provincias_yvy_join.json generados (${objetos.length} objetos)`);
+  console.log(`[yvy-manifest] manifest.json generado (${objetos.length} objetos)`);
   console.log(`[yvy-manifest] context.jsonld + manifest.jsonld generados (${graph.length} nodos)`);
 }
 

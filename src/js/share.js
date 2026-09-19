@@ -92,8 +92,10 @@ export function inicializarCompartirVista(map, onRestaurarObjeto) {
     }
     if (c && z) {
       const [lng, lat] = c.split(',').map(Number);
-      if (Number.isFinite(lng) && Number.isFinite(lat) && Number.isFinite(Number(z))) {
-        mapa.flyTo({ center: [lng, lat], zoom: Number(z), duration: 2200 });
+      const zm = Number(z);
+      const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+      if (Number.isFinite(lng) && Number.isFinite(lat) && Number.isFinite(zm)) {
+        mapa.flyTo({ center: [clamp(lng, -180, 180), clamp(lat, -90, 90)], zoom: clamp(zm, 0, 22), duration: 2200 });
       }
     }
   };

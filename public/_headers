@@ -1,15 +1,16 @@
 # ==============================================================
 # YVY Explorer — Headers (Vite copia public/ a dist/)
-# Seguridad + cache. Los assets versionados (pmtiles/fgb/hash)
-# son inmutables; el index.html nunca se cachea.
-# X-Frame-Options: SAMEORIGIN (decisión: permite el propio dominio,
-# bloquea embeds de terceros).
+# Seguridad + cache. Ver SPEC.md (ver-pero-no-llevar + seguridad).
 # ==============================================================
 
 /*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com; connect-src 'self' https://server.arcgisonline.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
 
 /index.html
   Cache-Control: no-cache
@@ -17,16 +18,19 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+/api/*
+  Cache-Control: no-store
+
 /*.pmtiles
   Cache-Control: public, max-age=31536000, immutable
-  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Origin: https://yvylabs.com
 
 /*.fgb
   Cache-Control: public, max-age=31536000, immutable
-  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Origin: https://yvylabs.com
 
 /data/*
-  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Origin: https://yvylabs.com
 
 /tiles/*
-  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Origin: https://yvylabs.com

@@ -12,17 +12,31 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 
 import { cargarDatos, getObjeto, getPadre, setObjetoActivo, setNavegador } from './manifest.js';
-import { inicializarRazonador } from './reasoner.js';
 import { agregarCapaObjeto, setVisibilidadObjeto } from './layers.js';
 import { inicializarUIPaneles } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
-import { inicializarMedicion } from './measure.js';
-import { inicializarEfectosAtmosfera } from './atmosphereEffects.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
-import { inicializarControlCapaBase } from './basemapControl.js';
-import { inicializarAsistente } from './assistant.js';
 import { inicializarBienvenida } from './welcome.js';
+import { track } from './telemetry.js';
+
+const SATELITE_ID = 'yvy-basemap';
+// Atribución obligatoria por licencia (solo proveedores, sin política).
+const SATELITE_ATTR = 'Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+
+/** Satélite único free: 1 source raster Esri al fondo, sin catálogo ni UI. */
+function ensureSatelite(map) {
+  if (map.getLayer(SATELITE_ID)) return;
+  if (map.getSource(SATELITE_ID)) return;
+  map.addSource(SATELITE_ID, {
+    type: 'raster',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    attribution: SATELITE_ATTR,
+  });
+  const primera = map.getStyle().layers[0]?.id;
+  map.addLayer({ id: SATELITE_ID, type: 'raster', source: SATELITE_ID }, primera);
+}
 
 // Expone maplibregl globalmente para popups en otros módulos
 window.maplibregl = maplibregl;
@@ -128,13 +142,6 @@ map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAc
 if (!globeFallback) map.addControl(new maplibregl.GlobeControl(), 'top-right');
 map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric', maxWidth: 120 }), 'bottom-right');
-
-// Efectos atmosféricos — solo con globe y WebGL activo
-if (!globeFallback) {
-  try { inicializarEfectosAtmosfera(map); } catch (e) { console.warn('[yvy] efectos atmósfera no iniciados (fallback):', e?.message); }
-}
-
-const basemapControlEl = document.getElementById('basemap-control');
 
 // --------------------------------------------------------------
 // Carga de objetos Yvy — load once, dibujar siempre
@@ -247,7 +254,6 @@ let datosGarantizados = false;
 async function garantizarDatos() {
   if (datosGarantizados) return;
   await cargarDatos();
-  inicializarRazonador();
   datosGarantizados = true;
 }
 
@@ -281,8 +287,8 @@ inicializarUIPaneles();
 map.on('load', async () => {
   map.resize();
 
-  // Globo 3D con imagen satelital (Esri World Imagery).
-  inicializarControlCapaBase(map, basemapControlEl, 'AR', 'satelital');
+  // Globo 3D con imagen satelital única (Esri World Imagery).
+  ensureSatelite(map);
 
   // Catálogo Yvy (manifest + relaciones) en background: no dibuja
   // ninguna capa ni bloquea el globo. El árbol se arma bajo demanda.
@@ -292,12 +298,9 @@ map.on('load', async () => {
     console.error('No se pudo cargar el manifiesto territorial:', err);
   }
 
-  // Bienvenida Palantir: buscar jurisdicción o elegir sugerida.
+  // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
   inicializarBienvenida(irAYvyId);
-
-  // Medición (distancias y superficies)
-  inicializarMedicion(map);
 
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
@@ -305,30 +308,7 @@ map.on('load', async () => {
   // Barra de producto
   inicializarBarraTecnica(map);
 
-  // Asistente de Geointeligencia (0ms Rule Engine sobre la ontología)
-  inicializarAsistente(map, irAYvyId);
-
-  // Ping al geo.worker SOLO en dev: valida el protocolo sin bloquear nada.
-  // Si el Worker falla, se loguea y el visor sigue por el camino actual.
-  if (import.meta.env && import.meta.env.DEV) {
-    try {
-      const geoWorker = new Worker(new URL('./workers/geo.worker.js', import.meta.url), { type: 'module' });
-      const esperar = (msg) => new Promise((resolve) => {
-        const t = setTimeout(() => resolve({ estado: 'timeout', datos: null, meta: {} }), 5000);
-        geoWorker.onmessage = (e) => { clearTimeout(t); resolve(e.data); };
-        geoWorker.postMessage(msg);
-      });
-      (async () => {
-        const r1 = await esperar({ tipo: 'cargar', datasetId: '__inexistente__', modo: 'full' });
-        console.info('[yvy][geo-worker] ping missing:', r1 && r1.estado, '|', r1 && r1.meta && r1.meta.mensaje);
-        const r2 = await esperar({ tipo: 'cargar', datasetId: 'jurisdicciones', modo: 'full' });
-        console.info('[yvy][geo-worker] ping ok:', r2 && r2.estado);
-        geoWorker.terminate();
-      })().catch((e) => console.warn('[yvy][geo-worker] ping falló (no bloqueante):', e));
-    } catch (e) {
-      console.warn('[yvy][geo-worker] no se pudo crear en dev (no bloqueante):', e);
-    }
-  }
+  track('app_load', { globe_fallback: globeFallback });
 
   // El botón de búsqueda del toolbar reabre la bienvenida (manejado en welcome.js).
 });

@@ -9,7 +9,6 @@
 // ==============================================================
 
 import { mostrarObjeto } from './objeto.js';
-import { medicionActiva } from './measure.js';
 
 const OPACIDAD_ACTIVO = 0.35;
 const OPACIDAD_CONTEXTO = 0.15;
@@ -122,10 +121,8 @@ export function agregarCapaObjeto(map, obj) {
   });
 
   // Clic → ficha del objeto (nada de tabla de atributos).
-  // Si se está midiendo, el clic agrega un punto y no abre la ficha.
   map.on('click', `layer-${id}`, (e) => {
     if (!e.features || e.features.length === 0) return;
-    if (medicionActiva()) return;
     mostrarObjeto(obj.yvy_id);
   });
   configurarHover(map, obj, `layer-${id}`);
@@ -162,168 +159,4 @@ export function setVisibilidadObjeto(map, yvyId, visible, esActivo) {
       }
     }
   }
-}
-
-/**
- * Firma genérica para alternar capas temáticas (FFCC, Rutas, Hidro, etc.).
- * Escala a 50+ capas temáticas a 60fps sin duplicar código.
- */
-export function toggleCapaTematica(map, idCapa, pmtilesFile, opts = {}) {
-  const sourceId = `source-tematica-${idCapa}`;
-  const layerId = `layer-tematica-${idCapa}`;
-
-  const minzoom = opts.minzoom ?? 4.5;
-  const type = opts.type ?? 'line';
-  const color = opts.color ?? '#10b981';
-
-  if (!map.getSource(sourceId)) {
-    map.addSource(sourceId, {
-      type: 'vector',
-      tiles: [`pmtiles://data/${pmtilesFile}/{z}/{x}/{y}`],
-      minzoom,
-      maxzoom: 16,
-    });
-  }
-
-  if (!map.getLayer(layerId)) {
-    const layerDef = {
-      id: layerId,
-      type,
-      source: sourceId,
-      'source-layer': opts.capaInterna || idCapa,
-      minzoom,
-      paint: type === 'line'
-        ? { 'line-color': color, 'line-width': opts.lineWidth ?? 2.2, 'line-opacity': 0.85 }
-        : { 'fill-color': color, 'fill-opacity': 0.35 },
-    };
-    map.addLayer(layerDef);
-    return true; // activada
-  }
-
-  const curVis = map.getLayoutProperty(layerId, 'visibility');
-  const nextVis = curVis === 'none' ? 'visible' : 'none';
-  map.setLayoutProperty(layerId, 'visibility', nextVis);
-  return nextVis === 'visible';
-}
-
-export function toggleCapaFFCC(map) {
-  return toggleCapaTematica(map, 'ffcc', 'FFCC.pmtiles', {
-    minzoom: 4.5,
-    type: 'line',
-    color: '#10b981',
-    capaInterna: 'FFCC',
-  });
-}
-
-export function isFFCCVisible(map) {
-  return !!(map.getLayer('layer-tematica-ffcc') && map.getLayoutProperty('layer-tematica-ffcc', 'visibility') !== 'none');
-}
-
-/**
- * Extrae el anillo exterior (coordenadas lng/lat) del polígono más
- * grande de un conjunto de features de `querySourceFeatures`.
- * Devuelve null si no hay ninguna geometría de polígono válida.
- */
-function anilloMayorDeFeatures(features) {
-  let mejor = null;
-  let mejorArea = -1;
-  for (const f of features) {
-    const g = f.geometry;
-    if (!g) continue;
-    const polys =
-      g.type === 'Polygon' ? [g.coordinates]
-        : g.type === 'MultiPolygon' ? g.coordinates
-          : [];
-    for (const poly of polys) {
-      const ring = poly && poly[0];
-      if (!ring || ring.length < 4) continue;
-      let area = 0;
-      for (let i = 0; i < ring.length - 1; i++) {
-        area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-      }
-      area = Math.abs(area / 2);
-      if (area > mejorArea) {
-        mejorArea = area;
-        mejor = ring;
-      }
-    }
-  }
-  return mejor;
-}
-
-/**
- * Reintenta aplicar el filtro de FFCC por polígono real cuando el mapa
- * quede idle (los tiles de la jurisdicción ya habrán cargado). Límite
- * por objeto para no reintentar indefinidamente.
- */
-const reintentosFFCC = new WeakMap();
-
-function reintentarFFCC(map, obj) {
-  const n = reintentosFFCC.get(obj) || 0;
-  if (n >= 3) return;
-  reintentosFFCC.set(obj, n + 1);
-  map.once('idle', () => {
-    if (map.getLayer('layer-tematica-ffcc')) fitrarFFCCPorObjeto(map, obj);
-  });
-}
-
-/**
- * Filtra la capa de FFCC por el polígono real del objeto activo
- * (provincia / depto / municipio). Cuando obj es null, elimina el
- * filtro y muestra la red nacional completa.
- *
- * Usa la geometría exacta de la jurisdicción (via querySourceFeatures
- * de su source vectorial) para que solo se vean las vías dentro del
- * límite real. Si la geometría aún no está cargada o no se dispone,
- * cae al bbox del objeto (bounds_objeto) como respaldo seguro.
- *
- * @param {import('maplibre-gl').Map} map
- * @param {object|null} obj - objeto del manifest con bounds_objeto ([w,s,e,n])
- */
-export function fitrarFFCCPorObjeto(map, obj) {
-  const layerId = 'layer-tematica-ffcc';
-  if (!map.getLayer(layerId)) return; // capa no activa
-
-  if (!obj || !Array.isArray(obj.bounds_objeto) || obj.bounds_objeto.length !== 4) {
-    // Sin objeto activo → red nacional completa
-    map.setFilter(layerId, null);
-    return;
-  }
-
-  // Polígono real del objeto desde su source vectorial ya cargada
-  const sourceId = `source-yvy-${obj.nivel}`;
-  let polygonCoords = null;
-  if (map.getSource(sourceId)) {
-    try {
-      const features = map.querySourceFeatures(sourceId, {
-        filter: ['==', ['coalesce', ['get', 'id'], ['get', 'yvy_id']], obj.yvy_id],
-      });
-      polygonCoords = anilloMayorDeFeatures(features);
-    } catch {
-      polygonCoords = null;
-    }
-  }
-
-  if (polygonCoords) {
-    map.setFilter(layerId, ['within', { type: 'Polygon', coordinates: [polygonCoords] }]);
-    return;
-  }
-
-  // La geometría de la jurisdicción aún no está cargada en el mapa:
-  // reintentamos el polígono real cuando el mapa quede idle, sin bucles.
-  reintentarFFCC(map, obj);
-
-  // Respaldo: polígono del bbox del objeto (comportamiento vigente)
-  const [minLng, minLat, maxLng, maxLat] = obj.bounds_objeto;
-  const bboxPolygon = {
-    type: 'Polygon',
-    coordinates: [[
-      [minLng, minLat],
-      [maxLng, minLat],
-      [maxLng, maxLat],
-      [minLng, maxLat],
-      [minLng, minLat],
-    ]],
-  };
-  map.setFilter(layerId, ['within', bboxPolygon]);
 }

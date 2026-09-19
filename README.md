@@ -1,13 +1,10 @@
 # Yvy Explorer
 
-Visor territorial de alto rendimiento: globo 3D con datos vectoriales
-y satelitales en formato [PMTiles](https://pmtiles.io/) (v3) sobre
-[MapLibre GL](https://maplibre.org/) v5. Geointeligencia para minería,
-agro y gobierno.
+> Grafo de entidades + conflación determinista — el territorio es un insumo más entre +50 datasets. Free forever, sin login.
 
-Modelo **objeto-céntrico**: cada jurisdicción es un objeto Yvy con un
-`yvy_id` único (0-999 países, 1000-1999 provincias, 10000+ deptos),
-identidad, superficie oficial y relaciones espaciales precomputadas.
+**No es** visor GIS, ni IDE, ni OSINT. Globo 3D vacío hasta que interactúas: eliges territorio → ves totales automáticos → drill solo si lo pides.
+
+Modelo **entity graph**: cada jurisdicción es un nodo con `yvy_id` único, totales curados fuera (`Parquet = hechos`, `PMTiles = render`, `manifest = índice`). Ver `SPEC.md` (fuente de verdad).
 
 ## Cómo se arma el catálogo (fuente de verdad)
 
@@ -29,14 +26,8 @@ public/data/relaciones.json   → relaciones precomputadas (chips de la ficha)
 ```
 
 El plugin `yvyManifest` de `vite.config.js` lee los CSVs en cada build y
-emite:
-
-- `public/data/manifest.json` — catálogo completo (nivel, yvy_id,
-  parent_yvy_id, nombre, superficie, fuente, pmtiles, minzoom/maxzoom,
-  **centro real por objeto** — centroide calculado en el build decodificando
-  los tiles del nivel y cruzándolo contra el `id` de cada feature).
-- `public/data/tabla_provincias_yvy_join.json` — provincias derivadas del
-  CSV (yvy_id 1000-1023, pais_yvy_id=0, pais_georef_id=ARG).
+emite `public/data/manifest.json` + `manifest.jsonld` (catálogo: nivel,
+yvy_id, parent, nombre, superficie, fuente, pmtiles, centro real por objeto).
 
 El build avisa por consola cuántos features de cada PMTiles tienen `id`
 coincidente con el yvy_id del CSV (si falta el id o es otro código, el
@@ -56,34 +47,30 @@ fetch de manifest al abrir.
   on-demand filtradas por `id`); los niveles inferiores nunca se cargan
   (banda visible por contexto).
 - La ficha del objeto sale del manifest (cero fetch): click en el mapa o
-  en el Explorador → panel Objeto → PNG de la ficha con banda de marca.
+  en el welcome → ficha + `Copiar resumen` (texto) + `window.print()`.
 
-## Comandos
+## Comandos (pnpm, Node 22)
 
-```bash
-npm install        # instalar dependencias
-npm run dev        # desarrollo (localhost:5173)
-npm run build      # build de producción en dist/ (+ regenera manifest)
-npm run preview    # probar el build local
-```
+\ash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run dev      # desarrollo (localhost:5173)
+pnpm run build    # build de producción en dist/ (+ regenera manifest)
+pnpm run preview  # probar el build local
+git config core.hooksPath scripts
+\\n
+## Deploy (Cloudflare Pages — Git integration, única vía)
 
-## Deploy (Cloudflare Pages)
-
-1. Build: `npm run build`
-2. Carpeta de salida: `dist`
-3. Recomendado: compressión Brotli/Gzip activa, HTTPS.
-
-O directo con Wrangler:
-
-```bash
-npx wrangler pages deploy dist
-```
+PR → preview deploy, merge a master → production. Prohibido deployar desde CI.
+Conectar el repo en el dashboard: build pnpm run build, output dist,
+Node vía .nvmrc (22) o NODE_VERSION=22. R2 yvy-data enlazado en
+production y preview. Ver SPEC.md §9.
 
 ## Notas
 
-- La atribución de imágenes satelitales (Esri, Maxar, Airbus, etc.) es
-  obligatoria por licencia: no quitarla de la esquina inferior.
+- La atribución `Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community`
+  es obligatoria por licencia: no quitarla de la esquina inferior.
 - El estado de la vista se comparte por URL (`#y=<yvy_id>&c=…&z=…`), sin
   backend. El botón de compartir copia el link al portapapeles.
-- La exportación PNG baja la vista actual o la ficha del objeto con banda
-  de marca (logo + objeto + fecha + coordenadas).
+- Salidas free: `Copiar resumen` (texto) + `window.print()`. PNG = screenshot OS.
+  Sin export binario (va a Labs).

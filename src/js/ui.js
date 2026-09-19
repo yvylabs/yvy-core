@@ -6,8 +6,6 @@
 
 const PANEL_DEFS = [
   { btn: 'btn-ficha',       panel: 'panel-explorador', cerrarFuera: false },
-  { btn: 'btn-asistente',   panel: 'panel-asistente'   },
-  { btn: 'btn-medir',       panel: 'panel-medir', cerrarFuera: false },
 ];
 
 let abiertoActual = null;
@@ -49,10 +47,10 @@ export function inicializarUIPaneles() {
     if (bEl) bEl.addEventListener('click', () => setPanelAbierto(panel, btn));
   });
 
-  // Botones ✕ dentro de cada panel (.floating-panel__close o .assistant-panel__close)
-  document.querySelectorAll('.floating-panel__close, .assistant-panel__close').forEach((c) => {
+  // Botones ✕ dentro de cada panel
+  document.querySelectorAll('.floating-panel__close').forEach((c) => {
     c.addEventListener('click', () => {
-      const pEl = c.closest('.floating-panel, .assistant-panel');
+      const pEl = c.closest('.floating-panel');
       if (!pEl) return;
       const def = PANEL_DEFS.find((d) => d.panel === pEl.id);
       if (def) setPanelAbierto(def.panel, def.btn); // toggle => cierra
@@ -93,8 +91,4 @@ export function abrirPanelObjeto() {
     bEl.classList.add('is-active');
   }
   abiertoActual = 'panel-explorador';
-}
-
-export function asegurarPanelExplorador() {
-  abrirPanelObjeto();
 }

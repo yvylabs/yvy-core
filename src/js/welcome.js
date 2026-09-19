@@ -5,7 +5,7 @@
 // ==============================================================
 
 import { getObjetos } from './manifest.js';
-import { limpiarFicha } from './objeto.js';
+import { track } from './telemetry.js';
 
 let navegarHandler = null;
 let bienvenidaLista = false;
@@ -20,7 +20,7 @@ function normalizar(txt) {
 }
 
 function escapar(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /** Busca jurisdicciones por nombre (coincidencia por token/prefix/substring). */
@@ -57,7 +57,7 @@ function renderResultado(o, onPick) {
       <span class="welcome-result__nombre">${escapar(o.nombre_oficial)}</span>
       <span class="welcome-result__meta">${escapar(tipo)}${sup ? ` · ${escapar(sup)}` : ''}</span>
     </span>
-    <span class="welcome-result__id">yvy:${o.yvy_id}</span>
+    <span class="welcome-result__id">yvy:${Number(o.yvy_id)}</span>
   `;
   el.addEventListener('click', () => onPick(o.yvy_id));
   el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(o.yvy_id); } });
@@ -97,6 +97,7 @@ export function inicializarBienvenida(fnNavegar) {
   function pick(yvyId) {
     cerrar();
     // Al elegir: navega (vuelo + ficha con hijos y padres)
+    track('pick', { yvy_id: yvyId });
     if (navegarHandler) navegarHandler(yvyId);
   }
 
@@ -126,6 +127,7 @@ export function inicializarBienvenida(fnNavegar) {
     hint.textContent = q ? `${found.length} resultado${found.length === 1 ? '' : 's'}` : '';
     for (const o of found) results.appendChild(renderResultado(o, pick));
     if (q && found.length === 0) {
+      track('search_miss', { q_len: q.length });
       const empty = document.createElement('div');
       empty.className = 'welcome-empty';
       empty.textContent = 'Sin coincidencias. Probá con otra jurisdicción o una sugerencia.';

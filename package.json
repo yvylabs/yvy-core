@@ -1,8 +1,12 @@
 {
   "name": "yvy-explorer",
   "version": "0.2.0",
-  "description": "Yvy Explorer: visor territorial GIS open source, ultra-liviano, basado 100% en el cliente.",
+  "description": "Yvy Explorer: grafo de entidades para la acción. Free forever, sin login, 100% en el cliente.",
   "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

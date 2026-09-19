@@ -1,19 +1,30 @@
 # ==============================================================
-# YVY Explorer — Cloudflare Pages + Worker proxy
-# Proyecto Pages (conectar por dashboard o `wrangler pages project create`).
-# Build: npm ci && npm run build · Output: dist
+# YVY Explorer — Cloudflare Pages (Git integration: PR → preview,
+# merge a master → production). NO deployar desde CI con wrangler.
+# Build: corepack enable + pnpm install --frozen-lockfile + pnpm build
+# Output: dist · Node: .nvmrc (22) o NODE_VERSION=22 en dashboard.
 # Los assets pesados (pmtiles/fgb) salen de R2 vía functions/tiles/*
-# y functions/data/*, NUNCA de bucket público directo (§10 spec).
+# y functions/data/*, NUNCA de bucket público directo (SPEC §6).
 # R2 binding: YVY_DATA (crear el bucket en el dashboard y enlazarlo
-# al proyecto Pages con ese nombre exacto).
+# al proyecto Pages con ese nombre exacto, en production y preview).
 # ==============================================================
 
 name = "yvy-explorer"
 compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
+
+[[r2_buckets]]
+binding = "YVY_DATA"
+bucket_name = "yvy-data"
 
 [env.production]
-# vars de entorno de producción (si se necesitan a futuro)
 
 [[env.production.r2_buckets]]
+binding = "YVY_DATA"
+bucket_name = "yvy-data"
+
+[env.preview]
+
+[[env.preview.r2_buckets]]
 binding = "YVY_DATA"
 bucket_name = "yvy-data"

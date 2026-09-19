@@ -1,30 +1,26 @@
 // ==============================================================
 // statusbar.js
-// Barra de producto inferior: coordenadas del cursor, zoom y el
-// objeto activo (nombre + superficie). Cero telemetría: el usuario
-// final no ve FPS, tiles ni bbox.
+// Barra de producto: objeto activo + breadcrumb + badge fps.
+// Sin coords, sin zoom numérico (van en controles nativos).
 // ==============================================================
 
 import { formatKM2, getPadre, navegarA } from './manifest.js';
 
-function fmt(n, dec = 4) {
-  return Number(n).toFixed(dec);
-}
+// Debug explícito (?debug=1): fps y telemetría solo existen en ese modo.
+// En prod no se renderizan (ni siquiera en el DOM).
+const DEBUG = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('debug');
+  } catch {
+    return false;
+  }
+})();
 
-let ultimoYvy = null;
-let ultimoZoomTxt = null;
-
-function pintarTelemetria() {
-  const el = document.getElementById('topbar-telemetry');
-  if (!el) return;
-  el.textContent = `Z ${ultimoZoomTxt || '–'} · YVY ${ultimoYvy != null ? ultimoYvy : '–'}`;
-}
-
-/** Breadcrumb vivo ARG › ... › objeto (clicable, usa el navegador registrado). */
+/** Breadcrumb vivo Salta › ... › objeto (clicable, usa el navegador registrado). */
 function pintarBreadcrumb(obj) {
   const nav = document.getElementById('topbar-crumbs');
   if (!nav) return;
-  nav.innerHTML = '';
+  nav.textContent = '';
   if (!obj) return;
   const ruta = [];
   let cur = obj;
@@ -65,17 +61,36 @@ export function setObjetoBarra(obj) {
   const el = document.getElementById('st-objeto');
   if (!el) return;
   if (!obj) {
-    el.textContent = '–';
-    ultimoYvy = null;
-    pintarTelemetria();
+    el.textContent = 'Ninguna jurisdicción seleccionada';
     pintarBreadcrumb(null);
     return;
   }
   const sup = obj.sup_oficial_km2 != null ? ` · ${formatKM2(obj.sup_oficial_km2)}` : '';
   el.textContent = `${obj.nombre_oficial}${sup}`;
-  ultimoYvy = obj.yvy_id;
-  pintarTelemetria();
   pintarBreadcrumb(obj);
+}
+
+/** Badge fps honesto: rAF agregado 1 vez/seg, solo en ?debug=1. */
+function iniciarFps() {
+  const el = document.getElementById('topbar-fps');
+  if (!el) return;
+  if (!DEBUG) {
+    el.remove();
+    return;
+  }
+  el.hidden = false;
+  let frames = 0;
+  let t0 = performance.now();
+  const loop = (t) => {
+    frames++;
+    if (t - t0 >= 1000) {
+      el.textContent = `${Math.min(frames, 99)} fps`;
+      frames = 0;
+      t0 = t;
+    }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
 }
 
 /**
@@ -83,21 +98,8 @@ export function setObjetoBarra(obj) {
  * @param {import('maplibre-gl').Map} map
  */
 export function inicializarBarraTecnica(map) {
-  const elCoords = document.getElementById('st-coords');
-  const elZoom = document.getElementById('st-zoom');
-
-  function actualizarEstaticos() {
-    const z = fmt(map.getZoom(), 2);
-    elZoom.textContent = z;
-    ultimoZoomTxt = z;
-    pintarTelemetria();
+  iniciarFps();
+  if (map && typeof map.on === 'function') {
+    map.on('load', () => {});
   }
-
-  map.on('mousemove', (e) => {
-    if (e && e.lngLat) {
-      elCoords.textContent = `${fmt(e.lngLat.lng)}, ${fmt(e.lngLat.lat)}`;
-    }
-  });
-  map.on('move', actualizarEstaticos);
-  map.on('load', actualizarEstaticos);
 }

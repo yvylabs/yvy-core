@@ -2,7 +2,6 @@ import {
   getObjeto,
   getPadre,
   getHijos,
-  getRelaciones,
   getObjetoActivo,
   setObjetoActivo,
   navegarA,
@@ -10,17 +9,7 @@ import {
   etiquetaNivel,
 } from './manifest.js';
 import { abrirPanelObjeto } from './ui.js';
-import { resolverEstado } from './datasets.js';
-import { agregarCapaObjeto, setVisibilidadObjeto } from './layers.js';
-
-let comunasCABAVisible = false;
-
-const RELACION_LABEL = {
-  intersecta: 'Intersecta',
-  contiene: 'Contiene',
-  contenido_en: 'Contenido en',
-  toca: 'Toca',
-};
+import { track } from './telemetry.js';
 
 const fmtInt = new Intl.NumberFormat('es-AR');
 const fmtKm1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -81,11 +70,9 @@ function setModoInspect(obj) {
 }
 
 /**
- * Muestra el estado missing en la ficha (dataset ausente: nunca
- * silencio, nunca genérico). Usado cuando el yvy_id no existe.
+ * Muestra el estado missing en la ficha (nunca silencio, nunca genérico).
  */
 export function mostrarEstadoFalta(yvyId) {
-  const { mensaje } = resolverEstado('__desconocido__');
   const detalle = document.getElementById('explorer-detalle');
   if (detalle) detalle.hidden = false;
   const idEl = document.getElementById('explorer-inspect-id');
@@ -96,7 +83,7 @@ export function mostrarEstadoFalta(yvyId) {
     const d = document.createElement('div');
     d.className = 'objeto-empty-state';
     const p = document.createElement('p');
-    p.textContent = mensaje;
+    p.textContent = 'No tengo ese dato todavía';
     d.appendChild(p);
     contenedor.appendChild(d);
   }
@@ -111,15 +98,6 @@ export function mostrarObjeto(yvyId) {
     mostrarEstadoFalta(yvyId);
     return;
   }
-  // Si salimos de CABA, ocultar comunas que quedaron visibles
-  if (obj.yvy_id !== 1000 && comunasCABAVisible) {
-    const map = window.yvyMap;
-    if (map) {
-      const comunas = getHijos(1000);
-      for (const c of comunas) setVisibilidadObjeto(map, c.yvy_id, false, false);
-    }
-    comunasCABAVisible = false;
-  }
   setObjetoActivo(obj);
   renderFicha(obj);
   setModoInspect(obj);
@@ -132,14 +110,6 @@ export function refrescarFicha() {
 }
 
 export function limpiarFicha() {
-  if (comunasCABAVisible) {
-    const map = window.yvyMap;
-    if (map) {
-      const comunas = getHijos(1000);
-      for (const c of comunas) setVisibilidadObjeto(map, c.yvy_id, false, false);
-    }
-    comunasCABAVisible = false;
-  }
   const detalle = document.getElementById('explorer-detalle');
   if (detalle) detalle.hidden = true;
   const contenedor = document.getElementById('objeto-info');
@@ -230,42 +200,9 @@ function renderFicha(obj) {
   }
   if (ruta.length > 1) contenedor.appendChild(renderBreadcrumb(ruta.reverse()));
 
-  const rel = seccionRelaciones(obj);
-  if (rel) contenedor.appendChild(rel);
   const dep = seccionDependencias(obj);
   if (dep) contenedor.appendChild(dep);
-
-  // CABA comunas bajo demanda (rango depto, comunas como municipios)
-  if (obj.yvy_id === 1000) {
-    const comunas = getHijos(1000);
-    if (comunas.length > 0) {
-      const sec = seccion(`Comunas · ${comunas.length}`);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'objeto-comunas-btn';
-      btn.textContent = comunasCABAVisible ? 'Ocultar comunas' : 'Ver comunas en el mapa';
-      btn.addEventListener('click', () => {
-        const map = window.yvyMap;
-        if (!map) return;
-        comunasCABAVisible = !comunasCABAVisible;
-        for (const c of comunas) {
-          if (comunasCABAVisible) {
-            agregarCapaObjeto(map, c);
-            setVisibilidadObjeto(map, c.yvy_id, true, false);
-          } else {
-            setVisibilidadObjeto(map, c.yvy_id, false, false);
-          }
-        }
-        btn.textContent = comunasCABAVisible ? 'Ocultar comunas' : 'Ver comunas en el mapa';
-      });
-      sec.appendChild(btn);
-      // Resetear estado al cambiar de objeto (evita que quede pegado)
-      if (!comunasCABAVisible) {
-        // Asegurar que al abrir la ficha las comunas estén ocultas inicialmente
-      }
-      contenedor.appendChild(sec);
-    }
-  }
+  contenedor.appendChild(botonCopiar(obj));
 }
 
 function renderBreadcrumb(ruta) {
@@ -346,46 +283,38 @@ function btnNavegar(tipo, nombre, yvyId) {
   return b;
 }
 
-function seccionRelaciones(obj) {
-  const relaciones = getRelaciones(obj.yvy_id);
-  if (relaciones.length === 0) return null;
-  const d = seccion('Relaciones');
-  const wrap = document.createElement('div');
-  wrap.className = 'objeto-chips';
-  for (const r of relaciones) {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'objeto-chip';
-    const destino = getObjeto(r.destino_yvy_id);
-    const accion = RELACION_LABEL[r.tipo] || r.tipo;
-    const pct = r.porcentaje != null ? ` ${r.porcentaje}%` : '';
-    chip.innerHTML = `<span class="objeto-chip__accion">${accion}</span> <span class="objeto-chip__destino">${destino ? destino.nombre_oficial : `#${r.destino_yvy_id}`}${pct}</span>`;
-    chip.addEventListener('click', () => navegarA(r.destino_yvy_id));
-    wrap.appendChild(chip);
+function textoResumen(obj) {
+  const ruta = [];
+  let cur = obj;
+  while (cur) {
+    ruta.push(cur.nombre_oficial);
+    cur = getPadre(cur);
   }
-  d.appendChild(wrap);
-  return d;
+  ruta.reverse();
+  const sup = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : 'Sin dato';
+  const fuente = obj.sup_fuente_corta || obj.sup_fuente || 'Fuente pendiente';
+  return `${obj.nombre_oficial} · ${ruta.join(' › ')} · yvy:${obj.yvy_id}
+${etiquetaNivel(obj.nivel)} · ${sup}
+Fuente: ${fuente}
+Link: ${location.href}`;
 }
 
-/**
- * Compara métricas clave de dos objetos Yvy.
- * @param {number} yvyIdA 
- * @param {number} yvyIdB 
- * @returns {object|null}
- */
-export function compararObjetos(yvyIdA, yvyIdB) {
-  const a = getObjeto(yvyIdA);
-  const b = getObjeto(yvyIdB);
-  if (!a || !b) return null;
-
-  const getPop = (obj) => toNum(prop(obj, 'poblacion')) || 0;
-  const getSup = (obj) => obj.sup_oficial_km2 || 0;
-  const getViv = (obj) => toNum(prop(obj, 'viviendas')) || 0;
-  const getFfcc = (obj) => toNum(prop(obj, 'km_ffcc_total')) || 0;
-
-  return {
-    a: { nombre: a.nombre_oficial, poblacion: fmtInt.format(getPop(a)), sup: formatKM2(getSup(a)), viviendas: fmtInt.format(getViv(a)), ffcc: fmtKm1.format(getFfcc(a)) },
-    b: { nombre: b.nombre_oficial, poblacion: fmtInt.format(getPop(b)), sup: formatKM2(getSup(b)), viviendas: fmtInt.format(getViv(b)), ffcc: fmtKm1.format(getFfcc(b)) },
-  };
+function botonCopiar(obj) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'objeto-copy';
+  b.textContent = 'Copiar resumen';
+  b.addEventListener('click', async () => {
+    const txt = textoResumen(obj);
+    try {
+      await navigator.clipboard.writeText(txt);
+      b.textContent = 'Copiado';
+    } catch {
+      window.prompt('Copia este resumen:', txt);
+    }
+    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel });
+    setTimeout(() => { b.textContent = 'Copiar resumen'; }, 2000);
+  });
+  return b;
 }
 
