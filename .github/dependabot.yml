@@ -5,8 +5,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Majors manuales (Fase 2 / track propio). Security updates sí pasan.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /.github/workflows
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
