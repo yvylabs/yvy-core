@@ -9,6 +9,12 @@
 * `Territorio`: pais 0-999, provincia 1000-1999, depto 10000+, municipio 100000+. Piloto: Salta 1016 + hijos (recorte fuera, no se toca `data/` en este repo).
 * `Entidad`: escuela, hospital, tramo ruta/FFCC. `CONTIENE` precomputado fuera.
 * `Parquet = hechos + agregados por yvy_id` / `PMTiles = solo render` / `manifest.json = índice` / detalle = lazy.
+* Registry: `data/registry/*.parquet` (un parquet por nivel). CSV prohibido.
+
+## 1b. Versionado (nunca se sobrescribe)
+* Archivos inmutables con versión: `escuelas_2025-09.parquet`. R2 con versionado activado.
+* `manifest.json` lleva **solo la versión activa** por dataset (`version + source_date`); la ficha muestra vigencia siempre.
+* Historial duerme en R2 (pérdida cero, costo cero en browser). Evolución/comparar años = **Labs pago** (`?version=` con key). El free nunca paga la historia (60fps intacto).
 
 ## 2. Reglas deterministas (cero alucinación)
 

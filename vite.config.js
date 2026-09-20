@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { gunzipSync } from 'node:zlib';
 import { PMTiles } from 'pmtiles';
+import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 
 const require = createRequire(import.meta.url);
 let VectorTile = null;
@@ -21,8 +22,8 @@ function importarDecodificadorMVT() {
 
 // ==============================================================
 // Yvy Explorer v3 — Manifest derivado
-// Fuente de verdad: data/registry/<nivel>.csv
-//   (un CSV por nivel: paises, provincias, departamentos, municipios…)
+// Fuente de verdad: data/registry/<nivel>.parquet
+//   (un parquet por nivel: paises, provincias, departamentos, municipios…)
 // Geometría:        public/data/<nivel>.pmtiles
 //   (un PMTiles por nivel: provincias.pmtiles, departamentos.pmtiles,
 //   municipios.pmtiles…; el plugin lee el header una vez por nivel y
@@ -31,7 +32,7 @@ function importarDecodificadorMVT() {
 //
 // Centro por objeto: se decodifican los tiles del nivel en el build y
 // se calcula el centroide real de cada feature (id del archivo vs
-// yvy_id del CSV). Resultado cacheado en <nivel>_centros.json, que se
+// yvy_id del parquet). Resultado cacheado en <nivel>_centros.json, que se
 // regenera solo si cambia el archivo de geometría.
 //
 // El build emite:
@@ -39,7 +40,7 @@ function importarDecodificadorMVT() {
 //   public/data/tabla_provincias_yvy_join.json   — provincias alineadas
 //     a yvy_id 1000-1023 con pais_yvy_id=0 y pais_georef_id=ARG
 //
-// Sin CSVs o sin PMTiles el build NO rompe: genera un manifest
+// Sin parquets o sin PMTiles el build NO rompe: genera un manifest
 // vacío y avisa por consola qué falta. Es intencional: el proyecto
 // se replica en otra PC soltando archivos, sin tocar código.
 // ==============================================================
@@ -85,58 +86,40 @@ const ARCHIVO_NIVEL = {
   concesion: 'concesiones',
 };
 
-/** Nombre de archivo esperado por nivel (formato corto). */
+/** Nombre de archivo esperado por nivel (formato corto, solo parquet). */
 const ARCHIVOS_NIVEL = {
-  'paises.csv': 'pais',
-  'provincias.csv': 'provincia',
-  'departamentos.csv': 'depto',
-  'municipios.csv': 'municipio',
-  'concesiones.csv': 'concesion',
+  'paises.parquet': 'pais',
+  'provincias.parquet': 'provincia',
+  'departamentos.parquet': 'depto',
+  'municipios.parquet': 'municipio',
+  'concesiones.parquet': 'concesion',
 };
 
-/** Nivel desde el nombre del archivo (acepta corto y convención anterior). */
+/** Nivel desde el nombre del archivo parquet. */
 function nivelDeArchivo(archivo) {
-  const corto = ARCHIVOS_NIVEL[archivo.toLowerCase()];
-  if (corto) return corto;
-  const cap = archivo.match(/^tabla_([a-z]+)_yvy_join\.csv$/i)?.[1].toLowerCase();
-  return cap ? (SINGULAR[cap] || cap) : null;
+  return ARCHIVOS_NIVEL[archivo.toLowerCase()] || null;
 }
 
 // --------------------------------------------------------------
-// CSV (formato RFC4180 básico: comillas dobles y saltos internos)
+// Registry Parquet (fuente de verdad: data/registry/*.parquet)
+// Columnas iguales al contrato registry; yvy_id obligatorio.
 // --------------------------------------------------------------
-function parsearCSV(texto) {
-  if (texto.charCodeAt(0) === 0xfeff) texto = texto.slice(1); // BOM
-  const filas = [];
-  let fila = [];
-  let celda = '';
-  let enComillas = false;
-  const push = () => {
-    fila.push(celda.trim());
-    celda = '';
-  };
-  for (let i = 0; i < texto.length; i++) {
-    const c = texto[i];
-    if (enComillas) {
-      if (c === '"' && texto[i + 1] === '"') { celda += '"'; i++; }
-      else if (c === '"') enComillas = false;
-      else celda += c;
-    } else if (c === '"') {
-      enComillas = true;
-    } else if (c === ',') {
-      push();
-    } else if (c === '\n' || c === '\r') {
-      if (c === '\r' && texto[i + 1] === '\n') i++;
-      push();
-      if (fila.some((v) => v !== '')) filas.push(fila);
-      fila = [];
-    } else {
-      celda += c;
-    }
-  }
-  push();
-  if (fila.some((v) => v !== '')) filas.push(fila);
-  return filas;
+function valorCelda(v) {
+  if (v == null) return '';
+  if (typeof v === 'bigint') return v.toString();
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+/** Lee un parquet y lo devuelve en forma [encabezados, filas[]] (strings). */
+async function leerParquetFilas(ruta) {
+  const file = await asyncBufferFromFile(ruta);
+  const objetos = await parquetReadObjects({ file });
+  if (objetos.length === 0) return { encabezados: [], filas: [] };
+  const encabezados = Object.keys(objetos[0]);
+  const filas = objetos.map((o) => encabezados.map((k) => valorCelda(o[k]).trim()));
+  return { encabezados, filas };
 }
 
 function aColumnas(encabezados, fila) {
@@ -429,7 +412,7 @@ async function buscarPMTiles(nivel, yvyId) {
 }
 
 // --------------------------------------------------------------
-// Construcción del catálogo desde los CSVs del registry
+// Construcción del catálogo desde los parquets del registry
 // --------------------------------------------------------------
 async function construirManifest() {
   const fuentes = [];
@@ -437,9 +420,9 @@ async function construirManifest() {
   const advertencias = [];
   const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
 
-  const csvs = entradas.filter((f) => nivelDeArchivo(f)).sort();
-  if (csvs.length === 0) {
-    advertencias.push('No hay CSVs en data/registry/. Copiá paises.csv, provincias.csv, departamentos.csv y municipios.csv cuando los tengas.');
+  const parquets = entradas.filter((f) => nivelDeArchivo(f)).sort();
+  if (parquets.length === 0) {
+    advertencias.push('No hay parquets en data/registry/. Copiá paises.parquet, provincias.parquet, departamentos.parquet y municipios.parquet cuando los tengas.');
   }
 
   // Un PMTiles por nivel: public/data/provincias.pmtiles, departamentos.pmtiles…
@@ -471,16 +454,21 @@ async function construirManifest() {
   // Centros reales por nivel (cacheados en <nivel>_centros.json)
   const centrosNivel = new Map();
 
-  for (const archivo of csvs) {
+  for (const archivo of parquets) {
     const nivel = nivelDeArchivo(archivo);
     if (!ORDEN_NIVEL.includes(nivel)) {
-      advertencias.push(`CSV "${archivo}" con nivel desconocido "${nivel}" (ignorado). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
+      advertencias.push(`Parquet "${archivo}" con nivel desconocido "${nivel}" (ignorado). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
       continue;
     }
-    const texto = await fs.readFile(path.join(REGISTRY_DIR, archivo), 'utf8');
-    const filas = parsearCSV(texto);
+    let encabezados = [];
+    let filas = [];
+    try {
+      ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, archivo)));
+    } catch (err) {
+      advertencias.push(`Parquet "${archivo}" no se pudo leer (¿parquet válido?): ${err?.message || err}`);
+      continue;
+    }
     if (filas.length === 0) continue;
-    const encabezados = filas[0];
 
     const col = (nombres) => {
       for (const n of nombres) {
@@ -502,7 +490,7 @@ async function construirManifest() {
     const iCapaInterna = col(['capa_interna', 'nombre_capa_interna']);
     const iVisible = col(['visible_en_dashboard', 'visible_dashboard']);
     if (iYvy < 0) {
-      advertencias.push(`CSV "${archivo}" no tiene columna "yvy_id" (ignorado).`);
+      advertencias.push(`Parquet "${archivo}" no tiene columna "yvy_id" (ignorado).`);
       continue;
     }
 
@@ -514,7 +502,7 @@ async function construirManifest() {
       centrosNivel.set(nivel, await leerCentrosNivel(nivel, metaNivel));
     }
     const centros = metaNivel ? centrosNivel.get(nivel) : null;
-    for (let r = 1; r < filas.length; r++) {
+    for (let r = 0; r < filas.length; r++) {
       const f = filas[r];
       const c = aColumnas(encabezados, f);
       const yvyId = num(f[iYvy]);
