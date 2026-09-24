@@ -6,8 +6,9 @@
 
 ## 1. Modelo
 
-* `Territorio`: pais 0-999, provincia 1000-1999, depto 10000+, municipio 100000+. Piloto: Salta 1016 + hijos (recorte fuera, no se toca `data/` en este repo).
-* `Entidad`: escuela, hospital, tramo ruta/FFCC. `CONTIENE` precomputado fuera.
+* `Territorio`: pais 0-999, provincia 1000-1999, depto 100000-199999, municipio 1000000-1999999, barrio 1000000000-1999999999. Esquema `yvy_id = 1 + código oficial`; un solo `parent_yvy_id` por objeto (municipio → 1 depto, punto).
+* Piloto: Argentina 0 + Salta 1066 + Capital 166028 + Los Andes 166105 + municipios 1660063/1660070/1660245/1660252 + barrios de Salta ciudad (`1660063xxx`, orden por `nom_largo`).
+* `Entidad`: escuela, hospital, tramo ruta/FFCC, concesión minera, parcela. `CONTIENE` precomputado fuera.
 * `Parquet = hechos + agregados por yvy_id` / `PMTiles = solo render` / `manifest.json = índice` / detalle = lazy.
 * Registry: `data/registry/*.parquet` (un parquet por nivel). CSV prohibido.
 
@@ -55,6 +56,14 @@ DELETE: `assistant, measure, reasoner, datasets(stub→literal), geo.worker, atm
 ## 8. Done Fase 1
 
 `src/` 18→9 files, `pnpm run build` limpio, `welcome→ficha→copiar→share-restore` en <2 clicks, fps solo `?debug=1`.
+
+## 10. Contrato datasets v1 (piloto Salta, congelado)
+* Niveles: país 0, Salta 1066, Capital 166028, Los Andes 166105, 4 municipios, barrios `1660063xxx` (solo Salta ciudad).
+* Tipos: `demografia` (municipio), `mineria` (municipio+rollup depto, clave `tipo+expediente`), `catastro` inmuebles (depto, clave `parcela_id`), `barrios` (nivel, no dataset).
+* Agregado: `{tipo, categoria, yvy_id, yvy_id_contenedor, fuente, fecha_vigencia, version, metricas{...}}`. Categorías: Sociedad, Economía, Ambiente, Infraestructura (territorio = eje, no categoría).
+* Territorio: `cod_indec` + `georef_id` separados; `clase_municipio` (M1/M2/M3, glosario INDEC Censo 2022 cuadro 1.17); `clase_barrio` (Barrio/Asentamiento) + `formalidad`.
+* Versionado: snapshots `tipo_YYYY-MM.parquet` inmutables en R2; solo versión activa en manifest; evolución = Labs.
+* Superficies municipio: calculadas GK faja 3 POSGAR 2007 (`sup_oficial_tipo: calculada`). Geometrías en 4326.
 
 ## 9. Deploy (única vía: Git integration)
 PR → preview deploy, merge a `master` → production. Prohibido deployar desde CI. Node vía `.nvmrc` (22) o `NODE_VERSION=22` en dashboard. Output `dist`.

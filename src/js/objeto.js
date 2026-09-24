@@ -144,14 +144,27 @@ function renderFicha(obj) {
   const subtitle = document.createElement('div');
   subtitle.className = 'objeto-subtitle';
   const nivelLabel = etiquetaNivel(obj.nivel);
-  const supLabel = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : '';
-  subtitle.textContent = supLabel ? `${nivelLabel} \u00B7 ${supLabel}` : nivelLabel;
+  const extras = [];
+  if (obj.cod_indec) extras.push(`Código INDEC ${obj.cod_indec}`);
+  if (obj.clase_municipio) extras.push(obj.clase_municipio);
+  if (obj.clase_barrio) extras.push(obj.clase_barrio);
+  const supLabel = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : 'Sin dato oficial todavía';
+  subtitle.textContent = [nivelLabel, ...extras, supLabel].join(' · ');
   identidad.appendChild(subtitle);
   const fuenteTexto = obj.sup_fuente_corta || obj.sup_fuente;
-  if (fuenteTexto) {
+  if (fuenteTexto || obj.sup_fuente_url) {
     const fuente = document.createElement('div');
     fuente.className = 'objeto-fuente';
-    fuente.textContent = fuenteTexto;
+    if (obj.sup_fuente_url) {
+      const a = document.createElement('a');
+      a.href = obj.sup_fuente_url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = fuenteTexto || obj.sup_fuente_url;
+      fuente.appendChild(a);
+    } else {
+      fuente.textContent = fuenteTexto;
+    }
     identidad.appendChild(fuente);
   }
   contenedor.appendChild(identidad);
@@ -202,6 +215,14 @@ function renderFicha(obj) {
 
   const dep = seccionDependencias(obj);
   if (dep) contenedor.appendChild(dep);
+  if (metricas.length === 0 && !dep) {
+    const vacio = document.createElement('div');
+    vacio.className = 'objeto-empty-state';
+    const p = document.createElement('p');
+    p.textContent = 'Sin datos registrados todavía.';
+    vacio.appendChild(p);
+    contenedor.appendChild(vacio);
+  }
   contenedor.appendChild(botonCopiar(obj));
 }
 

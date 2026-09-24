@@ -17,10 +17,11 @@ export const NIVEL_LABEL = {
   provincia: 'Provincia',
   depto: 'Departamento',
   municipio: 'Municipio',
+  barrio: 'Barrio',
   concesion: 'Concesión',
 };
 
-export const NIVEL_ORDEN = ['pais', 'provincia', 'depto', 'municipio', 'concesion'];
+export const NIVEL_ORDEN = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
 
 /** Carga (una vez) el manifest y las relaciones. Tolerante a archivos faltantes. */
 export async function cargarDatos() {

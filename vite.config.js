@@ -36,9 +36,8 @@ function importarDecodificadorMVT() {
 // regenera solo si cambia el archivo de geometría.
 //
 // El build emite:
-//   public/data/manifest.json                    — catálogo completo
-//   public/data/tabla_provincias_yvy_join.json   — provincias alineadas
-//     a yvy_id 1000-1023 con pais_yvy_id=0 y pais_georef_id=ARG
+//   public/data/manifest.json   — catálogo completo
+//   public/data/manifest.jsonld — grafo JSON-LD
 //
 // Sin parquets o sin PMTiles el build NO rompe: genera un manifest
 // vacío y avisa por consola qué falta. Es intencional: el proyecto
@@ -48,20 +47,22 @@ function importarDecodificadorMVT() {
 const DATA_DIR = path.resolve('public/data');
 const REGISTRY_DIR = path.resolve('data/registry');
 
-const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'concesion'];
-const ZOOM_DEFAULT = { pais: 3.5, provincia: 7, depto: 11, municipio: 13, concesion: 14 };
+const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
+const ZOOM_DEFAULT = { pais: 3.5, provincia: 7, depto: 11, municipio: 13, barrio: 15, concesion: 14 };
 const CENTRO_DEFAULT = [-60, -20];
-const RANGO_YVY = { pais: [0, 999], provincia: [1000, 1999], depto: [10000, 19999], municipio: [100000, 999999], concesion: [30000, 99999] };
+// Esquema yvy_id = 1 + código oficial (disjuntos por nivel, chequeables por intervalo)
+const RANGO_YVY = { pais: [0, 999], provincia: [1000, 1999], depto: [100000, 199999], municipio: [1000000, 1999999], barrio: [1000000000, 1999999999], concesion: [30000, 99999] };
 
 // Zoom de escaneo para el cálculo de centros (detalle suficiente y tiles acotados)
-const ZSCAN = { pais: 4, provincia: 7, depto: 10, municipio: 12, concesion: 12 };
+const ZSCAN = { pais: 4, provincia: 7, depto: 10, municipio: 12, barrio: 14, concesion: 12 };
 
-// Columna de parent (y las alternativas) por nivel
+// Columna de parent (y las alternativas) por nivel — un solo padre, punto.
 const COL_PADRE = {
   pais: null,
   provincia: ['pais_yvy_id', 'parent_yvy_id'],
   depto: ['prov_yvy_id', 'provincia_yvy_id', 'parent_yvy_id'],
-  municipio: ['depto_yvy_id', 'prov_yvy_id', 'parent_yvy_id'],
+  municipio: ['depto_yvy_id', 'parent_yvy_id'],
+  barrio: ['municipio_yvy_id', 'parent_yvy_id'],
   concesion: ['parent_yvy_id'],
 };
 
@@ -74,8 +75,8 @@ const COL_ID_IGN = {
   concesion: ['id_ign'],
 };
 
-const PLURAL = { pais: 'paises', provincia: 'provincias', depto: 'deptos', municipio: 'municipios', concesion: 'concesiones' };
-const SINGULAR = { paises: 'pais', provincias: 'provincia', deptos: 'depto', departamentos: 'depto', municipios: 'municipio', concesiones: 'concesion' };
+const PLURAL = { pais: 'paises', provincia: 'provincias', depto: 'deptos', municipio: 'municipios', barrio: 'barrios', concesion: 'concesiones' };
+const SINGULAR = { paises: 'pais', provincias: 'provincia', deptos: 'depto', departamentos: 'depto', municipios: 'municipio', barrios: 'barrio', concesiones: 'concesion' };
 
 /** Nombre del archivo único por nivel (public/data/<archivo>.pmtiles). */
 const ARCHIVO_NIVEL = {
@@ -83,6 +84,7 @@ const ARCHIVO_NIVEL = {
   provincia: 'provincias',
   depto: 'departamentos',
   municipio: 'municipios',
+  barrio: 'barrios',
   concesion: 'concesiones',
 };
 
@@ -92,6 +94,7 @@ const ARCHIVOS_NIVEL = {
   'provincias.parquet': 'provincia',
   'departamentos.parquet': 'depto',
   'municipios.parquet': 'municipio',
+  'barrios.parquet': 'barrio',
   'concesiones.parquet': 'concesion',
 };
 
@@ -585,6 +588,19 @@ async function construirManifest() {
   }
 
   objetos.sort((a, b) => ORDEN_NIVEL.indexOf(a.nivel) - ORDEN_NIVEL.indexOf(b.nivel) || a.yvy_id - b.yvy_id);
+
+  // Padres huérfanos: warning, no bloqueo (un solo parent_yvy_id por objeto, punto).
+  {
+    const ids = new Set(objetos.map((o) => o.yvy_id));
+    let huerfanos = 0;
+    for (const o of objetos) {
+      if (o.parent_yvy_id != null && !ids.has(Number(o.parent_yvy_id))) {
+        if (huerfanos < 10) advertencias.push(`${o.nivel} ${o.yvy_id} (${o.nombre_oficial}): parent_yvy_id ${o.parent_yvy_id} no existe en el catálogo.`);
+        huerfanos++;
+      }
+    }
+    if (huerfanos > 10) advertencias.push(`...y ${huerfanos - 10} objetos más con padre inexistente.`);
+  }
 
   return { fuentes, objetos, advertencias };
 }

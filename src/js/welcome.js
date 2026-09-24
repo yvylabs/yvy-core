@@ -42,7 +42,7 @@ function buscar(q) {
 }
 
 function etiquetaNivel(nivel) {
-  const map = { pais: 'País', provincia: 'Provincia', depto: 'Departamento', municipio: 'Municipio', concesion: 'Concesión' };
+  const map = { pais: 'País', provincia: 'Provincia', depto: 'Departamento', municipio: 'Municipio', barrio: 'Barrio', concesion: 'Concesión' };
   return map[nivel] || nivel;
 }
 
