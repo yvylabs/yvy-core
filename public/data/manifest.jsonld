@@ -2,6 +2,16 @@
   "@context": "./context.jsonld",
   "@graph": [
     {
+      "@id": "yvy:0",
+      "@type": "yvyont:Pais",
+      "yvy_id": 0,
+      "nombre_oficial": "Argentina",
+      "nivel": "yvyont:Pais",
+      "tiene_geometria": false,
+      "sup_fuente": "IGN 1:100.000 (recortado piloto)",
+      "centro": "POINT(-60 -20)"
+    },
+    {
       "@id": "yvy:1066",
       "@type": "yvyont:Provincia",
       "yvy_id": 1066,
@@ -6176,7 +6186,7 @@
       "pmtiles": "barrios.pmtiles"
     }
   ],
-  "generatedAt": "2026-09-25T20:32:26.992Z",
+  "generatedAt": "2026-09-25T20:37:35.212Z",
   "schema": "yvy-manifest-v3-jsonld",
-  "count": 441
+  "count": 442
 }

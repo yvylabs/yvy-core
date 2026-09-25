@@ -1,5 +1,5 @@
 {
-  "generado": 1790368346986,
+  "generado": 1790368655207,
   "schema": "yvy-manifest-v3",
   "fuentes": [
     {
@@ -24,6 +24,13 @@
       "faltantes": 0
     },
     {
+      "nivel": "pais",
+      "archivo": "paises.parquet",
+      "filas": 1,
+      "pmtiles": 0,
+      "faltantes": 1
+    },
+    {
       "nivel": "provincia",
       "archivo": "provincias.parquet",
       "filas": 1,
@@ -32,6 +39,33 @@
     }
   ],
   "objetos": [
+    {
+      "yvy_id": 0,
+      "nivel": "pais",
+      "parent_yvy_id": null,
+      "nombre_oficial": "Argentina",
+      "fuente": "IGN 1:100.000 (recortado piloto)",
+      "fecha_vigencia": "2025-09",
+      "version": "1.0",
+      "georef_id": null,
+      "sup_oficial_km2": null,
+      "sup_fuente": "IGN 1:100.000 (recortado piloto)",
+      "sup_fuente_url": null,
+      "sup_fuente_corta": null,
+      "sup_oficial_tipo": null,
+      "prov_id_ign": null,
+      "capa_interna": null,
+      "visible_en_dashboard": true,
+      "minzoom": 0,
+      "maxzoom": 22,
+      "centro": [
+        -60,
+        -20
+      ],
+      "zoom": 3.5,
+      "pmtiles": null,
+      "tiene_geometria": false
+    },
     {
       "yvy_id": 1066,
       "nivel": "provincia",
