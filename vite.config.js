@@ -302,7 +302,8 @@ async function leerCentrosNivel(nivel, metaNivel) {
           const extent = layer.extent || EXTENT_POR_DEFECTO;
           for (let i = 0; i < layer.length; i++) {
             const feat = layer.feature(i);
-            const id = String(feat.properties.id ?? feat.properties.yvy_id ?? '').trim();
+            // id top-level MVT (tippecanoe --use-attribute-for-id) o propiedad id/yvy_id
+            const id = String(feat.id ?? feat.properties.id ?? feat.properties.yvy_id ?? '').trim();
             if (!id) continue;
             idsObservados.add(id);
             for (const ring of feat.loadGeometry()) {

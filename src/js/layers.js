@@ -89,7 +89,7 @@ export function agregarCapaObjeto(map, obj) {
   // para que el encuadre completo del bounds sea visible.
   const minzoom = obj.nivel === 'provincia' ? Math.min(obj.minzoom ?? 4, 1.5) : (obj.minzoom ?? 0);
   const maxzoom = obj.maxzoom ?? 22;
-  const filtro = ['==', ['to-number', ['coalesce', ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
+  const filtro = ['==', ['to-number', ['coalesce', ['id'], ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
 
   map.addLayer({
     id: `layer-${id}`,
