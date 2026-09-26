@@ -20,6 +20,10 @@ function bucketZoom(z) {
 
 export function track(event, props = {}) {
   if (OFF) return;
+  // En dev no hay Functions: no emitir (evita 404s en consola)
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) return;
+  } catch {}
   try {
     const payload = { event, ...props, ts: Date.now() };
     if (payload.zoom != null) {
