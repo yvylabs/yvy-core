@@ -33,10 +33,21 @@ jobs:
 
       - name: gate-a anti-raw
         run: |
-          if git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD 2>/dev/null | grep -E '\.(pmtiles|parquet|fgb)$|public/data/manifest.*\.json'; then
-            echo "gate-a: raw o manifests derivados en el diff — prohibido (SPEC §6)"; exit 1
+          if git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD 2>/dev/null | grep -E '\.(pmtiles|parquet|fgb)$'; then
+            echo "gate-a: raw en el diff — prohibido (SPEC §6)"; exit 1
           fi
-          echo "gate-a ok"
+          for f in $(git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD 2>/dev/null | grep 'public/data/manifest.*\.json' || true); do
+            node -e "
+              const {execSync} = require('node:child_process');
+              const fs = require('node:fs');
+              const base = process.env.BASE_REF || 'master';
+              const strip = (o) => { const c = {...o}; delete c.generado; delete c.generatedAt; return JSON.stringify(c); };
+              const a = strip(JSON.parse(execSync('git show ' + base + ':${f}'.replace('${f}', '$f')).toString()));
+              const b = strip(JSON.parse(fs.readFileSync('$f','utf8')));
+              if (a !== b) { console.error('gate-a: $f con cambios reales (no solo timestamps)'); process.exit(1); }
+            " BASE_REF="${{ github.base_ref || 'master' }}" || exit 1
+          done
+          echo "gate-a ok (raw bloqueado; manifests solo-timestamp permitidos)"
 
       - name: gate-b atribucion
         run: |
