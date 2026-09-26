@@ -114,9 +114,11 @@ export function agregarCapaObjeto(map, obj) {
     maxzoom,
     filter: filtro,
     paint: {
+      // Opacidad 1.0 a propósito: los bordes compartidos entre tiles se
+      // pintan 2 veces; con <1 se oscurecen y aparece la "costura".
       'line-color': '#111111',
       'line-width': obj.nivel === 'pais' ? 2.4 : 2,
-      'line-opacity': 0.9,
+      'line-opacity': 1,
     },
   });
 
@@ -144,7 +146,7 @@ export function setVisibilidadObjeto(map, yvyId, visible, esActivo) {
   const paint = esActivo
     ? { 'fill-opacity': OPACIDAD_ACTIVO,
         'line-width': 3,
-        'line-opacity': 0.9 }
+        'line-opacity': 1 }
     : { 'fill-opacity': OPACIDAD_CONTEXTO,
         'line-width': 1.5,
         'line-opacity': 0.5 };
