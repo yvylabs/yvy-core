@@ -1,5 +1,5 @@
 {
-  "generado": 1790379449480,
+  "generado": 1790381451344,
   "schema": "yvy-manifest-v3",
   "fuentes": [
     {
@@ -91,7 +91,7 @@
         -22.592196
       ],
       "zoom": 7,
-      "pmtiles": "provincia.pmtiles",
+      "pmtiles": "provincias.pmtiles",
       "tiene_geometria": true,
       "bounds": [
         -68.568759,

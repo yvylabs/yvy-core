@@ -219,6 +219,9 @@ async function irAYvyId(yvyId) {
       zoomObjetivo = cam.zoom;
     }
   }
+  // La capa del nivel solo tiene tiles desde obj.minzoom: nunca volar por
+  // debajo (territorios grandes como SAC/Tolar quedaban bajo minzoom e invisibles).
+  zoomObjetivo = Math.max(zoomObjetivo, obj.minzoom ?? 0);
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
 
   // La ficha es fija a la izquierda. Si el objeto queda debajo del panel
