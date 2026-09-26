@@ -22,7 +22,7 @@
         "@id": "yvy:0"
       },
       "sup_fuente": "IGN 1:100.000 (recortado piloto)",
-      "centro": "POINT(-64.84869694815322 -24.32667529346178)",
+      "centro": "POINT(-64.81979924338215 -24.310094209585486)",
       "bounds_objeto": "BOX(-68.56842041015625 -26.417085187906007 -62.34123229980469 -21.999081858361528)",
       "pmtiles": "provincias.pmtiles"
     },
@@ -6625,7 +6625,7 @@
       "pmtiles": "barrios.pmtiles"
     }
   ],
-  "generatedAt": "2026-09-26T16:48:14.359Z",
+  "generatedAt": "2026-09-26T16:59:33.187Z",
   "schema": "yvy-manifest-v3-jsonld",
   "count": 442
 }
