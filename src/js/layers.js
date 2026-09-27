@@ -8,7 +8,7 @@
 // Clic sobre un objeto → abre la ficha (panel Objeto).
 // ==============================================================
 
-import { mostrarObjeto } from './objeto.js';
+import { navegarA } from './manifest.js';
 
 const OPACIDAD_ACTIVO = 0.35;
 const OPACIDAD_CONTEXTO = 0.15;
@@ -85,10 +85,11 @@ export function agregarCapaObjeto(map, obj) {
   if (!sourceId) return;
 
   const capaInterna = obj.capa_interna || obj.pmtiles.replace(/\.pmtiles$/, '');
-  // Provincias (y TDF con Antártida) deben pintarse incluso a zoom bajo
-  // para que el encuadre completo del bounds sea visible.
-  const minzoom = obj.nivel === 'provincia' ? Math.min(obj.minzoom ?? 4, 1.5) : (obj.minzoom ?? 0);
-  const maxzoom = obj.maxzoom ?? 22;
+  // On-demand: la capa ignora el min/max del header y pinta por overzoom
+  // en cualquier zoom (el header solo limita el fetch en la source).
+  // Sin esto, volar a un barrio (z15+) ocultaba su propia capa (max14).
+  const minzoom = 0;
+  const maxzoom = 22;
   const filtro = ['==', ['to-number', ['coalesce', ['id'], ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
 
   map.addLayer({
@@ -122,10 +123,10 @@ export function agregarCapaObjeto(map, obj) {
     },
   });
 
-  // Clic → ficha del objeto (nada de tabla de atributos).
+  // Clic → navegar al objeto (vuelo + ficha + hash), igual que el resto.
   map.on('click', `layer-${id}`, (e) => {
     if (!e.features || e.features.length === 0) return;
-    mostrarObjeto(obj.yvy_id);
+    navegarA(obj.yvy_id);
   });
   configurarHover(map, obj, `layer-${id}`);
   map.on('mouseenter', `layer-${id}`, () => {

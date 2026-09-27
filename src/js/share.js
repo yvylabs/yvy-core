@@ -89,6 +89,7 @@ export function inicializarCompartirVista(map, onRestaurarObjeto) {
       } catch (err) {
         console.error('No se pudo restaurar el objeto del link:', err);
       }
+      return; // el objeto ya voló a sus bounds: el c&z viejo no lo pisa
     }
     if (c && z) {
       const [lng, lat] = c.split(',').map(Number);

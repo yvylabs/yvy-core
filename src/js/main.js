@@ -149,11 +149,16 @@ map.addControl(new maplibregl.ScaleControl({ unit: 'metric', maxWidth: 120 }), '
 const cargados = new Set(); // yvy_ids con geometría ya en el mapa
 
 function cargarConContexto(obj) {
-  // El objeto activo y sus ancestros (contexto jerárquico)
+  // El objeto activo y sus ancestros (contexto jerárquico).
+  // Un addLayer nunca aborta la navegación: vuelo + ficha siguen.
   let cur = obj;
   while (cur && !cargados.has(cur.yvy_id)) {
     if (cur.pmtiles) {
-      agregarCapaObjeto(map, cur);
+      try {
+        agregarCapaObjeto(map, cur);
+      } catch (e) {
+        console.warn('[yvy] capa no creada para', cur.yvy_id, e?.message);
+      }
       cargados.add(cur.yvy_id);
     }
     cur = getPadre(cur);
@@ -219,9 +224,9 @@ async function irAYvyId(yvyId) {
       zoomObjetivo = cam.zoom;
     }
   }
-  // La capa del nivel solo tiene tiles desde obj.minzoom: nunca volar por
-  // debajo (territorios grandes como SAC/Tolar quedaban bajo minzoom e invisibles).
-  zoomObjetivo = Math.max(zoomObjetivo, obj.minzoom ?? 0);
+  // La capa on-demand pinta por overzoom en cualquier zoom: el vuelo se
+  // mantiene dentro de [minzoom, maxzoom+3] para no volar en vacío.
+  zoomObjetivo = Math.min(Math.max(zoomObjetivo, obj.minzoom ?? 0), (obj.maxzoom ?? 22) + 3);
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
 
   // La ficha es fija a la izquierda. Si el objeto queda debajo del panel
