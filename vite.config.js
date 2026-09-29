@@ -603,7 +603,7 @@ async function construirManifest() {
     if (huerfanos > 10) advertencias.push(`...y ${huerfanos - 10} objetos más con padre inexistente.`);
   }
 
-  const datasets = await construirDatasets(new Set(objetos.map((o) => o.yvy_id)), advertencias);
+  const datasets = await construirDatasets(objetos, advertencias);
 
   return { fuentes, objetos, datasets, advertencias };
 }
@@ -623,9 +623,13 @@ const NO_METRICA = new Set(['yvy_id', 'id', 'nivel', 'parent_yvy_id', 'yvy_id_co
  * Datasets: {tipo}_{version}.parquet → versión activa + agregados por yvy_id.
  * Escribe public/data/agregados/{tipo}/{yvy_id}.json y devuelve el índice
  * para el manifest. Null/'' en métricas = 0 (no hay), nunca missing.
+ * Rollup: cada agregado suma sus métricas numéricas a sus ancestros
+ * (municipio→depto→provincia); el directo manda si ya existe.
  */
-async function construirDatasets(idsCatalogo, advertencias) {
+async function construirDatasets(objetos, advertencias) {
   const datasets = [];
+  const idsCatalogo = new Set(objetos.map((o) => o.yvy_id));
+  const padres = new Map(objetos.map((o) => [o.yvy_id, o.parent_yvy_id]));
   const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
   const archivos = entradas.filter((f) => f.toLowerCase().endsWith('.parquet') && !nivelDeArchivo(f)).sort();
   for (const archivo of archivos) {
@@ -667,6 +671,7 @@ async function construirDatasets(idsCatalogo, advertencias) {
     let fuente = null;
     let fecha = null;
     let version = null;
+    const base = [];
     for (const f of filas) {
       const yvyId = num(f[iYvy]);
       if (yvyId == null) continue;
@@ -697,9 +702,45 @@ async function construirDatasets(idsCatalogo, advertencias) {
       if (ag.version && !version) version = ag.version;
       await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
       count++;
+      base.push(ag);
+    }
+    // Rollup a ancestros (suma numérica; el directo manda si ya existe)
+    const directos = new Set(base.map((a) => a.yvy_id));
+    const acumulado = new Map();
+    for (const ag of base) {
+      let p = padres.get(ag.yvy_id);
+      const vistos = new Set([ag.yvy_id]);
+      while (p != null && !vistos.has(p) && idsCatalogo.has(p)) {
+        vistos.add(p);
+        if (!directos.has(p)) {
+          if (!acumulado.has(p)) acumulado.set(p, {});
+          const acc = acumulado.get(p);
+          for (const [k, v] of Object.entries(ag.metricas)) {
+            if (typeof v === 'number' && Number.isFinite(v)) acc[k] = (acc[k] || 0) + v;
+          }
+        }
+        p = padres.get(p);
+      }
+    }
+    let rolled = 0;
+    for (const [yvyId, metricas] of acumulado) {
+      const primero = base[0];
+      const ag = {
+        tipo,
+        categoria: primero.categoria,
+        yvy_id: yvyId,
+        yvy_id_contenedor: yvyId,
+        fuente: primero.fuente,
+        fecha_vigencia: primero.fecha_vigencia,
+        version: primero.version,
+        metricas,
+        rollup: true,
+      };
+      await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
+      rolled++;
     }
     if (!version) version = m[2] || null;
-    datasets.push({ tipo, categoria: CATEGORIA_TIPO[tipo] || null, version, fecha_vigencia: fecha, fuente, count, archivo });
+    datasets.push({ tipo, categoria: CATEGORIA_TIPO[tipo] || null, version, fecha_vigencia: fecha, fuente, count: count + rolled, archivo });
   }
   return datasets;
 }

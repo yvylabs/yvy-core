@@ -1,5 +1,5 @@
 {
-  "generado": 1790641085701,
+  "generado": 1790642076023,
   "schema": "yvy-manifest-v3",
   "fuentes": [
     {
@@ -18574,7 +18574,7 @@
       "version": "1.0",
       "fecha_vigencia": "2022-05",
       "fuente": "INDEC Censo 2022",
-      "count": 4,
+      "count": 8,
       "archivo": "demografia_2022-05.parquet"
     }
   ]
