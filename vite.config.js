@@ -603,19 +603,118 @@ async function construirManifest() {
     if (huerfanos > 10) advertencias.push(`...y ${huerfanos - 10} objetos más con padre inexistente.`);
   }
 
-  return { fuentes, objetos, advertencias };
+  const datasets = await construirDatasets(new Set(objetos.map((o) => o.yvy_id)), advertencias);
+
+  return { fuentes, objetos, datasets, advertencias };
+}
+
+// Categoría temática por tipo (vocabulario fijo SPEC §10; la columna manda si existe)
+const CATEGORIA_TIPO = {
+  demografia: 'Sociedad', escuelas: 'Sociedad', salud: 'Sociedad', barrios: 'Sociedad',
+  empleo: 'Economía', produccion: 'Economía', mineria: 'Economía',
+  ambiente: 'Ambiente', clima: 'Ambiente', hidrologia: 'Ambiente',
+  rutas: 'Infraestructura', ffcc: 'Infraestructura', energia: 'Infraestructura', agua: 'Infraestructura',
+  catastro: 'Infraestructura',
+};
+// Columnas que NO son métricas (identidad/meta del agregado)
+const NO_METRICA = new Set(['yvy_id', 'id', 'nivel', 'parent_yvy_id', 'yvy_id_contenedor', 'cod_indec', 'georef_id', 'nombre_oficial', 'nombre', 'fuente', 'fuente_url', 'fecha_vigencia', 'version', 'categoria', 'tipo']);
+
+/**
+ * Datasets: {tipo}_{version}.parquet → versión activa + agregados por yvy_id.
+ * Escribe public/data/agregados/{tipo}/{yvy_id}.json y devuelve el índice
+ * para el manifest. Null/'' en métricas = 0 (no hay), nunca missing.
+ */
+async function construirDatasets(idsCatalogo, advertencias) {
+  const datasets = [];
+  const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
+  const archivos = entradas.filter((f) => f.toLowerCase().endsWith('.parquet') && !nivelDeArchivo(f)).sort();
+  for (const archivo of archivos) {
+    const m = path.basename(archivo, '.parquet').match(/^([a-z_]+?)(?:_(\d{4}-\d{2}))?$/i);
+    if (!m) {
+      advertencias.push(`Dataset "${archivo}" no matchea {tipo}_{YYYY-MM}.parquet (ignorado).`);
+      continue;
+    }
+    const tipo = m[1].toLowerCase();
+    let encabezados = [];
+    let filas = [];
+    try {
+      ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, archivo)));
+    } catch (err) {
+      advertencias.push(`Dataset "${archivo}" no se pudo leer: ${err?.message || err}`);
+      continue;
+    }
+    if (filas.length === 0) continue;
+    const col = (nombres) => {
+      for (const n of nombres) {
+        const i = encabezados.findIndex((e) => normalizar(e) === n);
+        if (i >= 0) return i;
+      }
+      return -1;
+    };
+    const iYvy = col(['yvy_id', 'id']);
+    if (iYvy < 0) {
+      advertencias.push(`Dataset "${archivo}" no tiene columna "yvy_id" (ignorado).`);
+      continue;
+    }
+    const iFuente = col(['fuente']);
+    const iFecha = col(['fecha_vigencia']);
+    const iVersion = col(['version']);
+    const iCat = col(['categoria']);
+    const iMetrica = encabezados.map((_, i) => i).filter((i) => !NO_METRICA.has(normalizar(encabezados[i])));
+    const dirOut = path.join(DATA_DIR, 'agregados', tipo);
+    await fs.mkdir(dirOut, { recursive: true });
+    let count = 0;
+    let fuente = null;
+    let fecha = null;
+    let version = null;
+    for (const f of filas) {
+      const yvyId = num(f[iYvy]);
+      if (yvyId == null) continue;
+      if (!idsCatalogo.has(yvyId)) {
+        advertencias.push(`Dataset "${archivo}": yvy_id ${yvyId} no existe en el catálogo (agregado huérfano, igual se emite).`);
+      }
+      const metricas = {};
+      for (const i of iMetrica) {
+        const raw = f[i];
+        if (raw == null || raw === '') metricas[normalizar(encabezados[i])] = 0;
+        else {
+          const n = num(raw);
+          metricas[normalizar(encabezados[i])] = n == null ? raw : (Number.isInteger(n) ? n : Math.round(n * 100) / 100);
+        }
+      }
+      const ag = {
+        tipo,
+        categoria: iCat >= 0 && f[iCat] ? f[iCat] : (CATEGORIA_TIPO[tipo] || null),
+        yvy_id: yvyId,
+        yvy_id_contenedor: yvyId,
+        fuente: iFuente >= 0 && f[iFuente] ? f[iFuente] : null,
+        fecha_vigencia: iFecha >= 0 && f[iFecha] ? f[iFecha] : null,
+        version: (iVersion >= 0 && f[iVersion] ? f[iVersion] : null) || version,
+        metricas,
+      };
+      if (ag.fuente && !fuente) fuente = ag.fuente;
+      if (ag.fecha_vigencia && !fecha) fecha = ag.fecha_vigencia;
+      if (ag.version && !version) version = ag.version;
+      await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
+      count++;
+    }
+    if (!version) version = m[2] || null;
+    datasets.push({ tipo, categoria: CATEGORIA_TIPO[tipo] || null, version, fecha_vigencia: fecha, fuente, count, archivo });
+  }
+  return datasets;
 }
 
 // --------------------------------------------------------------
 // Escritura de los archivos
 // --------------------------------------------------------------
 async function escribirManifest() {
-  const { fuentes, objetos, advertencias } = await construirManifest();
+  const { fuentes, objetos, datasets, advertencias } = await construirManifest();
   const manifest = {
     generado: Date.now(),
     schema: 'yvy-manifest-v3',
     fuentes,
     objetos,
+    datasets,
   };
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(path.join(DATA_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
@@ -668,6 +767,9 @@ async function escribirManifest() {
 
   for (const f of fuentes) {
     console.log(`[yvy-manifest] ${f.nivel.padEnd(10)} ${f.archivo}: ${f.filas} objetos, ${f.pmtiles}/${f.filas} con geometría`);
+  }
+  for (const d of manifest.datasets || []) {
+    console.log(`[yvy-manifest] dataset    ${d.tipo} ${d.version || ''}: ${d.count} agregados (${d.fuente || 'sin fuente'})`);
   }
   for (const w of advertencias) console.warn(`[yvy-manifest] ⚠ ${w}`);
   console.log(`[yvy-manifest] manifest.json generado (${objetos.length} objetos)`);

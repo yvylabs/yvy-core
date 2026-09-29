@@ -52,6 +52,7 @@ export async function cargarDatos() {
   datos = {
     generado: mr.generado,
     objetos,
+    datasets: mr.datasets || [],
     relaciones: (rr.relaciones || []).map((r) => ({
       ...r,
       origen_yvy_id: Number(r.origen_yvy_id),
@@ -100,6 +101,23 @@ export function getPadre(objeto) {
 export function getRelaciones(yvyId) {
   const id = Number(yvyId);
   return (datos?.relaciones || []).filter((r) => r.origen_yvy_id === id);
+}
+
+/** Datasets declarados (versión activa por tipo). */
+export function getDatasets() {
+  return datos?.datasets || [];
+}
+
+/** Agregado lazy de un dataset para un yvy_id (null si no existe). */
+export async function getAgregado(tipo, yvyId) {
+  const base = import.meta.env.BASE_URL || './';
+  try {
+    const r = await fetch(`${base}data/agregados/${tipo}/${Number(yvyId)}.json`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
 }
 
 // --------------------------------------------------------------

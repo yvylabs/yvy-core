@@ -7,6 +7,8 @@ import {
   navegarA,
   formatKM2,
   etiquetaNivel,
+  getDatasets,
+  getAgregado,
 } from './manifest.js';
 import { abrirPanelObjeto } from './ui.js';
 import { track } from './telemetry.js';
@@ -205,6 +207,13 @@ function renderFicha(obj) {
     contenedor.appendChild(grid);
   }
 
+  // Datasets (Fase 3): una sección colapsada por tipo con vigencia.
+  // El detalle se trae lazy por yvy_id; null/0 en colectivas/calle = "–".
+  const datasets = getDatasets();
+  for (const ds of datasets) {
+    contenedor.appendChild(seccionDataset(obj, ds));
+  }
+
   const ruta = [];
   let cur = obj;
   while (cur) {
@@ -215,7 +224,7 @@ function renderFicha(obj) {
 
   const dep = seccionDependencias(obj);
   if (dep) contenedor.appendChild(dep);
-  if (metricas.length === 0 && !dep) {
+  if (metricas.length === 0 && !dep && datasets.length === 0) {
     const vacio = document.createElement('div');
     vacio.className = 'objeto-empty-state';
     const p = document.createElement('p');
@@ -224,6 +233,89 @@ function renderFicha(obj) {
     contenedor.appendChild(vacio);
   }
   contenedor.appendChild(botonCopiar(obj));
+}
+
+const METRICA_LABEL = {
+  poblacion: 'POBLACIÓN',
+  viviendas: 'VIVIENDAS',
+  viv_particulares: 'VIVIENDAS PARTICULARES',
+  pob_particulares: 'POBLACIÓN EN VIVIENDAS PARTICULARES',
+  viv_colectivas: 'VIVIENDAS COLECTIVAS',
+  pob_colectivas: 'POBLACIÓN EN VIVIENDAS COLECTIVAS',
+  pob_calle: 'POBLACIÓN EN SITUACIÓN DE CALLE',
+};
+// Métricas colapsadas (siempre visibles) y las que muestran "–" en 0 (no hay)
+const METRICA_TOP = ['poblacion', 'viviendas'];
+const METRICA_GUION_EN_CERO = new Set(['viv_colectivas', 'pob_colectivas', 'pob_calle']);
+
+function etiquetaMetrica(key) {
+  return METRICA_LABEL[key] || String(key).replace(/_/g, ' ').toUpperCase();
+}
+
+function valorMetrica(key, v) {
+  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
+  if (!Number.isFinite(n)) return v == null || v === '' ? '–' : String(v);
+  if (n === 0 && METRICA_GUION_EN_CERO.has(key)) return '–';
+  return fmtInt.format(Math.round(n));
+}
+
+/** Sección colapsada por dataset: header con vigencia + detalle lazy por yvy_id. */
+function seccionDataset(obj, ds) {
+  const d = seccion(ds.tipo.toUpperCase());
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'objeto-dataset-btn';
+  const vig = [ds.fuente, ds.fecha_vigencia].filter(Boolean).join(' · ');
+  head.textContent = vig ? `${ds.tipo} · ${vig}` : ds.tipo;
+  const body = document.createElement('div');
+  body.className = 'objeto-dataset-body';
+  body.hidden = true;
+  let cargado = false;
+  head.addEventListener('click', async () => {
+    body.hidden = !body.hidden;
+    head.setAttribute('aria-expanded', String(!body.hidden));
+    if (body.hidden || cargado) return;
+    cargado = true;
+    const ag = await getAgregado(ds.tipo, obj.yvy_id);
+    body.innerHTML = '';
+    if (!ag || !ag.metricas) {
+      const p = document.createElement('p');
+      p.className = 'objeto-empty-state';
+      p.textContent = 'Sin datos registrados todavía.';
+      body.appendChild(p);
+      return;
+    }
+    const keys = Object.keys(ag.metricas);
+    const top = keys.filter((k) => METRICA_TOP.includes(k));
+    const resto = keys.filter((k) => !METRICA_TOP.includes(k));
+    const grid = document.createElement('div');
+    grid.className = 'objeto-metricas-grid';
+    for (const k of top) grid.appendChild(metrica(valorMetrica(k, ag.metricas[k]), etiquetaMetrica(k)));
+    body.appendChild(grid);
+    if (resto.length > 0) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'objeto-more-btn';
+      btn.textContent = 'Ver todas las métricas →';
+      const gridResto = document.createElement('div');
+      gridResto.className = 'objeto-metricas-grid';
+      gridResto.hidden = true;
+      for (const k of resto) gridResto.appendChild(metrica(valorMetrica(k, ag.metricas[k]), etiquetaMetrica(k), { small: true }));
+      btn.addEventListener('click', () => {
+        gridResto.hidden = !gridResto.hidden;
+        btn.textContent = gridResto.hidden ? 'Ver todas las métricas →' : 'Ver menos';
+      });
+      body.appendChild(btn);
+      body.appendChild(gridResto);
+    }
+    const f = document.createElement('div');
+    f.className = 'objeto-fuente';
+    f.textContent = `Fuente: ${ag.fuente || 'pendiente'} · Vigencia: ${ag.fecha_vigencia || 'pendiente'}`;
+    body.appendChild(f);
+  });
+  d.appendChild(head);
+  d.appendChild(body);
+  return d;
 }
 
 function renderBreadcrumb(ruta) {

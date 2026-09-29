@@ -1,5 +1,5 @@
 {
-  "generado": 1790471084015,
+  "generado": 1790641085701,
   "schema": "yvy-manifest-v3",
   "fuentes": [
     {
@@ -18565,6 +18565,17 @@
         -65.49556910991669,
         -24.856933471640392
       ]
+    }
+  ],
+  "datasets": [
+    {
+      "tipo": "demografia",
+      "categoria": "Sociedad",
+      "version": "1.0",
+      "fecha_vigencia": "2022-05",
+      "fuente": "INDEC Censo 2022",
+      "count": 4,
+      "archivo": "demografia_2022-05.parquet"
     }
   ]
 }
