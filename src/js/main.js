@@ -20,22 +20,20 @@ import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida } from './welcome.js';
 import { track } from './telemetry.js';
 
-const SATELITE_ID = 'yvy-basemap';
-// Atribución obligatoria por licencia (solo proveedores, sin política).
-const SATELITE_ATTR = 'Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+const YVY_STYLE = './styles/yvy-dark.json';
+// Atribución del basemap (la pone MapLibre desde el style): OpenFreeMap © OpenMapTiles © OpenStreetMap.
+const BASE_ATTR = 'OpenFreeMap © OpenMapTiles © OpenStreetMap';
 
-/** Satélite único free: 1 source raster Esri al fondo, sin catálogo ni UI. */
-function ensureSatelite(map) {
-  if (map.getLayer(SATELITE_ID)) return;
-  if (map.getSource(SATELITE_ID)) return;
-  map.addSource(SATELITE_ID, {
-    type: 'raster',
-    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-    tileSize: 256,
-    attribution: SATELITE_ATTR,
-  });
-  const primera = map.getStyle().layers[0]?.id;
-  map.addLayer({ id: SATELITE_ID, type: 'raster', source: SATELITE_ID }, primera);
+/** Basemap vectorial oscuro (fork OpenFreeMap, etiquetas en español). Con fallback a fondo plano. */
+let estiloAplicado = false;
+function aplicarEstiloBase(map) {
+  if (estiloAplicado) return;
+  estiloAplicado = true;
+  try {
+    map.setStyle(YVY_STYLE);
+  } catch (e) {
+    console.warn('[yvy] style base no aplicado, fondo plano:', e?.message);
+  }
 }
 
 // Expone maplibregl globalmente para popups en otros módulos
@@ -149,34 +147,24 @@ map.addControl(new maplibregl.ScaleControl({ unit: 'metric', maxWidth: 120 }), '
 const cargados = new Set(); // yvy_ids con geometría ya en el mapa
 
 function cargarConContexto(obj) {
-  // El objeto activo y sus ancestros (contexto jerárquico).
-  // Un addLayer nunca aborta la navegación: vuelo + ficha siguen.
-  let cur = obj;
-  while (cur && !cargados.has(cur.yvy_id)) {
-    if (cur.pmtiles) {
-      try {
-        agregarCapaObjeto(map, cur);
-      } catch (e) {
-        console.warn('[yvy] capa no creada para', cur.yvy_id, e?.message);
-      }
-      cargados.add(cur.yvy_id);
+  // Solo el objeto elegido pinta. Los ancestros viven en el breadcrumb,
+  // no en el mapa. Un addLayer nunca aborta la navegación.
+  if (obj.pmtiles && !cargados.has(obj.yvy_id)) {
+    try {
+      agregarCapaObjeto(map, obj);
+    } catch (e) {
+      console.warn('[yvy] capa no creada para', obj.yvy_id, e?.message);
     }
-    cur = getPadre(cur);
+    cargados.add(obj.yvy_id);
   }
 }
 
 /**
- * Banda visible por foco: solo pintan el objeto activo (modo foco)
- * y su jerarquía como contexto tenue. Lo que quedó cargado de
- * antes se oculta al cambiar de objeto.
+ * Banda visible por foco: solo pinta el objeto activo.
+ * La jerarquía vive en el breadcrumb, no en el mapa.
  */
 function aplicarBandaVisible(yvyIdActivo) {
-  const visibles = new Set();
-  let cur = yvyIdActivo != null ? getObjeto(yvyIdActivo) : null;
-  while (cur) {
-    visibles.add(cur.yvy_id);
-    cur = getPadre(cur);
-  }
+  const visibles = new Set(yvyIdActivo != null ? [Number(yvyIdActivo)] : []);
   for (const id of cargados) {
     setVisibilidadObjeto(map, id, visibles.has(id), id === yvyIdActivo);
   }
@@ -295,8 +283,8 @@ inicializarUIPaneles();
 map.on('load', async () => {
   map.resize();
 
-  // Globo 3D con imagen satelital única (Esri World Imagery).
-  ensureSatelite(map);
+  // Basemap vectorial oscuro (OpenFreeMap forkeado, español). Sin satélite.
+  aplicarEstiloBase(map);
 
   // Catálogo Yvy (manifest + relaciones) en background: no dibuja
   // ninguna capa ni bloquea el globo. El árbol se arma bajo demanda.

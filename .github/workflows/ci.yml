@@ -51,7 +51,8 @@ jobs:
 
       - name: gate-b atribucion
         run: |
-          grep -q "Esri, Maxar, Earthstar Geographics" src/js/main.js || { echo "gate-b: atribución obligatoria ausente"; exit 1; }
+          grep -q "OpenFreeMap © OpenMapTiles © OpenStreetMap" src/js/main.js || { echo "gate-b: atribución obligatoria ausente"; exit 1; }
+          if grep -q "arcgisonline\|Esri, Maxar" src/js/main.js; then echo "gate-b: resto satelital prohibido"; exit 1; fi
           echo "gate-b ok"
 
       - name: gate-c headers

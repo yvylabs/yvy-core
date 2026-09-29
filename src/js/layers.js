@@ -2,16 +2,18 @@
 // layers.js — Capas de objetos Yvy
 // Un PMTiles por nivel (provincias.pmtiles, departamentos.pmtiles…).
 // Hay una sola source vectorial por nivel (minzoom/maxzoom/capa
-// interna del header, vía manifest.json); cada objeto visible
-// (activo + ancestros) es una capa on-demand con filtro
-// ["get","id"] === yvy_id, así no pintamos objetos ajenos.
+// interna del header, vía manifest.json); el objeto elegido es una
+// capa on-demand con filtro ["id"] === yvy_id. Solo pinta lo elegido:
+// la jerarquía vive en el breadcrumb, no en el mapa.
 // Clic sobre un objeto → abre la ficha (panel Objeto).
 // ==============================================================
 
 import { navegarA } from './manifest.js';
 
-const OPACIDAD_ACTIVO = 0.35;
+const OPACIDAD_ACTIVO = 0.22;
 const OPACIDAD_CONTEXTO = 0.15;
+const FILL_ACTIVO = '#10B981';
+const LINEA_ACTIVA = '#34D399';
 
 // --------------------------------------------------------------
 // Tooltip de hover: nombre del objeto bajo el cursor.
@@ -101,7 +103,7 @@ export function agregarCapaObjeto(map, obj) {
     maxzoom,
     filter: filtro,
     paint: {
-      'fill-color': '#9ca3af',
+      'fill-color': FILL_ACTIVO,
       'fill-opacity': OPACIDAD_ACTIVO,
     },
   });
@@ -117,8 +119,8 @@ export function agregarCapaObjeto(map, obj) {
     paint: {
       // Opacidad 1.0 a propósito: los bordes compartidos entre tiles se
       // pintan 2 veces; con <1 se oscurecen y aparece la "costura".
-      'line-color': '#111111',
-      'line-width': obj.nivel === 'pais' ? 2.4 : 2,
+      'line-color': LINEA_ACTIVA,
+      'line-width': obj.nivel === 'pais' ? 3 : 2.5,
       'line-opacity': 1,
     },
   });
