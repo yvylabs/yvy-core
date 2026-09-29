@@ -29,6 +29,14 @@ let estiloAplicado = false;
 function aplicarEstiloBase(map) {
   if (estiloAplicado) return;
   estiloAplicado = true;
+  // setStyle resetea la proyección a mercator: re-aplicar globo al cargar.
+  map.once('styledata', () => {
+    try {
+      if (!globeFallback && map.setProjection) map.setProjection({ type: 'globe' });
+    } catch (e) {
+      console.warn('[yvy] proyección no aplicada:', e?.message);
+    }
+  });
   try {
     map.setStyle(YVY_STYLE);
   } catch (e) {
