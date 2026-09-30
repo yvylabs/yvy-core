@@ -99,7 +99,7 @@ function crearMapa(projectionType) {
     },
     locale: LOCALE_ES,
     center: [-60, -24],
-    zoom: 2.8,
+    zoom: 2.5,
     attributionControl: true,
     failIfMajorPerformanceCaveat: false,
   });
@@ -264,7 +264,7 @@ async function garantizarDatos() {
 // --------------------------------------------------------------
 // Volver al globo: el logo/brand restablece la vista inicial
 // --------------------------------------------------------------
-const VISTA_INICIAL = { center: [-60, -24], zoom: 2.8, pitch: 0, bearing: 0 };
+const VISTA_INICIAL = { center: [-60, -24], zoom: 2.5, pitch: 0, bearing: 0 };
 
 function volverAlInicio() {
   setObjetoActual(null);
