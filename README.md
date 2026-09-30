@@ -9,15 +9,13 @@ Modelo **entity graph**: cada jurisdicción es un nodo con `yvy_id` único, tota
 ## Cómo se arma el catálogo (fuente de verdad)
 
 ```
-data/registry/                → CSVs por nivel (un CSV = un nivel)
-  paises.csv                    yvy_id, georef_id, nombre_oficial,
-  provincias.csv               sup_oficial_km2, sup_fuente,
-  departamentos.csv            sup_fuente_url, sup_oficial_tipo,
-  municipios.csv               + parent (pais_yvy_id / prov_yvy_id /
-                                depto_yvy_id)
+data/registry/                → parquets por nivel (un parquet = un nivel)
+  provincias.parquet            yvy_id, nombre_oficial, sup_*,
+  departamentos.parquet         + parent (pais_yvy_id / prov_yvy_id /
+  municipios.parquet              depto_yvy_id)
 public/data/                  → geometría: un PMTiles por nivel,
   provincias.pmtiles          con una propiedad única por feature:
-  departamentos.pmtiles         id = yvy_id (los atributos viven en el CSV)
+  departamentos.pmtiles         id = yvy_id (los atributos viven en el parquet)
   municipios.pmtiles
   <nivel>_centros.json        → centro real por objeto (centroide del
                                 build, cacheados; se regeneran si cambia
@@ -25,16 +23,16 @@ public/data/                  → geometría: un PMTiles por nivel,
 public/data/relaciones.json   → relaciones precomputadas (chips de la ficha)
 ```
 
-El plugin `yvyManifest` de `vite.config.js` lee los CSVs en cada build y
+El plugin `yvyManifest` de `vite.config.js` lee los parquets en cada build y
 emite `public/data/manifest.json` + `manifest.jsonld` (catálogo: nivel,
 yvy_id, parent, nombre, superficie, fuente, pmtiles, centro real por objeto).
 
 El build avisa por consola cuántos features de cada PMTiles tienen `id`
-coincidente con el yvy_id del CSV (si falta el id o es otro código, el
+coincidente con el yvy_id del parquet (si falta el id o es otro código, el
 objeto queda con el centro del archivo como fallback y sale el aviso).
 
-**Para agregar un territorio** solo hay que tirar la fila al CSV y su
-`.pmtiles` a la carpeta (o regenerar el archivo del nivel). Sin CSV o sin
+**Para agregar un territorio** solo hay que tirar la fila al parquet y su
+`.pmtiles` a la carpeta (o regenerar el archivo del nivel). Sin parquet o sin
 PMTiles el build no rompe: avisa por consola qué falta y el resto sigue
 funcionando. Sin base de datos: todo el estado vive en el cliente, un solo
 fetch de manifest al abrir.

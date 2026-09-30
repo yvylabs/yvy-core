@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { gunzipSync } from 'node:zlib';
 import { PMTiles } from 'pmtiles';
+import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 
 const require = createRequire(import.meta.url);
 let VectorTile = null;
@@ -21,8 +22,8 @@ function importarDecodificadorMVT() {
 
 // ==============================================================
 // Yvy Explorer v3 — Manifest derivado
-// Fuente de verdad: data/registry/<nivel>.csv
-//   (un CSV por nivel: paises, provincias, departamentos, municipios…)
+// Fuente de verdad: data/registry/<nivel>.parquet
+//   (un parquet por nivel: paises, provincias, departamentos, municipios…)
 // Geometría:        public/data/<nivel>.pmtiles
 //   (un PMTiles por nivel: provincias.pmtiles, departamentos.pmtiles,
 //   municipios.pmtiles…; el plugin lee el header una vez por nivel y
@@ -31,15 +32,14 @@ function importarDecodificadorMVT() {
 //
 // Centro por objeto: se decodifican los tiles del nivel en el build y
 // se calcula el centroide real de cada feature (id del archivo vs
-// yvy_id del CSV). Resultado cacheado en <nivel>_centros.json, que se
+// yvy_id del parquet). Resultado cacheado en <nivel>_centros.json, que se
 // regenera solo si cambia el archivo de geometría.
 //
 // El build emite:
-//   public/data/manifest.json                    — catálogo completo
-//   public/data/tabla_provincias_yvy_join.json   — provincias alineadas
-//     a yvy_id 1000-1023 con pais_yvy_id=0 y pais_georef_id=ARG
+//   public/data/manifest.json   — catálogo completo
+//   public/data/manifest.jsonld — grafo JSON-LD
 //
-// Sin CSVs o sin PMTiles el build NO rompe: genera un manifest
+// Sin parquets o sin PMTiles el build NO rompe: genera un manifest
 // vacío y avisa por consola qué falta. Es intencional: el proyecto
 // se replica en otra PC soltando archivos, sin tocar código.
 // ==============================================================
@@ -47,20 +47,22 @@ function importarDecodificadorMVT() {
 const DATA_DIR = path.resolve('public/data');
 const REGISTRY_DIR = path.resolve('data/registry');
 
-const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'concesion'];
-const ZOOM_DEFAULT = { pais: 3.5, provincia: 7, depto: 11, municipio: 13, concesion: 14 };
+const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
+const ZOOM_DEFAULT = { pais: 3.5, provincia: 7, depto: 11, municipio: 13, barrio: 15, concesion: 14 };
 const CENTRO_DEFAULT = [-60, -20];
-const RANGO_YVY = { pais: [0, 999], provincia: [1000, 1999], depto: [10000, 19999], municipio: [100000, 999999], concesion: [30000, 99999] };
+// Esquema yvy_id = 1 + código oficial (disjuntos por nivel, chequeables por intervalo)
+const RANGO_YVY = { pais: [0, 999], provincia: [1000, 1999], depto: [100000, 199999], municipio: [1000000, 1999999], barrio: [1000000000, 1999999999], concesion: [30000, 99999] };
 
 // Zoom de escaneo para el cálculo de centros (detalle suficiente y tiles acotados)
-const ZSCAN = { pais: 4, provincia: 7, depto: 10, municipio: 12, concesion: 12 };
+const ZSCAN = { pais: 4, provincia: 7, depto: 10, municipio: 12, barrio: 14, concesion: 12 };
 
-// Columna de parent (y las alternativas) por nivel
+// Columna de parent (y las alternativas) por nivel — un solo padre, punto.
 const COL_PADRE = {
   pais: null,
   provincia: ['pais_yvy_id', 'parent_yvy_id'],
   depto: ['prov_yvy_id', 'provincia_yvy_id', 'parent_yvy_id'],
-  municipio: ['depto_yvy_id', 'prov_yvy_id', 'parent_yvy_id'],
+  municipio: ['depto_yvy_id', 'parent_yvy_id'],
+  barrio: ['municipio_yvy_id', 'parent_yvy_id'],
   concesion: ['parent_yvy_id'],
 };
 
@@ -73,8 +75,8 @@ const COL_ID_IGN = {
   concesion: ['id_ign'],
 };
 
-const PLURAL = { pais: 'paises', provincia: 'provincias', depto: 'deptos', municipio: 'municipios', concesion: 'concesiones' };
-const SINGULAR = { paises: 'pais', provincias: 'provincia', deptos: 'depto', departamentos: 'depto', municipios: 'municipio', concesiones: 'concesion' };
+const PLURAL = { pais: 'paises', provincia: 'provincias', depto: 'deptos', municipio: 'municipios', barrio: 'barrios', concesion: 'concesiones' };
+const SINGULAR = { paises: 'pais', provincias: 'provincia', deptos: 'depto', departamentos: 'depto', municipios: 'municipio', barrios: 'barrio', concesiones: 'concesion' };
 
 /** Nombre del archivo único por nivel (public/data/<archivo>.pmtiles). */
 const ARCHIVO_NIVEL = {
@@ -82,61 +84,45 @@ const ARCHIVO_NIVEL = {
   provincia: 'provincias',
   depto: 'departamentos',
   municipio: 'municipios',
+  barrio: 'barrios',
   concesion: 'concesiones',
 };
 
-/** Nombre de archivo esperado por nivel (formato corto). */
+/** Nombre de archivo esperado por nivel (formato corto, solo parquet). */
 const ARCHIVOS_NIVEL = {
-  'paises.csv': 'pais',
-  'provincias.csv': 'provincia',
-  'departamentos.csv': 'depto',
-  'municipios.csv': 'municipio',
-  'concesiones.csv': 'concesion',
+  'paises.parquet': 'pais',
+  'provincias.parquet': 'provincia',
+  'departamentos.parquet': 'depto',
+  'municipios.parquet': 'municipio',
+  'barrios.parquet': 'barrio',
+  'concesiones.parquet': 'concesion',
 };
 
-/** Nivel desde el nombre del archivo (acepta corto y convención anterior). */
+/** Nivel desde el nombre del archivo parquet. */
 function nivelDeArchivo(archivo) {
-  const corto = ARCHIVOS_NIVEL[archivo.toLowerCase()];
-  if (corto) return corto;
-  const cap = archivo.match(/^tabla_([a-z]+)_yvy_join\.csv$/i)?.[1].toLowerCase();
-  return cap ? (SINGULAR[cap] || cap) : null;
+  return ARCHIVOS_NIVEL[archivo.toLowerCase()] || null;
 }
 
 // --------------------------------------------------------------
-// CSV (formato RFC4180 básico: comillas dobles y saltos internos)
+// Registry Parquet (fuente de verdad: data/registry/*.parquet)
+// Columnas iguales al contrato registry; yvy_id obligatorio.
 // --------------------------------------------------------------
-function parsearCSV(texto) {
-  if (texto.charCodeAt(0) === 0xfeff) texto = texto.slice(1); // BOM
-  const filas = [];
-  let fila = [];
-  let celda = '';
-  let enComillas = false;
-  const push = () => {
-    fila.push(celda.trim());
-    celda = '';
-  };
-  for (let i = 0; i < texto.length; i++) {
-    const c = texto[i];
-    if (enComillas) {
-      if (c === '"' && texto[i + 1] === '"') { celda += '"'; i++; }
-      else if (c === '"') enComillas = false;
-      else celda += c;
-    } else if (c === '"') {
-      enComillas = true;
-    } else if (c === ',') {
-      push();
-    } else if (c === '\n' || c === '\r') {
-      if (c === '\r' && texto[i + 1] === '\n') i++;
-      push();
-      if (fila.some((v) => v !== '')) filas.push(fila);
-      fila = [];
-    } else {
-      celda += c;
-    }
-  }
-  push();
-  if (fila.some((v) => v !== '')) filas.push(fila);
-  return filas;
+function valorCelda(v) {
+  if (v == null) return '';
+  if (typeof v === 'bigint') return v.toString();
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+/** Lee un parquet y lo devuelve en forma [encabezados, filas[]] (strings). */
+async function leerParquetFilas(ruta) {
+  const file = await asyncBufferFromFile(ruta);
+  const objetos = await parquetReadObjects({ file });
+  if (objetos.length === 0) return { encabezados: [], filas: [] };
+  const encabezados = Object.keys(objetos[0]);
+  const filas = objetos.map((o) => encabezados.map((k) => valorCelda(o[k]).trim()));
+  return { encabezados, filas };
 }
 
 function aColumnas(encabezados, fila) {
@@ -316,7 +302,8 @@ async function leerCentrosNivel(nivel, metaNivel) {
           const extent = layer.extent || EXTENT_POR_DEFECTO;
           for (let i = 0; i < layer.length; i++) {
             const feat = layer.feature(i);
-            const id = String(feat.properties.id ?? feat.properties.yvy_id ?? '').trim();
+            // id top-level MVT (tippecanoe --use-attribute-for-id) o propiedad id/yvy_id
+            const id = String(feat.id ?? feat.properties.id ?? feat.properties.yvy_id ?? '').trim();
             if (!id) continue;
             idsObservados.add(id);
             for (const ring of feat.loadGeometry()) {
@@ -429,7 +416,7 @@ async function buscarPMTiles(nivel, yvyId) {
 }
 
 // --------------------------------------------------------------
-// Construcción del catálogo desde los CSVs del registry
+// Construcción del catálogo desde los parquets del registry
 // --------------------------------------------------------------
 async function construirManifest() {
   const fuentes = [];
@@ -437,9 +424,9 @@ async function construirManifest() {
   const advertencias = [];
   const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
 
-  const csvs = entradas.filter((f) => nivelDeArchivo(f)).sort();
-  if (csvs.length === 0) {
-    advertencias.push('No hay CSVs en data/registry/. Copiá paises.csv, provincias.csv, departamentos.csv y municipios.csv cuando los tengas.');
+  const parquets = entradas.filter((f) => nivelDeArchivo(f)).sort();
+  if (parquets.length === 0) {
+    advertencias.push('No hay parquets en data/registry/. Copiá paises.parquet, provincias.parquet, departamentos.parquet y municipios.parquet cuando los tengas.');
   }
 
   // Un PMTiles por nivel: public/data/provincias.pmtiles, departamentos.pmtiles…
@@ -471,16 +458,21 @@ async function construirManifest() {
   // Centros reales por nivel (cacheados en <nivel>_centros.json)
   const centrosNivel = new Map();
 
-  for (const archivo of csvs) {
+  for (const archivo of parquets) {
     const nivel = nivelDeArchivo(archivo);
     if (!ORDEN_NIVEL.includes(nivel)) {
-      advertencias.push(`CSV "${archivo}" con nivel desconocido "${nivel}" (ignorado). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
+      advertencias.push(`Parquet "${archivo}" con nivel desconocido "${nivel}" (ignorado). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
       continue;
     }
-    const texto = await fs.readFile(path.join(REGISTRY_DIR, archivo), 'utf8');
-    const filas = parsearCSV(texto);
+    let encabezados = [];
+    let filas = [];
+    try {
+      ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, archivo)));
+    } catch (err) {
+      advertencias.push(`Parquet "${archivo}" no se pudo leer (¿parquet válido?): ${err?.message || err}`);
+      continue;
+    }
     if (filas.length === 0) continue;
-    const encabezados = filas[0];
 
     const col = (nombres) => {
       for (const n of nombres) {
@@ -502,7 +494,7 @@ async function construirManifest() {
     const iCapaInterna = col(['capa_interna', 'nombre_capa_interna']);
     const iVisible = col(['visible_en_dashboard', 'visible_dashboard']);
     if (iYvy < 0) {
-      advertencias.push(`CSV "${archivo}" no tiene columna "yvy_id" (ignorado).`);
+      advertencias.push(`Parquet "${archivo}" no tiene columna "yvy_id" (ignorado).`);
       continue;
     }
 
@@ -514,7 +506,7 @@ async function construirManifest() {
       centrosNivel.set(nivel, await leerCentrosNivel(nivel, metaNivel));
     }
     const centros = metaNivel ? centrosNivel.get(nivel) : null;
-    for (let r = 1; r < filas.length; r++) {
+    for (let r = 0; r < filas.length; r++) {
       const f = filas[r];
       const c = aColumnas(encabezados, f);
       const yvyId = num(f[iYvy]);
@@ -598,19 +590,172 @@ async function construirManifest() {
 
   objetos.sort((a, b) => ORDEN_NIVEL.indexOf(a.nivel) - ORDEN_NIVEL.indexOf(b.nivel) || a.yvy_id - b.yvy_id);
 
-  return { fuentes, objetos, advertencias };
+  // Padres huérfanos: warning, no bloqueo (un solo parent_yvy_id por objeto, punto).
+  {
+    const ids = new Set(objetos.map((o) => o.yvy_id));
+    let huerfanos = 0;
+    for (const o of objetos) {
+      if (o.parent_yvy_id != null && !ids.has(Number(o.parent_yvy_id))) {
+        if (huerfanos < 10) advertencias.push(`${o.nivel} ${o.yvy_id} (${o.nombre_oficial}): parent_yvy_id ${o.parent_yvy_id} no existe en el catálogo.`);
+        huerfanos++;
+      }
+    }
+    if (huerfanos > 10) advertencias.push(`...y ${huerfanos - 10} objetos más con padre inexistente.`);
+  }
+
+  const datasets = await construirDatasets(objetos, advertencias);
+
+  return { fuentes, objetos, datasets, advertencias };
+}
+
+// Categoría temática por tipo (vocabulario fijo SPEC §10; la columna manda si existe)
+const CATEGORIA_TIPO = {
+  demografia: 'Sociedad', escuelas: 'Sociedad', salud: 'Sociedad', barrios: 'Sociedad',
+  empleo: 'Economía', produccion: 'Economía', mineria: 'Economía',
+  ambiente: 'Ambiente', clima: 'Ambiente', hidrologia: 'Ambiente',
+  rutas: 'Infraestructura', ffcc: 'Infraestructura', energia: 'Infraestructura', agua: 'Infraestructura',
+  catastro: 'Infraestructura',
+};
+// Columnas que NO son métricas (identidad/meta del agregado)
+const NO_METRICA = new Set(['yvy_id', 'id', 'nivel', 'parent_yvy_id', 'yvy_id_contenedor', 'cod_indec', 'georef_id', 'nombre_oficial', 'nombre', 'fuente', 'fuente_url', 'fecha_vigencia', 'version', 'categoria', 'tipo']);
+
+/**
+ * Datasets: {tipo}_{version}.parquet → versión activa + agregados por yvy_id.
+ * Escribe public/data/agregados/{tipo}/{yvy_id}.json y devuelve el índice
+ * para el manifest. Null/'' en métricas = 0 (no hay), nunca missing.
+ * Rollup: cada agregado suma sus métricas numéricas a sus ancestros
+ * (municipio→depto→provincia); el directo manda si ya existe.
+ */
+async function construirDatasets(objetos, advertencias) {
+  const datasets = [];
+  const idsCatalogo = new Set(objetos.map((o) => o.yvy_id));
+  const padres = new Map(objetos.map((o) => [o.yvy_id, o.parent_yvy_id]));
+  const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
+  const archivos = entradas.filter((f) => f.toLowerCase().endsWith('.parquet') && !nivelDeArchivo(f)).sort();
+  for (const archivo of archivos) {
+    const m = path.basename(archivo, '.parquet').match(/^([a-z_]+?)(?:_(\d{4}-\d{2}))?$/i);
+    if (!m) {
+      advertencias.push(`Dataset "${archivo}" no matchea {tipo}_{YYYY-MM}.parquet (ignorado).`);
+      continue;
+    }
+    const tipo = m[1].toLowerCase();
+    let encabezados = [];
+    let filas = [];
+    try {
+      ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, archivo)));
+    } catch (err) {
+      advertencias.push(`Dataset "${archivo}" no se pudo leer: ${err?.message || err}`);
+      continue;
+    }
+    if (filas.length === 0) continue;
+    const col = (nombres) => {
+      for (const n of nombres) {
+        const i = encabezados.findIndex((e) => normalizar(e) === n);
+        if (i >= 0) return i;
+      }
+      return -1;
+    };
+    const iYvy = col(['yvy_id', 'id']);
+    if (iYvy < 0) {
+      advertencias.push(`Dataset "${archivo}" no tiene columna "yvy_id" (ignorado).`);
+      continue;
+    }
+    const iFuente = col(['fuente']);
+    const iFecha = col(['fecha_vigencia']);
+    const iVersion = col(['version']);
+    const iCat = col(['categoria']);
+    const iMetrica = encabezados.map((_, i) => i).filter((i) => !NO_METRICA.has(normalizar(encabezados[i])));
+    const dirOut = path.join(DATA_DIR, 'agregados', tipo);
+    await fs.mkdir(dirOut, { recursive: true });
+    let count = 0;
+    let fuente = null;
+    let fecha = null;
+    let version = null;
+    const base = [];
+    for (const f of filas) {
+      const yvyId = num(f[iYvy]);
+      if (yvyId == null) continue;
+      if (!idsCatalogo.has(yvyId)) {
+        advertencias.push(`Dataset "${archivo}": yvy_id ${yvyId} no existe en el catálogo (agregado huérfano, igual se emite).`);
+      }
+      const metricas = {};
+      for (const i of iMetrica) {
+        const raw = f[i];
+        if (raw == null || raw === '') metricas[normalizar(encabezados[i])] = 0;
+        else {
+          const n = num(raw);
+          metricas[normalizar(encabezados[i])] = n == null ? raw : (Number.isInteger(n) ? n : Math.round(n * 100) / 100);
+        }
+      }
+      const ag = {
+        tipo,
+        categoria: iCat >= 0 && f[iCat] ? f[iCat] : (CATEGORIA_TIPO[tipo] || null),
+        yvy_id: yvyId,
+        yvy_id_contenedor: yvyId,
+        fuente: iFuente >= 0 && f[iFuente] ? f[iFuente] : null,
+        fecha_vigencia: iFecha >= 0 && f[iFecha] ? f[iFecha] : null,
+        version: (iVersion >= 0 && f[iVersion] ? f[iVersion] : null) || version,
+        metricas,
+      };
+      if (ag.fuente && !fuente) fuente = ag.fuente;
+      if (ag.fecha_vigencia && !fecha) fecha = ag.fecha_vigencia;
+      if (ag.version && !version) version = ag.version;
+      await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
+      count++;
+      base.push(ag);
+    }
+    // Rollup a ancestros (suma numérica; el directo manda si ya existe)
+    const directos = new Set(base.map((a) => a.yvy_id));
+    const acumulado = new Map();
+    for (const ag of base) {
+      let p = padres.get(ag.yvy_id);
+      const vistos = new Set([ag.yvy_id]);
+      while (p != null && !vistos.has(p) && idsCatalogo.has(p)) {
+        vistos.add(p);
+        if (!directos.has(p)) {
+          if (!acumulado.has(p)) acumulado.set(p, {});
+          const acc = acumulado.get(p);
+          for (const [k, v] of Object.entries(ag.metricas)) {
+            if (typeof v === 'number' && Number.isFinite(v)) acc[k] = (acc[k] || 0) + v;
+          }
+        }
+        p = padres.get(p);
+      }
+    }
+    let rolled = 0;
+    for (const [yvyId, metricas] of acumulado) {
+      const primero = base[0];
+      const ag = {
+        tipo,
+        categoria: primero.categoria,
+        yvy_id: yvyId,
+        yvy_id_contenedor: yvyId,
+        fuente: primero.fuente,
+        fecha_vigencia: primero.fecha_vigencia,
+        version: primero.version,
+        metricas,
+        rollup: true,
+      };
+      await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
+      rolled++;
+    }
+    if (!version) version = m[2] || null;
+    datasets.push({ tipo, categoria: CATEGORIA_TIPO[tipo] || null, version, fecha_vigencia: fecha, fuente, count: count + rolled, archivo });
+  }
+  return datasets;
 }
 
 // --------------------------------------------------------------
 // Escritura de los archivos
 // --------------------------------------------------------------
 async function escribirManifest() {
-  const { fuentes, objetos, advertencias } = await construirManifest();
+  const { fuentes, objetos, datasets, advertencias } = await construirManifest();
   const manifest = {
     generado: Date.now(),
     schema: 'yvy-manifest-v3',
     fuentes,
     objetos,
+    datasets,
   };
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(path.join(DATA_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
@@ -663,6 +808,9 @@ async function escribirManifest() {
 
   for (const f of fuentes) {
     console.log(`[yvy-manifest] ${f.nivel.padEnd(10)} ${f.archivo}: ${f.filas} objetos, ${f.pmtiles}/${f.filas} con geometría`);
+  }
+  for (const d of manifest.datasets || []) {
+    console.log(`[yvy-manifest] dataset    ${d.tipo} ${d.version || ''}: ${d.count} agregados (${d.fuente || 'sin fuente'})`);
   }
   for (const w of advertencias) console.warn(`[yvy-manifest] ⚠ ${w}`);
   console.log(`[yvy-manifest] manifest.json generado (${objetos.length} objetos)`);

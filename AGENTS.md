@@ -9,7 +9,7 @@
 - **Determinismo**: estados `ok/empty/missing`, copiar = snapshot visible, telemetría privada agregada. Cero alucinación.
 
 ## 2. Mapa de archivos (Fase 1 v2: 9 js + 1 css)
-- `vite.config.js`: plugin `yvyManifest` (CSV → `manifest.json` + `manifest.jsonld`). Sin emit `tabla_*`, sin fallback por-objeto.
+- `vite.config.js`: plugin `yvyManifest` (parquet → `manifest.json` + `manifest.jsonld` vía `hyparquet`). Sin emit `tabla_*`, sin fallback por-objeto.
 - `src/js/manifest.js`: catálogo + navegación (`cargarDatos`, `setNavegador/navegarA`).
 - `src/js/layers.js`: 1 source por nivel + capa on-demand filtrada `==yvy_id`.
 - `src/js/objeto.js`: ficha resumen + breadcrumb + dependencias + `Copiar resumen`.

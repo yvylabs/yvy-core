@@ -26,7 +26,7 @@ export async function onRequestGet({ request, env, params }) {
   const headers = new Headers();
   headers.set('Content-Type', 'application/octet-stream');
   headers.set('Accept-Ranges', 'bytes');
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Cache-Control', 'public, max-age=60, must-revalidate');
   headers.set('Access-Control-Allow-Origin', CORS);
   headers.set('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges');
   headers.set('X-Content-Type-Options', 'nosniff');

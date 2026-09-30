@@ -2,16 +2,18 @@
 // layers.js — Capas de objetos Yvy
 // Un PMTiles por nivel (provincias.pmtiles, departamentos.pmtiles…).
 // Hay una sola source vectorial por nivel (minzoom/maxzoom/capa
-// interna del header, vía manifest.json); cada objeto visible
-// (activo + ancestros) es una capa on-demand con filtro
-// ["get","id"] === yvy_id, así no pintamos objetos ajenos.
+// interna del header, vía manifest.json); el objeto elegido es una
+// capa on-demand con filtro ["id"] === yvy_id. Solo pinta lo elegido:
+// la jerarquía vive en el breadcrumb, no en el mapa.
 // Clic sobre un objeto → abre la ficha (panel Objeto).
 // ==============================================================
 
-import { mostrarObjeto } from './objeto.js';
+import { navegarA } from './manifest.js';
 
-const OPACIDAD_ACTIVO = 0.35;
+const OPACIDAD_ACTIVO = 0.22;
 const OPACIDAD_CONTEXTO = 0.15;
+const FILL_ACTIVO = '#10B981';
+const LINEA_ACTIVA = '#34D399';
 
 // --------------------------------------------------------------
 // Tooltip de hover: nombre del objeto bajo el cursor.
@@ -85,11 +87,12 @@ export function agregarCapaObjeto(map, obj) {
   if (!sourceId) return;
 
   const capaInterna = obj.capa_interna || obj.pmtiles.replace(/\.pmtiles$/, '');
-  // Provincias (y TDF con Antártida) deben pintarse incluso a zoom bajo
-  // para que el encuadre completo del bounds sea visible.
-  const minzoom = obj.nivel === 'provincia' ? Math.min(obj.minzoom ?? 4, 1.5) : (obj.minzoom ?? 0);
-  const maxzoom = obj.maxzoom ?? 22;
-  const filtro = ['==', ['to-number', ['coalesce', ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
+  // On-demand: la capa ignora el min/max del header y pinta por overzoom
+  // en cualquier zoom (el header solo limita el fetch en la source).
+  // Sin esto, volar a un barrio (z15+) ocultaba su propia capa (max14).
+  const minzoom = 0;
+  const maxzoom = 22;
+  const filtro = ['==', ['to-number', ['coalesce', ['id'], ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
 
   map.addLayer({
     id: `layer-${id}`,
@@ -100,7 +103,7 @@ export function agregarCapaObjeto(map, obj) {
     maxzoom,
     filter: filtro,
     paint: {
-      'fill-color': '#9ca3af',
+      'fill-color': FILL_ACTIVO,
       'fill-opacity': OPACIDAD_ACTIVO,
     },
   });
@@ -114,16 +117,18 @@ export function agregarCapaObjeto(map, obj) {
     maxzoom,
     filter: filtro,
     paint: {
-      'line-color': '#111111',
-      'line-width': obj.nivel === 'pais' ? 2.4 : 2,
-      'line-opacity': 0.9,
+      // Opacidad 1.0 a propósito: los bordes compartidos entre tiles se
+      // pintan 2 veces; con <1 se oscurecen y aparece la "costura".
+      'line-color': LINEA_ACTIVA,
+      'line-width': obj.nivel === 'pais' ? 3 : 2.5,
+      'line-opacity': 1,
     },
   });
 
-  // Clic → ficha del objeto (nada de tabla de atributos).
+  // Clic → navegar al objeto (vuelo + ficha + hash), igual que el resto.
   map.on('click', `layer-${id}`, (e) => {
     if (!e.features || e.features.length === 0) return;
-    mostrarObjeto(obj.yvy_id);
+    navegarA(obj.yvy_id);
   });
   configurarHover(map, obj, `layer-${id}`);
   map.on('mouseenter', `layer-${id}`, () => {
@@ -144,7 +149,7 @@ export function setVisibilidadObjeto(map, yvyId, visible, esActivo) {
   const paint = esActivo
     ? { 'fill-opacity': OPACIDAD_ACTIVO,
         'line-width': 3,
-        'line-opacity': 0.9 }
+        'line-opacity': 1 }
     : { 'fill-opacity': OPACIDAD_CONTEXTO,
         'line-width': 1.5,
         'line-opacity': 0.5 };
