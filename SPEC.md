@@ -76,6 +76,7 @@ DELETE: `assistant, measure, reasoner, datasets(stub→literal), geo.worker, atm
 Herramienta canónica versionada en `tools/yvy_plantilla.py` (la copia de trabajo vive en Drive; el repo manda). Runner oficial: Colab con checkpoint por celda (ver `tools/`). Etapas numeradas: `00_entrada` (crudo) → `01_work` (GPKG por banda) → `02_backup` → `03_config` → `04_logs` → `05_curacion/{tipo}/{tipo}_{fecha}.parquet` → `06_agregados/{tipo}/{yvy_id}.json` → `07_manifest/manifest.json` (vigente; versionados `manifest_<ts>.json`) → `08_pmtiles/{nivel}.pmtiles` → `99_legacy/` (solo lectura).
 Handoff al repo: `05` jurisdicciones → `data/registry/*.parquet`; `06` → `public/data/agregados/{tipo}/{yvy_id}.json` (Fase 3); `08` → `public/data/*.pmtiles`; `07` lo regenera el build (no se copia).
 Excepción: `08` es un archivo por nivel de jurisdicción; tipos con geometría propia (minería) van como `{tipo}.pmtiles` documentado.
+Relaciones: `lindero` + `cerca_de` computadas (`tools/yvy_plantilla.py`) van a `public/data/relaciones.json`; `contiene` se deriva de `parent_yvy_id` (no se duplica en archivo).
 
 ## 9. Deploy (única vía: Git integration)
 PR → preview deploy, merge a `master` → production. Prohibido deployar desde CI. Node vía `.nvmrc` (22) o `NODE_VERSION=22` en dashboard. Output `dist`.

@@ -36,6 +36,10 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 - **Los genera el build** desde el registry. Los JSON de Colab (`06_agregados/`) son referencia QC: si difieren del build, manda el build (fuente única).
 - El portal los trae lazy on-click (`getAgregado(tipo, yvy_id)`); ausente = “Sin datos registrados todavía.”
 
+### 4b. Relaciones (`public/data/relaciones.json`)
+- Solo `lindero` + `cerca_de`, generadas por `tools/yvy_plantilla.py` (`calcular_linderos`, `calcular_cercanos`).
+- `contiene` **no** va al archivo: se deriva de `parent_yvy_id` en el manifest.
+
 ### 5. Lo que NUNCA entra al repo
 `*.pmtiles/*.parquet/*.fgb` full-res o crudos, `node_modules/`, `dist/`, `.env*`, `.dev.vars`. El CI (gate-a) bloquea el diff si aparecen.
 

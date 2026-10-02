@@ -36,7 +36,17 @@ logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(
 
 
 def configurar_log(archivo: Path | str | None = None):
-    """Agrega handler de archivo opcional (ej. 04_logs/<fecha>.log)."""
+    """Agrega handler de archivo opcional (ej. 04_logs/<fecha>.log).
+
+    Reemplaza handlers de archivo previos (no acumula entre celdas).
+    """
+    for h in list(LOG.handlers):
+        if isinstance(h, logging.FileHandler):
+            LOG.removeHandler(h)
+            try:
+                h.close()
+            except Exception:  # noqa: BLE001
+                pass
     if not archivo:
         return None
     h = logging.FileHandler(str(archivo), encoding="utf-8")
@@ -270,18 +280,16 @@ def validar_contrato(df, nivel: str, col_parent: str | None = None,
             problemas.append(f"parents inexistentes: {sorted(map(int, hu[col_parent].unique()))[:10]}")
     # Estructura: el yvy_id debe contener al padre (barrio 1660063xxx → 1660063).
     # El rango solo valida intervalo; esto valida jerarquía real.
+    # Vectorizado (vale para 434 o 100k filas). Solo corre con col_parent
+    # presente: sin parent a mano no hay qué validar (documentado, no bug).
     if nivel == "barrio" and col_parent and col_parent in df.columns:
-        for _, row in df.iterrows():
-            yid, pid = row.get("yvy_id"), row.get(col_parent)
-            try:
-                if pd.isna(yid) or pd.isna(pid):
-                    continue
-                if not str(int(yid)).startswith(str(int(pid))):
-                    problemas.append(f"barrio {int(yid)} no hereda prefijo del padre {int(pid)}")
-                    break
-            except (ValueError, TypeError):
-                problemas.append(f"barrio con ids no numéricos: yvy={yid} parent={pid}")
-                break
+        ys = pd.to_numeric(df["yvy_id"], errors="coerce").astype("Int64").astype(str)
+        ps = pd.to_numeric(df[col_parent], errors="coerce").astype("Int64").astype(str)
+        ok = ys.str.startswith(ps) | df["yvy_id"].isna() | df[col_parent].isna()
+        mal = int((~ok).sum())
+        if mal:
+            ej = df.loc[~ok, ["yvy_id", col_parent]].head(3).to_dict("records")
+            problemas.append(f"barrios sin prefijo del padre: {mal} filas, ej. {ej}")
     return problemas
 
 
@@ -304,8 +312,10 @@ def validar_geometrias(gdf, familia_esperada: str) -> dict:
 def explotar_colecciones(gdf):
     """GeometryCollection → parte poligonal mayor (o vacía si no hay).
 
-    Devuelve (gdf, n_explotadas). Marca geom_estado=reparada si quedó
-    polígono válido, degradada si quedó vacía.
+    Solo aplica a capas de POLÍGONOS. En capas de líneas/puntos, una
+    GeometryCollection se marca degradada (no se inventa geometría).
+    Devuelve (gdf, n_explotadas). reparada si quedó polígono válido,
+    degradada si quedó vacía.
     """
     import pandas as pd
 
@@ -414,7 +424,8 @@ def csv_a_parquet(entrada: Path, salida: Path, columnas: dict | None = None,
         nmatch = int(df["yvy_id"].notna().sum())
         LOG.info("join_yvy: %d/%d matcheados (%s)", nmatch, antes, join_yvy["parquet"])
         if nmatch < antes:
-            LOG.warning("join_yvy: %d filas sin yvy_id", antes - nmatch)
+            sin = df.loc[df["yvy_id"].isna(), join_yvy["left_on"]].astype(str).unique()[:20].tolist()
+            LOG.warning("join_yvy: %d filas sin yvy_id, claves: %s", antes - nmatch, sin)
     for c in numericas_int or []:
         if c in df.columns:
             df[c] = df[c].apply(to_int)
@@ -447,10 +458,10 @@ def _which_tippecanoe() -> str:
     return r.stdout.strip()
 
 
-def instalar_tippecanoe(ref: str = "main", solo_si_falta: bool = True) -> str:
+def instalar_tippecanoe(ref: str = "2.79.0", solo_si_falta: bool = True) -> str:
     """Instala tippecanoe (Felt) una vez y lo cachea. Devuelve el path.
 
-    - ref: tag/rama a compilar (fija versión para reproducibilidad).
+    - ref: tag a compilar (pin de reproducibilidad; default último estable).
     - Si ya existe en PATH y solo_si_falta, no hace nada.
     """
     import shutil as _sh
@@ -588,7 +599,11 @@ def escribir_catalogo(nodos: list[dict], tipos: list[dict], agregados_idx: dict,
 # 8. Estado/checkpoint (una corrida = un estado; el Colab lo persiste)
 # ============================================================
 def guardar_estado(path: Path | str, fases: dict) -> Path:
-    """Guarda {fase: {ok, ts, detalle}} en JSON."""
+    """Guarda {fase: {ok, ts, detalle}} en JSON.
+
+    Solo guarda el dict de fases: NO valida artefactos ni mtimes
+    (eso lo hace el Colab que orquesta).
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     estado = {"actualizado": datetime.now().isoformat(timespec="seconds"), "fases": fases}
@@ -607,7 +622,7 @@ def cargar_estado(path: Path | str) -> dict:
 
 
 def fase_completada(estado: dict, fase: str, detalle: str = "") -> dict:
-    """Marca una fase ok en el dict de estado (mutado y devuelto)."""
+    """Marca una fase ok. MUTA el dict recibido (y lo devuelve)."""
     estado.setdefault("fases", {})[fase] = {
         "ok": True, "ts": datetime.now().isoformat(timespec="seconds"), "detalle": detalle,
     }
@@ -638,6 +653,8 @@ def registrar_tipo(tipo: str, categoria: str, geometria: str,
         raise ValueError(f"categoría inválida: {categoria}")
     if geometria not in ZOOM_POR_GEOM:
         raise ValueError(f"geometría inválida: {geometria} (poligono|punto|linea)")
+    if tipo in CATEGORIA_TIPO and CATEGORIA_TIPO[tipo] != categoria:
+        raise ValueError(f"tipo '{tipo}' ya registrado como {CATEGORIA_TIPO[tipo]} (pediste {categoria})")
     dzmin, dzmax = ZOOM_POR_GEOM[geometria]
     CATEGORIA_TIPO[tipo] = categoria
     return {"tipo": tipo, "categoria": categoria, "geometria": geometria,
@@ -649,6 +666,9 @@ def calcular_linderos(gdf, id_col: str = "yvy_id",
                       borde_min_m: float = BORDE_LINDERO_M) -> list[dict]:
     """Pares que comparten borde (>borde_min_m). Simétrico (A→B y B→A).
 
+    Solo cuenta borde compartido (intersección lineal), no solape de áreas:
+    dos polígonos superpuestos también califican (el solape implica borde),
+    pero el criterio medido es longitud de contacto, no área.
     Requiere CRS proyectado en metros. Devuelve
     [{origen_yvy_id, destino_yvy_id, tipo:'lindero'}].
     """
@@ -671,7 +691,7 @@ def calcular_linderos(gdf, id_col: str = "yvy_id",
             if h is None or h.is_empty:
                 continue
             try:
-                if not g.touches(h) and not g.intersects(h):
+                if not g.intersects(h):
                     continue
                 inter = g.intersection(h)
                 largo = inter.length if inter is not None and not inter.is_empty else 0
@@ -688,16 +708,30 @@ def calcular_linderos(gdf, id_col: str = "yvy_id",
     return rels
 
 
-def calcular_cercanos(centroides: dict, umbrales_m: dict | None = None) -> list[dict]:
+def calcular_cercanos(centroides: dict, umbrales_m: dict | None = None,
+                      niveles: dict | None = None) -> list[dict]:
     """Pares por distancia de centroides. centroides={yvy_id:(x,y)} en metros.
 
-    umbrales_m: {nivel_o_default} o número único. Requiere niveles si es dict
-    por nivel: pasar {yvy_id: nivel} en `niveles`.
+    - umbrales_m: número único (aplica a todos) o dict {nivel: metros}.
+    - niveles: {yvy_id: nivel}, obligatorio si umbrales_m es dict por nivel.
+      Sin niveles, todo usa umbrales_m["default"] (o 15000).
+    - O(n²): bien hasta ~2000 nodos; más que eso, partir por nivel o usar
+      sindex con buffer (fuera de alcance de esta plantilla).
     Devuelve [{origen_yvy_id, destino_yvy_id, tipo:'cerca_de', dist_m}].
     """
     import math
 
     umbrales_m = umbrales_m if umbrales_m is not None else UMBRAL_CERCA_M
+
+    def umbral(a, b):
+        if isinstance(umbrales_m, (int, float)):
+            return float(umbrales_m)
+        if niveles is None:
+            return float(umbrales_m.get("default", 15000))
+        ua = umbrales_m.get(niveles.get(a), umbrales_m.get("default", 15000))
+        ub = umbrales_m.get(niveles.get(b), umbrales_m.get("default", 15000))
+        return float(min(ua, ub))
+
     ids = list(centroides.keys())
     rels = []
     for i in range(len(ids)):
@@ -706,17 +740,20 @@ def calcular_cercanos(centroides: dict, umbrales_m: dict | None = None) -> list[
             xa, ya = centroides[a]
             xb, yb = centroides[b]
             d = math.hypot(xa - xb, ya - yb)
-            um = umbrales_m if isinstance(umbrales_m, (int, float)) else umbrales_m.get("default", 15000)
-            if d <= um:
+            if d <= umbral(a, b):
                 d = round(d, 1)
                 rels += [{"origen_yvy_id": int(a), "destino_yvy_id": int(b), "tipo": "cerca_de", "dist_m": d},
                          {"origen_yvy_id": int(b), "destino_yvy_id": int(a), "tipo": "cerca_de", "dist_m": d}]
-    LOG.info("cerca_de: %d relaciones (umbral %s m)", len(rels), umbrales_m if isinstance(umbrales_m, (int, float)) else "por defecto")
+    LOG.info("cerca_de: %d relaciones", len(rels))
     return rels
 
 
 def escribir_relaciones(relaciones: list[dict], salida: Path) -> Path:
-    """public/data/relaciones.json: [{origen_yvy_id, destino_yvy_id, tipo, dist_m?}]."""
+    """public/data/relaciones.json: [{origen_yvy_id, destino_yvy_id, tipo, dist_m?}].
+
+    Solo relaciones COMPUTADAS (lindero, cerca_de). `contiene` NO va acá:
+    se deriva de parent_yvy_id en el manifest (duplicarlo sería drift).
+    """
     salida = Path(salida)
     salida.parent.mkdir(parents=True, exist_ok=True)
     limpias = [{"origen_yvy_id": int(r["origen_yvy_id"]), "destino_yvy_id": int(r["destino_yvy_id"]),
