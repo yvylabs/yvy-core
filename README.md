@@ -1,26 +1,29 @@
 # Yvy Explorer
 
-> Grafo de entidades + conflación determinista — el territorio es un insumo más entre +50 datasets. Free forever, sin login.
+> Grafo de entidades para la acción — del dato público roto a la decisión auditable. Free forever, sin login.
 
-**No es** visor GIS, ni IDE, ni OSINT. Globo 3D vacío hasta que interactúas: eliges territorio → ves totales automáticos → drill solo si lo pides.
+**Problema:** intendentes, periodistas y funcionarios no saben quién manda dónde ni de dónde sale cada número (INDEC, IGN y ministerios dispersos, formatos incompatibles). **Solución:** grafo determinista curado — eliges territorio → ves totales con fuente+fecha → drill solo si lo pides. **No es** visor GIS, ni IDE, ni OSINT.
 
-Modelo **entity graph**: cada jurisdicción es un nodo con `yvy_id` único, totales curados fuera (`Parquet = hechos`, `PMTiles = render`, `manifest = índice`). Ver `SPEC.md` (fuente de verdad).
+**Estado:** piloto Salta (442 nodos, 4 tipos de dato) en `develop`; `master` estable. I+D en Argentina. Ver `SPEC.md` (fuente de verdad), `docs/TRL.md` (evidencia) y `docs/ROADMAP.md` (plan 24 meses).
 
 ## Cómo se arma el catálogo (fuente de verdad)
 
 ```
 data/registry/                → parquets por nivel (un parquet = un nivel)
-  provincias.parquet            yvy_id, nombre_oficial, sup_*,
-  departamentos.parquet         + parent (pais_yvy_id / prov_yvy_id /
-  municipios.parquet              depto_yvy_id)
-public/data/                  → geometría: un PMTiles por nivel,
-  provincias.pmtiles          con una propiedad única por feature:
-  departamentos.pmtiles         id = yvy_id (los atributos viven en el parquet)
-  municipios.pmtiles
-  <nivel>_centros.json        → centro real por objeto (centroide del
-                                build, cacheados; se regeneran si cambia
-                                el archivo)
-public/data/relaciones.json   → relaciones precomputadas (chips de la ficha)
+  paises.parquet                yvy_id, nombre_oficial, sup_*,
+  provincias.parquet            + parent (pais_yvy_id / prov_yvy_id /
+  departamentos.parquet           depto_yvy_id)
+  municipios.parquet
+  barrios.parquet
+public/data/                  → geometría: un PMTiles por nivel o tipo
+                                (`provincias`, `departamentos`,
+                                `municipios`, `barrios`, `mineria`),
+                                con una propiedad única por feature:
+                                id = yvy_id (los atributos viven en el parquet)
+public/data/agregados/        → JSON por tipo y yvy_id (Fase 3, lazy):
+                                `demografia/{yvy_id}.json`, etc.
+public/data/relaciones.json   → relaciones precomputadas (Fase 3; si falta,
+                                la ficha lo tolera)
 ```
 
 El plugin `yvyManifest` de `vite.config.js` lee los parquets en cada build y

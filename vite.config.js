@@ -591,6 +591,8 @@ async function construirManifest() {
   objetos.sort((a, b) => ORDEN_NIVEL.indexOf(a.nivel) - ORDEN_NIVEL.indexOf(b.nivel) || a.yvy_id - b.yvy_id);
 
   // Padres huérfanos: warning, no bloqueo (un solo parent_yvy_id por objeto, punto).
+  // Barrios: además del rango, el prefijo debe ser el yvy_id del padre
+  // (1660063xxx → parent 1660063). Estructura, no solo intervalo.
   {
     const ids = new Set(objetos.map((o) => o.yvy_id));
     let huerfanos = 0;
@@ -598,6 +600,12 @@ async function construirManifest() {
       if (o.parent_yvy_id != null && !ids.has(Number(o.parent_yvy_id))) {
         if (huerfanos < 10) advertencias.push(`${o.nivel} ${o.yvy_id} (${o.nombre_oficial}): parent_yvy_id ${o.parent_yvy_id} no existe en el catálogo.`);
         huerfanos++;
+      }
+      if (o.nivel === 'barrio' && o.parent_yvy_id != null) {
+        const pref = String(o.yvy_id).slice(0, String(o.parent_yvy_id).length);
+        if (pref !== String(o.parent_yvy_id)) {
+          advertencias.push(`barrio ${o.yvy_id} (${o.nombre_oficial}): no hereda el prefijo del padre ${o.parent_yvy_id}.`);
+        }
       }
     }
     if (huerfanos > 10) advertencias.push(`...y ${huerfanos - 10} objetos más con padre inexistente.`);

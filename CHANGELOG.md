@@ -14,3 +14,7 @@ Formato [Keep a Changelog](https://keepachangelog.com/). Tags `v0.x`.
 ## [0.2.0] - 2026-09-19
 ### Changed
 - Lenguaje: grafo de entidades, `Soporte a la acción`.
+
+## [0.1.0] - 2026-09-19
+### Added
+- Import privado inicial: esqueleto, SPEC v1, repo + CI (ver tag `v0.1.0`).
