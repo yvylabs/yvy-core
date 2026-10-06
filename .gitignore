@@ -17,6 +17,12 @@ build/
 logs/
 coverage/
 
+# Raw pesado — input/output crudo, no va al repo (R2 cuando exista)
+public/data/catastro.pmtiles
+public/data.zip
+data/registry.7z
+data/registry/*.zip
+
 # Sistema Operativo y Editores
 .DS_Store
 Thumbs.db

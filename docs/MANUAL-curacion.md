@@ -1,7 +1,9 @@
 # MANUAL — De tu GIS a `yvy_plantilla.py`
 
 Cómo llevar un archivo crudo (GPKG o CSV) hasta artefactos listos según SPEC §10.
-El script es `yvy_plantilla.py`. Funciona para **polígono, punto y línea**.
+El script canónico vive en `tools/yvy_plantilla.py` del repo (la copia de
+Drive es de trabajo; el repo manda). Runner oficial: Colab con checkpoint
+por celda. Funciona para **polígono, punto y línea**.
 
 ## Paso 0 — Qué necesitas
 
@@ -60,10 +62,12 @@ print(validar_contrato(df, nivel="municipio"))  # [] = ok
 **CSV → Parquet:**
 
 ```python
-csv_a_parquet("00_entrada/cuadro.csv", "05_curacion/demografia/demografia_2022-05.parquet",
+csv_a_parquet("00_entrada/cuadro.csv", "05_curacion/tipos/demografia.parquet",
     columnas={"Código de gobierno local": "cod_indec", "Población": "poblacion", ...},
     numericas_int=["poblacion", "viviendas"],
-    null_es_cero=["viv_colectivas", "pob_calle"])
+    null_es_cero=["viv_colectivas", "pob_calle"],
+    join_yvy={"parquet": "05_curacion/jurisdicciones/municipios.parquet",
+              "left_on": "cod_indec", "right_on": "cod_indec"})
 ```
 
 Miles con `.`/`,`, coma decimal, `"-"` como ausencia: todo manejado. Nulos de conteo → `0`.
@@ -95,10 +99,16 @@ escribir_catalogo(nodos, tipos, {"demografia": [1660063, ...]}, "07_manifest/cat
 | Salida | Destino | Quién la usa |
 |---|---|---|
 | `{nivel}.parquet` jurisdicciones | `data/registry/` del repo | build → manifest |
-| `{tipo}_{fecha}.parquet` liviano (<5MB, <50k filas) | `data/registry/` del repo | build → agregados |
-| `{tipo}_{fecha}.parquet` pesado | R2 privado, **no** al repo | documentar URL en SPEC |
+| `tipos/<tipo>.parquet` | `data/registry/<tipo>.parquet` (input del build, sin límite salvo 100MB de GitHub) | build → agregados |
 | `agregados/{tipo}/{yvy}.json` | los **regenera el build**; los de Colab son QC | portal (lazy) |
-| `*.pmtiles` <25MB | `public/data/` del repo | portal directo |
-| `*.pmtiles` ≥25MB | R2 + Functions | portal vía proxy |
+| `*.pmtiles` ≤50MB | `public/data/` del repo | portal directo |
+| `*.pmtiles` >50MB | R2 + Functions (o local en dev) | portal vía proxy |
+
+Funciones nuevas que tenés que conocer: `join_yvy` (trae `yvy_id` desde
+jurisdicciones con reporte de no-matcheados), `filtro_geom_estado` en PMTiles,
+`calcular_linderos` / `calcular_cercanos` + `escribir_relaciones` (solo
+`lindero` + `cerca_de`; `contiene` se deriva), `registrar_tipo` (punto/línea/
+polígono + categoría del vocabulario), `guardar_estado` / `fase_completada`
+(checkpoint), `instalar_tippecanoe` (pin 2.79.0).
 
 Ver **CABLEADO.md** para el lado portal (qué espera el repo de cada archivo).

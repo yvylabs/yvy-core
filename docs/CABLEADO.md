@@ -8,20 +8,21 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 | Origen (Drive `Yvy_v2/`) | Destino (repo) | Consumidor portal |
 |---|---|---|
 | `05_curacion/jurisdicciones/*.parquet` | `data/registry/*.parquet` (mismo nombre) | build → `manifest.json` |
-| `05_curacion/{tipo}/{tipo}_{fecha}.parquet` liviano | `data/registry/{tipo}_{fecha}.parquet` | build → `public/data/agregados/{tipo}/{yvy_id}.json` |
-| `05_curacion/{tipo}/{tipo}_{fecha}.parquet` pesado | **No entra al repo** → R2 privado | URL documentada en SPEC |
-| `08_pmtiles/*.pmtiles` <25MB | `public/data/*.pmtiles` (mismo nombre) | `pmtiles://data/…` directo |
-| `08_pmtiles/*.pmtiles` ≥25MB | R2 `yvy-data` + Functions | `/tiles/*` vía proxy |
+| `05_curacion/tipos/*.parquet` | `data/registry/*.parquet` (mismo nombre, sin límite de tamaño) | build → `public/data/agregados/{tipo}/{yvy_id}.json` |
+| `08_pmtiles/*.pmtiles` ≤50MB | `public/data/*.pmtiles` (mismo nombre) | `pmtiles://data/…` directo |
+| `08_pmtiles/*.pmtiles` >50MB | R2 `yvy-data` + Functions | `/tiles/*` vía proxy |
 | `07_manifest/catalogo.json` | **No entra al repo** (es tu índice QC) | el build genera el manifest real |
 
 ## Contratos por archivo
 
 ### 1. Registry parquets (`data/registry/`)
 - Nombre = nivel en plural: `paises|provincias|departamentos|municipios|barrios.parquet`.
+- Son **input del build**, no output: **sin límite de tamaño** salvo el 100MB duro de GitHub.
 - Columnas obligatorias: `yvy_id` (INT64, único, en rango del nivel), `nivel`, `parent_yvy_id` (existe en catálogo), `nombre_oficial`.
 - El build advierte (no bloquea): fuera de rango, padres huérfanos, columnas sin `yvy_id`.
 
-### 2. Dataset versions (`data/registry/{tipo}_{YYYY-MM}.parquet`)
+### 2. Dataset versions (`data/registry/<tipo>.parquet`)
+- Sin fecha en el nombre (D2=A); la versión vive en la columna `version`.
 - Columnas obligatorias: `yvy_id` + métricas + `fuente` + `fecha_vigencia` + `version`.
 - El build publica **versión activa** en `manifest.datasets` y parte por `yvy_id` a `public/data/agregados/{tipo}/{yvy_id}.json` con forma `{tipo,categoria,yvy_id,yvy_id_contenedor,fuente,fecha_vigencia,version,metricas{...}}`.
 - Nulos en métricas → `0`. Rollup automático a ancestros (suma numérica; el directo manda).
@@ -29,6 +30,7 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 
 ### 3. PMTiles (`public/data/*.pmtiles`)
 - Un archivo por nivel/tipo, nombre en minúsculas = nivel o tipo.
+- **Umbral 50MB**: ≤50MB entra al repo; >50MB queda en R2 (o local en dev). El gate-a bloquea >50MB.
 - Cada feature con **`id` numérico = `yvy_id`** (tippecanoe `--use-attribute-for-id=id`). Sin esto: capas vacías + centros fallback.
 - El build verifica `X/Y con id coincidente` y calcula centroides + `bounds_objeto` reales.
 
@@ -41,11 +43,11 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 - `contiene` **no** va al archivo: se deriva de `parent_yvy_id` en el manifest.
 
 ### 5. Lo que NUNCA entra al repo
-`*.pmtiles/*.parquet/*.fgb` full-res o crudos, `node_modules/`, `dist/`, `.env*`, `.dev.vars`. El CI (gate-a) bloquea el diff si aparecen.
+`*.fgb` siempre. `*.pmtiles` >50MB. `*.parquet` fuera de `data/registry/` o >100MB. `*.zip/*.7z` de backup. `node_modules/`, `dist/`, `.env*`, `.dev.vars`. El CI (gate-a) bloquea el diff si aparecen.
 
 ## Checklist pre-subida (antes de copiar al repo)
 1. `validar_contrato()` vacío para cada parquet (rangos, padres, dupes).
 2. `id` únicos = features en cada PMTiles (verificación del template).
 3. `catalogo.json` de curación con 0 huérfanos.
-4. Nombres de archivo según §1-3 (plural, minúsculas, `{tipo}_{YYYY-MM}`).
+4. Nombres de archivo según §1-3 (plural, minúsculas, `<tipo>.parquet` sin fecha).
 5. Build local verde (`pnpm run build`) → commit → push `develop` → PR → `master` → tag.

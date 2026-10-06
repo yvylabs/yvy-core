@@ -33,21 +33,35 @@ jobs:
 
       - name: gate-a anti-raw
         run: |
-          if git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD 2>/dev/null | grep -E '\.(pmtiles|parquet|fgb)$'; then
-            echo "gate-a: raw en el diff — prohibido (SPEC §6)"; exit 1
+          DIFF=$(git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD 2>/dev/null || true)
+          if echo "$DIFF" | grep -E '\.fgb$'; then
+            echo "gate-a: .fgb prohibido en el repo"; exit 1
           fi
-          for f in $(git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD 2>/dev/null | grep 'public/data/manifest.*\.json' || true); do
-            node -e "
-              const {execSync} = require('node:child_process');
-              const fs = require('node:fs');
-              const base = process.env.BASE_REF || 'master';
-              const strip = (o) => { const c = {...o}; delete c.generado; delete c.generatedAt; return JSON.stringify(c); };
-              const a = strip(JSON.parse(execSync('git show ' + base + ':${f}'.replace('${f}', '$f')).toString()));
-              const b = strip(JSON.parse(fs.readFileSync('$f','utf8')));
-              if (a !== b) { console.error('gate-a: $f con cambios reales (no solo timestamps)'); process.exit(1); }
-            " BASE_REF="${{ github.base_ref || 'master' }}" || exit 1
+          if echo "$DIFF" | grep -E '\.parquet$' | grep -v '^data/registry/'; then
+            echo "gate-a: .parquet solo en data/registry/"; exit 1
+          fi
+          if echo "$DIFF" | grep -E '\.pmtiles$' | grep -v '^public/data/'; then
+            echo "gate-a: .pmtiles solo en public/data/"; exit 1
+          fi
+          for f in public/data/manifest.json public/data/manifest.jsonld; do
+            if echo "$DIFF" | grep -qx "$f"; then
+              node -e "JSON.parse(require('node:fs').readFileSync('$f','utf8'))" \
+                || { echo "gate-a: $f corrupto (no parsea)"; exit 1; }
+            fi
           done
-          echo "gate-a ok (raw bloqueado; manifests solo-timestamp permitidos)"
+          for f in $(echo "$DIFF" | grep -E '\.pmtiles$' || true); do
+            sz=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null || echo 0)
+            if [ "$sz" -gt 52428800 ]; then
+              echo "gate-a: $f supera 50MB → a R2 (cruce el umbral del repo)"; exit 1
+            fi
+          done
+          for f in $(echo "$DIFF" | grep -E '\.parquet$' || true); do
+            sz=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null || echo 0)
+            if [ "$sz" -gt 104857600 ]; then
+              echo "gate-a: $f supera 100MB (límite duro de GitHub)"; exit 1
+            fi
+          done
+          echo "gate-a ok (pmtiles ≤50MB; registry parquet input del build, solo límite 100MB)"
 
       - name: gate-b atribucion
         run: |
