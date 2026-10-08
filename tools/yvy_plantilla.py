@@ -283,9 +283,10 @@ def validar_contrato(df, nivel: str, col_parent: str | None = None,
     # Vectorizado (vale para 434 o 100k filas). Solo corre con col_parent
     # presente: sin parent a mano no hay qué validar (documentado, no bug).
     if nivel == "barrio" and col_parent and col_parent in df.columns:
-        ys = pd.to_numeric(df["yvy_id"], errors="coerce").astype("Int64").astype(str)
-        ps = pd.to_numeric(df[col_parent], errors="coerce").astype("Int64").astype(str)
-        ok = ys.str.startswith(ps) | df["yvy_id"].isna() | df[col_parent].isna()
+        ys = pd.to_numeric(df["yvy_id"], errors="coerce").astype("Int64").astype(str).tolist()
+        ps = pd.to_numeric(df[col_parent], errors="coerce").astype("Int64").astype(str).tolist()
+        ok = pd.Series([y.startswith(p) for y, p in zip(ys, ps)], index=df.index)
+        ok = ok | df["yvy_id"].isna() | df[col_parent].isna()
         mal = int((~ok).sum())
         if mal:
             ej = df.loc[~ok, ["yvy_id", col_parent]].head(3).to_dict("records")

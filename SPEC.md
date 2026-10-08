@@ -48,24 +48,24 @@ Rango de barrios: `1.000.000.000 - 1.999.999.999`. Ejemplo:
 `1660063001` = 1.660.063.001 (municipio 1660063 + secuencia 001).
 El build además valida estructura (prefijo == padre), no solo intervalo.
 
-## 1b. Piloto
+## 1b. Cobertura (nacional desde v2)
 
-**Jurisdicciones:**
+**Jurisdicciones** (`data/registry/jurisdicciones.parquet`, 3336 nodos):
 - Argentina (0)
-- Salta (1066)
-- Deptos del piloto: Capital (166028), Los Andes (166105)
-- Municipios del piloto: 1660063 (Salta), 1660070 (San Lorenzo),
-  1660245 (San Antonio de los Cobres), 1660252 (Tolar Grande)
-- Barrios de Salta ciudad: 1660063001 → 1660063434 (434 barrios)
+- 24 provincias (`1000 + in1`: CABA 1002 … Salta 1066 … TDF 1094)
+- 529 departamentos (`100000 + in1`)
+- 2348 gobiernos locales (`1000000 + in1`; incluye 10 "Sin gobierno
+  local" provinciales + 8 indeterminados `9000000001..08` como raíces)
+- 434 barrios de Salta ciudad (`1660063001 → 1660063434`)
 
-**Ampliación (post v1):**
-- 23 deptos de Salta (cobertura completa)
-- 60+ municipios con dato (demografía ya trae los 60 en el CSV INDEC;
-  solo hay que quitar el filtro piloto en Colab, cero cambios de código)
-- Barrios de toda la provincia (fase posterior)
+Etiquetas de `nivel` en el parquet: `pais, provincia, departamento,
+gobierno_local, barrio` (el build las mapea a su canónico
+`pais, provincia, depto, municipio, barrio`).
 
 **Tipos (agregados):**
-- `demografia` — nivel_agregacion = municipio
+- `demografia` — nacional (2843 filas: país + 24 prov + 527 depto +
+  2291 gobiernos; pre-agregada por nivel, el rollup del build solo
+  rellena huecos). Fuente: Censo 2022.
 - `barrios` — nivel_agregacion = municipio (no es dataset propio,
   es nivel; su agregado cuelga de Salta muni)
 - `mineria` — nivel_agregacion = departamento (depto-directo)
@@ -170,7 +170,7 @@ carpetas por-objeto. Datasets `{tipo}.parquet` → versión activa +
 
 | Origen (Drive) | Destino (repo) | Consumidor |
 |---|---|---|
-| `05_curacion/jurisdicciones/*.parquet` | `data/registry/*.parquet` | build → manifest |
+| `05_curacion/jurisdicciones.parquet` | `data/registry/jurisdicciones.parquet` | build → manifest |
 | `05_curacion/tipos/*.parquet` | `data/registry/*.parquet` | build → agregados |
 | `07_manifest/relaciones.json` | `public/data/relaciones.json` | portal (grafo) |
 | `08_pmtiles/*.pmtiles` | `public/data/*.pmtiles` | portal |
@@ -282,9 +282,14 @@ Relaciones: `lindero` + `cerca_de` computadas
 - Manifest = build desde registry (D3=A); `catalogo.json` = QC (D5=C).
 - `relaciones.json` sí al free (D4=A); `contiene` derivado.
 - Parquets de tipos sin fecha en registry (D2=A); versión en columna.
-- Demografía ampliable a 60+ sin cambio de código (D1=A).
+- Demografía nacional con 2843 filas pre-agregadas por nivel (D1=A superada).
+- Registry jurisdiccional en un solo `jurisdicciones.parquet` (manda sobre
+  por-nivel). Nodos "Sin gobierno local" e "Indeterminado" entran como
+  raíces honestas (estado parcial, nunca invento).
 - Barrios = nodos jurisdiccionales delgados (opción C).
-- Rollup en build (hojas → ancestros); Colab escribe hojas.
+- Rollup en build (rellena huecos; el directo manda).
+- Curación sin Colab: Sheet -> CSV -> `tools/sheet_a_parquet.py`
+  (valida contrato, solo escribe si da ok).
 - Wizard = CLI (`tools/wizard_dataset.py` futuro), no ipywidgets.
 - Estado = por dataset (`6_<tipo>`), no por celda vieja.
 - Tippecanoe pinneado a 2.79.0.

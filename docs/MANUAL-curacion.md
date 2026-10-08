@@ -1,9 +1,18 @@
-# MANUAL — De tu GIS a `yvy_plantilla.py`
+# MANUAL — Del Sheet al `data/registry/` (sin Colab)
 
-Cómo llevar un archivo crudo (GPKG o CSV) hasta artefactos listos según SPEC §10.
-El script canónico vive en `tools/yvy_plantilla.py` del repo (la copia de
-Drive es de trabajo; el repo manda). Runner oficial: Colab con checkpoint
-por celda. Funciona para **polígono, punto y línea**.
+Flujo vigente: editar en Google Sheet → Archivo → Descargar CSV →
+validar y convertir con `tools/sheet_a_parquet.py` → copiar a
+`data/registry/` → `pnpm run build`.
+
+```bash
+python tools/sheet_a_parquet.py jurisdicciones.csv data/registry/jurisdicciones.parquet
+python tools/sheet_a_parquet.py demografia.csv data/registry/demografia.parquet
+```
+
+El script valida el contrato (columnas, `yvy_id` únicos y en rango,
+padres existentes, métricas numéricas) y **solo escribe si da ok**
+(`--force` para excepciones conocidas, ej. los 8 indeterminados
+`9000000001..08`). Hace backup del parquet anterior en `02_backup/`.
 
 ## Paso 0 — Qué necesitas
 

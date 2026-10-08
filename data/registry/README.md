@@ -9,20 +9,19 @@ conflación determinista, versionado inmutable, estados `ok/empty/missing`).
 
 ## Dos tipos de archivos en este directorio
 
-### 1. Jurisdiccionales (un parquet por nivel)
+### 1. Jurisdiccionales (un solo parquet)
 
-Son los nodos del grafo. Uno por nivel, nombre en plural:
+Son los nodos del grafo. Un solo archivo con todos los niveles:
 
-- `paises.parquet`
-- `provincias.parquet`
-- `departamentos.parquet`
-- `municipios.parquet`
-- `barrios.parquet`
+- `jurisdicciones.parquet` (columna `nivel`: `pais, provincia,
+  departamento, gobierno_local, barrio`; el build los mapea a su
+  canónico `pais, provincia, depto, municipio, barrio`)
 
 **Columnas obligatorias:**
 - `yvy_id` (INT64, único, en rango del nivel)
 - `nivel` (país | provincia | departamento | municipio | barrio)
-- `parent_yvy_id` (existe en el catálogo, o `0` para país)
+- `parent_yvy_id` (existe en el catálogo, o nulo para país y
+  nodos indeterminados)
 - `nombre_oficial` (string)
 
 **Columnas opcionales por nivel:**
@@ -64,15 +63,15 @@ por nivel o por tipo), con propiedad `id = yvy_id` numérico
 
 - `data/registry/*.parquet`: **sin límite de tamaño** en el repo (son
   inputs del build, el tamaño lo decide el dato).
-- `public/data/*.pmtiles`: **<25 MB** al repo; **≥25 MB** a R2 (cuando
-  exista). Ejemplos: `municipios.pmtiles` (48 MB) y `catastro.pmtiles`
-  (164 MB) van a R2.
+- `public/data/*.pmtiles`: **≤50 MB** al repo; **>50 MB** a R2 (cuando
+  exista). Ejemplo: `catastro.pmtiles` (164 MB) va a R2.
 - `public/data/*.pmtiles` `<100 MB` es el límite duro de GitHub sin LFS.
   Por encima, no entran al repo de ninguna manera.
 
 ## Cómo se regenera
 
-1. Los parquets vienen del pipeline de curación (Drive, Colab).
+1. Los parquets vienen del Sheet (export CSV) validados con
+   `tools/sheet_a_parquet.py` (solo escribe si el contrato da ok).
 2. Se copian a `data/registry/` (sin tocar, tal cual salen).
 3. `pnpm run build` lee los parquets vía `hyparquet` y genera
    `public/data/manifest.json` + `manifest.jsonld` + `<nivel>_centros.json`.
@@ -82,10 +81,10 @@ regenera en cada build.
 
 ## Fuente
 
-Pipeline: `/content/drive/MyDrive/YvyLabs/YvyExplorerProduction/`
+Pipeline: Google Sheet (edición) → CSV → `tools/sheet_a_parquet.py` → acá.
 
-- `05_curacion/jurisdicciones/*.parquet` → acá (5 parquets jurisdiccionales)
-- `05_curacion/tipos/*.parquet` → acá (3 parquets de tipos)
+- `jurisdicciones.parquet` → acá (1 parquet: 1 país + 24 prov + 529 depto + 2348 gob + 434 barrios)
+- `tipos/*.parquet` → acá (3 parquets de tipos)
 - `07_manifest/relaciones.json` → `public/data/relaciones.json`
 - `08_pmtiles/*.pmtiles` → `public/data/*.pmtiles`
 - `06_agregados/<tipo>/*.json` → `public/data/agregados/<tipo>/*.json`
@@ -95,18 +94,9 @@ interno del pipeline).
 
 ## Estado actual
 
-- Jurisdiccionales: 8 (5 de niveles + 3 de tipos).
+- `jurisdicciones.parquet` (3336: 1 + 24 + 529 + 2348 + 434)
+- `demografia.parquet` (2843, nacional Censo 2022)
+- `mineria.parquet` (3927)
+- `catastro.parquet` (309405)
 
-Espera... son 5 jurisdiccionales + 3 de tipos = 8 totales. El conteo
-"5 de niveles + 3 de tipos" = 8, ok.
-
-- `paises.parquet` (1 fila)
-- `provincias.parquet` (24)
-- `departamentos.parquet` (529)
-- `municipios.parquet` (2.106)
-- `barrios.parquet` (434)
-- `demografia.parquet` (4, ampliable a 60+)
-- `mineria.parquet` (3.925)
-- `catastro.parquet` (309.403)
-
-Total: 3.094 nodos jurisdiccionales + 3 datasets.
+Total: 3336 nodos jurisdiccionales + 3 datasets.

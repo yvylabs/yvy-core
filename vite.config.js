@@ -98,6 +98,21 @@ const ARCHIVOS_NIVEL = {
   'concesiones.parquet': 'concesion',
 };
 
+/**
+ * Registry unico: un solo parquet con todos los niveles (columna `nivel`).
+ * Manda sobre los archivos por-nivel (se ignoran con aviso). Etiquetas
+ * admitidas en la columna nivel -> nivel canonico del portal.
+ */
+const REGISTRO_UNICO = 'jurisdicciones.parquet';
+const NIVEL_JURIS = {
+  pais: 'pais',
+  provincia: 'provincia',
+  departamento: 'depto',
+  gobierno_local: 'municipio',
+  barrio: 'barrio',
+  concesion: 'concesion',
+};
+
 /** Nivel desde el nombre del archivo parquet. */
 function nivelDeArchivo(archivo) {
   return ARCHIVOS_NIVEL[archivo.toLowerCase()] || null;
@@ -424,9 +439,63 @@ async function construirManifest() {
   const advertencias = [];
   const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
 
-  const parquets = entradas.filter((f) => nivelDeArchivo(f)).sort();
-  if (parquets.length === 0) {
-    advertencias.push('No hay parquets en data/registry/. Copiá paises.parquet, provincias.parquet, departamentos.parquet y municipios.parquet cuando los tengas.');
+  const parquetsPorNivel = entradas.filter((f) => nivelDeArchivo(f)).sort();
+  // Registry: jurisdicciones.parquet (multi-nivel) manda; por-nivel solo si falta.
+  const trozos = []; // {nivel, archivo, encabezados, filas}
+  if (entradas.some((f) => f.toLowerCase() === REGISTRO_UNICO)) {
+    for (const f of parquetsPorNivel) {
+      advertencias.push(`Parquet "${f}" ignorado: ${REGISTRO_UNICO} manda como registry unico.`);
+    }
+    let encabezados = [];
+    let filas = [];
+    try {
+      ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, REGISTRO_UNICO)));
+    } catch (err) {
+      advertencias.push(`Parquet "${REGISTRO_UNICO}" no se pudo leer (¿parquet válido?): ${err?.message || err}`);
+    }
+    if (filas.length > 0) {
+      const iNiv = encabezados.findIndex((e) => normalizar(e) === 'nivel');
+      if (iNiv < 0) {
+        advertencias.push(`Parquet "${REGISTRO_UNICO}" no tiene columna "nivel" (ignorado).`);
+      } else {
+        const porNivel = new Map();
+        let desconocidos = 0;
+        for (const f of filas) {
+          const n = NIVEL_JURIS[normalizar(String(f[iNiv] || ''))] || null;
+          if (!n || !ORDEN_NIVEL.includes(n)) { desconocidos++; continue; }
+          if (!porNivel.has(n)) porNivel.set(n, []);
+          porNivel.get(n).push(f);
+        }
+        if (desconocidos > 0) {
+          advertencias.push(`Parquet "${REGISTRO_UNICO}": ${desconocidos} filas con nivel desconocido (ignoradas).`);
+        }
+        for (const [nivel, fr] of [...porNivel.entries()]
+          .sort((a, b) => ORDEN_NIVEL.indexOf(a[0]) - ORDEN_NIVEL.indexOf(b[0]))) {
+          trozos.push({ nivel, archivo: REGISTRO_UNICO, encabezados, filas: fr });
+        }
+      }
+    }
+  } else {
+    if (parquetsPorNivel.length === 0) {
+      advertencias.push(`No hay parquets en data/registry/. Copiá ${REGISTRO_UNICO} (o paises.parquet, provincias.parquet, departamentos.parquet y municipios.parquet) cuando los tengas.`);
+    }
+    for (const archivo of parquetsPorNivel) {
+      const nivel = nivelDeArchivo(archivo);
+      if (!ORDEN_NIVEL.includes(nivel)) {
+        advertencias.push(`Parquet "${archivo}" con nivel desconocido "${nivel}" (ignorado). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
+        continue;
+      }
+      let encabezados = [];
+      let filas = [];
+      try {
+        ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, archivo)));
+      } catch (err) {
+        advertencias.push(`Parquet "${archivo}" no se pudo leer (¿parquet válido?): ${err?.message || err}`);
+        continue;
+      }
+      if (filas.length === 0) continue;
+      trozos.push({ nivel, archivo, encabezados, filas });
+    }
   }
 
   // Un PMTiles por nivel: public/data/provincias.pmtiles, departamentos.pmtiles…
@@ -458,22 +527,7 @@ async function construirManifest() {
   // Centros reales por nivel (cacheados en <nivel>_centros.json)
   const centrosNivel = new Map();
 
-  for (const archivo of parquets) {
-    const nivel = nivelDeArchivo(archivo);
-    if (!ORDEN_NIVEL.includes(nivel)) {
-      advertencias.push(`Parquet "${archivo}" con nivel desconocido "${nivel}" (ignorado). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
-      continue;
-    }
-    let encabezados = [];
-    let filas = [];
-    try {
-      ({ encabezados, filas } = await leerParquetFilas(path.join(REGISTRY_DIR, archivo)));
-    } catch (err) {
-      advertencias.push(`Parquet "${archivo}" no se pudo leer (¿parquet válido?): ${err?.message || err}`);
-      continue;
-    }
-    if (filas.length === 0) continue;
-
+  for (const { nivel, archivo, encabezados, filas } of trozos) {
     const col = (nombres) => {
       for (const n of nombres) {
         const i = encabezados.findIndex((e) => normalizar(e) === n);
@@ -639,7 +693,7 @@ async function construirDatasets(objetos, advertencias) {
   const idsCatalogo = new Set(objetos.map((o) => o.yvy_id));
   const padres = new Map(objetos.map((o) => [o.yvy_id, o.parent_yvy_id]));
   const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
-  const archivos = entradas.filter((f) => f.toLowerCase().endsWith('.parquet') && !nivelDeArchivo(f)).sort();
+  const archivos = entradas.filter((f) => f.toLowerCase().endsWith('.parquet') && !nivelDeArchivo(f) && f.toLowerCase() !== REGISTRO_UNICO).sort();
   for (const archivo of archivos) {
     const m = path.basename(archivo, '.parquet').match(/^([a-z_]+?)(?:_(\d{4}-\d{2}))?$/i);
     if (!m) {

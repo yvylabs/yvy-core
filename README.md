@@ -4,17 +4,15 @@
 
 **Problema:** intendentes, periodistas y funcionarios no saben quién manda dónde ni de dónde sale cada número (INDEC, IGN y ministerios dispersos, formatos incompatibles). **Solución:** grafo determinista curado — eliges territorio → ves totales con fuente+fecha → drill solo si lo pides. **No es** visor GIS, ni IDE, ni OSINT.
 
-**Estado:** piloto Salta (442 nodos, 4 tipos de dato) en `develop`; `master` estable. I+D en Argentina. Ver `SPEC.md` (fuente de verdad), `docs/TRL.md` (evidencia) y `docs/ROADMAP.md` (plan 24 meses).
+**Estado:** cobertura nacional (3336 nodos, 3 tipos de dato) en `develop`; `master` estable. I+D en Argentina. Ver `SPEC.md` (fuente de verdad), `docs/TRL.md` (evidencia) y `docs/ROADMAP.md` (plan 24 meses).
 
 ## Cómo se arma el catálogo (fuente de verdad)
 
 ```
-data/registry/                → parquets por nivel (un parquet = un nivel)
-  paises.parquet                yvy_id, nombre_oficial, sup_*,
-  provincias.parquet            + parent (pais_yvy_id / prov_yvy_id /
-  departamentos.parquet           depto_yvy_id)
-  municipios.parquet
-  barrios.parquet
+data/registry/                → jurisdicciones.parquet (1 país + 24 prov +
+                                  529 depto + 2348 gob + 434 barrios) y
+                                  parquets por tipo (demografia, mineria,
+                                  catastro): yvy_id, nombre_oficial, parent
 public/data/                  → geometría: un PMTiles por nivel o tipo
                                 (`provincias`, `departamentos`,
                                 `municipios`, `barrios`, `mineria`),

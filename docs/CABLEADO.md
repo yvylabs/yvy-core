@@ -7,7 +7,7 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 
 | Origen (Drive `Yvy_v2/`) | Destino (repo) | Consumidor portal |
 |---|---|---|
-| `05_curacion/jurisdicciones/*.parquet` | `data/registry/*.parquet` (mismo nombre) | build → `manifest.json` |
+| `05_curacion/jurisdicciones.parquet` | `data/registry/jurisdicciones.parquet` (mismo nombre) | build → `manifest.json` |
 | `05_curacion/tipos/*.parquet` | `data/registry/*.parquet` (mismo nombre, sin límite de tamaño) | build → `public/data/agregados/{tipo}/{yvy_id}.json` |
 | `08_pmtiles/*.pmtiles` ≤50MB | `public/data/*.pmtiles` (mismo nombre) | `pmtiles://data/…` directo |
 | `08_pmtiles/*.pmtiles` >50MB | R2 `yvy-data` + Functions | `/tiles/*` vía proxy |
@@ -15,8 +15,11 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 
 ## Contratos por archivo
 
-### 1. Registry parquets (`data/registry/`)
-- Nombre = nivel en plural: `paises|provincias|departamentos|municipios|barrios.parquet`.
+### 1. Registry jurisdiccional (`data/registry/jurisdicciones.parquet`)
+- Un solo archivo con todos los niveles (columna `nivel`: `pais, provincia,
+  departamento, gobierno_local, barrio`). Manda sobre archivos por-nivel
+  (el build los ignora con aviso si existe el único).
+- Nombre = nivel en plural para por-nivel: `paises|provincias|departamentos|municipios|barrios.parquet`.
 - Son **input del build**, no output: **sin límite de tamaño** salvo el 100MB duro de GitHub.
 - Columnas obligatorias: `yvy_id` (INT64, único, en rango del nivel), `nivel`, `parent_yvy_id` (existe en catálogo), `nombre_oficial`.
 - El build advierte (no bloquea): fuera de rango, padres huérfanos, columnas sin `yvy_id`.

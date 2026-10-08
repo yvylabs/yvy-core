@@ -22,6 +22,8 @@ public/data/catastro.pmtiles
 public/data.zip
 data/registry.7z
 data/registry/*.zip
+*.gpkg
+__pycache__/
 
 # Sistema Operativo y Editores
 .DS_Store

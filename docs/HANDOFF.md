@@ -17,7 +17,7 @@ YvyExplorerProduction/
 │   └── .bin/tippecanoe  # cacheado (2.79.0)
 ├── 04_logs/             # YYYY-MM-DD.log + topologia_<ts>.json
 ├── 05_curacion/
-│   ├── jurisdicciones/  # pais, provincias, departamentos, municipios, barrios.parquet
+│   ├── jurisdicciones/  # jurisdicciones.parquet (pais+prov+depto+gob+barrios)
 │   └── tipos/           # demografia, barrios, mineria, catastro.parquet (sin fecha)
 ├── 06_agregados/<tipo>/<yvy_id>.json
 ├── 07_manifest/
