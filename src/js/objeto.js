@@ -13,40 +13,55 @@ import { abrirPanelObjeto } from './ui.js';
 import { track } from './telemetry.js';
 
 const fmtInt = new Intl.NumberFormat('es-AR');
-const fmtKm1 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmt1dec = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-function prop(obj, key) {
-  if (obj[key] != null && obj[key] !== '') return obj[key];
-  const lo = key.toLowerCase();
-  for (const k of Object.keys(obj)) {
-    if (k.toLowerCase() === lo) {
-      const v = obj[k];
-      if (v != null && v !== '') return v;
-    }
-  }
-  return null;
+// Token anti-carrera: si el usuario navega antes de que vuelva el fetch,
+// la respuesta vieja no pinta.
+let renderToken = 0;
+
+// --------------------------------------------------------------
+// Etiquetas humanas (nada con forma de código, nada de siglas)
+// --------------------------------------------------------------
+const TITULO_TIPO = {
+  demografia: 'Demografía',
+  mineria: 'Minería',
+  catastro: 'Catastro',
+  barrios: 'Barrios',
+};
+
+const FUENTE = {
+  'Censo 2022 - censo.gob.ar/gobiernos-locales': {
+    nombre: 'Censo Nacional 2022 (INDEC)',
+    corto: 'Censo 2022',
+    url: 'https://censo.gob.ar',
+  },
+  'DGI Salta': { nombre: 'Dirección General de Inmuebles · Salta', corto: 'DGI Salta', url: null },
+  'Secretaría de Minería de Salta': { nombre: 'Secretaría de Minería · Salta', corto: 'Minería Salta', url: null },
+};
+
+function fuenteHumana(raw) {
+  if (raw != null && FUENTE[raw]) return FUENTE[raw];
+  const nombre = raw == null || raw === '' ? 'Fuente pendiente' : String(raw);
+  return { nombre, corto: nombre, url: null };
 }
 
-function toNum(v) {
-  if (v == null || v === '') return null;
-  const n = Number(String(v).replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
-  if (Number.isFinite(n)) return n;
-  const m = Number(String(v).replace(/,/g, ''));
-  return Number.isFinite(m) ? m : null;
+function tituloTipo(tipo) {
+  return TITULO_TIPO[tipo] || (tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : 'Datos');
 }
 
-function fmtEntero(v) {
-  const n = toNum(v);
-  if (n == null) return null;
-  return fmtInt.format(Math.round(n));
+function plural(n, sing, plur) {
+  return `${fmtInt.format(n)} ${n === 1 ? sing : plur}`;
 }
 
-function fmtKm(v) {
-  const n = toNum(v);
-  if (n == null) return null;
-  return `${fmtKm1.format(n)} km`;
+function fmtHa(v) {
+  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
+  if (!Number.isFinite(n)) return null;
+  return `${fmt1dec.format(Math.round(n * 10) / 10)} hectáreas`;
 }
 
+// --------------------------------------------------------------
+// Estructura DOM mínima
+// --------------------------------------------------------------
 function metrica(valor, label, opts = {}) {
   const wrap = document.createElement('div');
   wrap.className = opts.small ? 'objeto-metrica objeto-metrica--sm' : 'objeto-metrica';
@@ -67,17 +82,17 @@ function setModoInspect(obj) {
   const idEl = document.getElementById('explorer-inspect-id');
   if (headInspect) headInspect.hidden = false;
   if (detalle) detalle.hidden = false;
-  if (idEl && obj) idEl.textContent = `${obj.nombre_oficial} · yvy:${obj.yvy_id}`;
+  if (idEl && obj) idEl.textContent = obj.nombre_oficial;
 }
 
 /**
  * Muestra el estado missing en la ficha (nunca silencio, nunca genérico).
  */
-export function mostrarEstadoFalta(yvyId) {
+export function mostrarEstadoFalta() {
   const detalle = document.getElementById('explorer-detalle');
   if (detalle) detalle.hidden = false;
   const idEl = document.getElementById('explorer-inspect-id');
-  if (idEl) idEl.textContent = `yvy:${yvyId}`;
+  if (idEl) idEl.textContent = 'Sin datos';
   const contenedor = document.getElementById('objeto-info');
   if (contenedor) {
     contenedor.innerHTML = '';
@@ -96,7 +111,7 @@ export function mostrarEstadoFalta(yvyId) {
 export function mostrarObjeto(yvyId) {
   const obj = getObjeto(yvyId);
   if (!obj) {
-    mostrarEstadoFalta(yvyId);
+    mostrarEstadoFalta();
     return;
   }
   setObjetoActivo(obj);
@@ -117,7 +132,135 @@ export function limpiarFicha() {
     </div>`;
 }
 
+// --------------------------------------------------------------
+// Reporte textual: plantilla fija, cambian jurisdicción + hijos + padres
+// --------------------------------------------------------------
+const ORDEN_HIJOS = ['provincia', 'depto', 'municipio', 'barrio'];
+
+function gruposHijos(obj) {
+  const grupos = [];
+  for (const nivel of ORDEN_HIJOS) {
+    const items = getHijos(obj.yvy_id).filter((h) => h.nivel === nivel);
+    if (items.length > 0) grupos.push({ nivel, items });
+  }
+  return grupos;
+}
+
+function todosMunicipios(obj) {
+  if (obj.nivel !== 'provincia') return [];
+  const out = [];
+  for (const d of getHijos(obj.yvy_id)) {
+    if (d.nivel === 'depto') out.push(...getHijos(d.yvy_id).filter((m) => m.nivel === 'municipio'));
+  }
+  return out;
+}
+
+function frasePertenencia(obj) {
+  const padre = getPadre(obj);
+  if (obj.nivel === 'municipio' && padre && padre.nivel === 'depto') {
+    const abuelo = getPadre(padre);
+    return `Municipio del departamento ${padre.nombre_oficial}${abuelo ? `, ${abuelo.nombre_oficial}` : ''}.`;
+  }
+  if (obj.nivel === 'depto' && padre) return `Departamento de ${padre.nombre_oficial}.`;
+  return null;
+}
+
+function fraseEstructura(obj) {
+  if (obj.nivel === 'pais') {
+    const n = getHijos(obj.yvy_id).length;
+    return n > 0 ? `Se organiza en ${plural(n, 'provincia', 'provincias')}.` : null;
+  }
+  if (obj.nivel === 'provincia') {
+    const deptos = getHijos(obj.yvy_id).filter((h) => h.nivel === 'depto');
+    const munis = todosMunicipios(obj);
+    if (deptos.length === 0 && munis.length === 0) return null;
+    return `Se organiza en ${plural(deptos.length, 'departamento', 'departamentos')} y ${plural(munis.length, 'municipio', 'municipios')}.`;
+  }
+  if (obj.nivel === 'depto') {
+    const munis = getHijos(obj.yvy_id).filter((h) => h.nivel === 'municipio');
+    if (munis.length === 0) return 'Sin municipios registrados.';
+    return `Tiene ${plural(munis.length, 'municipio', 'municipios')}.`;
+  }
+  if (obj.nivel === 'municipio') {
+    const barrios = getHijos(obj.yvy_id).filter((h) => h.nivel === 'barrio');
+    if (barrios.length === 0) return null;
+    return `Tiene ${plural(barrios.length, 'barrio', 'barrios')}.`;
+  }
+  return null;
+}
+
+function fraseResto(m) {
+  if (!m) return null;
+  const partes = [];
+  const col = Number(m.pob_colectivas) || 0;
+  const calle = Number(m.pob_calle) || 0;
+  if (col > 0) partes.push(`${fmtInt.format(col)} personas en viviendas colectivas`);
+  if (calle > 0) partes.push(`${fmtInt.format(calle)} en situación de calle`);
+  if (partes.length === 0) return null;
+  return `Viven ${partes.join(' y ')}.`;
+}
+
+async function componerNarrativa(obj) {
+  const aplicables = getDatasets().filter((ds) => (ds.niveles || []).includes(obj.nivel));
+  const ags = {};
+  await Promise.all(
+    aplicables.map(async (ds) => {
+      ags[ds.tipo] = await getAgregado(ds.tipo, obj.yvy_id);
+    })
+  );
+  const frases = [];
+  const refs = [];
+  const demo = ags.demografia;
+  if (demo && demo.metricas) {
+    const m = demo.metricas;
+    const pob = Number(m.poblacion) || 0;
+    const viv = Number(m.viviendas) || 0;
+    const f = fuenteHumana(demo.fuente);
+    const vig = demo.fecha_vigencia ? ` · vigencia ${demo.fecha_vigencia}` : '';
+    let s1;
+    if (obj.nivel === 'pais') s1 = `${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
+    else if (obj.nivel === 'provincia') s1 = `La provincia de ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
+    else if (obj.nivel === 'depto') s1 = `El departamento ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
+    else if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
+      const prov = getPadre(obj);
+      s1 = `El área sin gobierno local${prov ? ` de ${prov.nombre_oficial}` : ''} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
+    } else s1 = `El municipio de ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
+    frases.push(`${s1} (${f.corto}${vig}).`);
+    refs.push({ ...f, fecha: demo.fecha_vigencia });
+    const resto = fraseResto(m);
+    if (resto) frases.push(resto);
+  } else if (aplicables.some((ds) => ds.tipo === 'demografia')) {
+    if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
+      const padre = getPadre(obj);
+      frases.push(`Área sin gobierno local${padre ? ` de ${padre.nombre_oficial}` : ''}: todavía no hay datos censales registrados.`);
+    } else if (obj.nivel === 'municipio' || obj.nivel === 'depto' || obj.nivel === 'provincia' || obj.nivel === 'pais') {
+      frases.push('Todavía no hay datos censales registrados.');
+    }
+  }
+  if (obj.nivel === 'barrio') {
+    const padre = getPadre(obj);
+    const clase = obj.clase_barrio ? String(obj.clase_barrio).toLowerCase() : 'barrio';
+    frases.push(padre ? `Es un ${clase} de ${padre.nombre_oficial}.` : `Es un ${clase}.`);
+  }
+  const est = fraseEstructura(obj);
+  if (est) frases.push(est);
+  const min = ags.mineria;
+  if (min && min.metricas && Number(min.metricas.total_concesiones) > 0) {
+    const area = fmtHa(min.metricas.area_total_ha);
+    frases.push(`La minería registra ${plural(Number(min.metricas.total_concesiones), 'concesión', 'concesiones')}${area ? ` en ${area}` : ''}.`);
+    refs.push({ ...fuenteHumana(min.fuente), fecha: min.fecha_vigencia });
+  }
+  const cat = ags.catastro;
+  if (cat && cat.metricas && Number(cat.metricas.total_parcelas) > 0) {
+    const area = fmtHa(cat.metricas.area_total_ha);
+    frases.push(`El catastro registra ${plural(Number(cat.metricas.total_parcelas), 'parcela', 'parcelas')}${area ? ` (${area})` : ''}.`);
+    refs.push({ ...fuenteHumana(cat.fuente), fecha: cat.fecha_vigencia });
+  }
+  return { frases, refs, ags };
+}
+
 function renderFicha(obj) {
+  const token = ++renderToken;
   const detalle = document.getElementById('explorer-detalle');
   if (detalle) detalle.hidden = false;
   const contenedor = document.getElementById('objeto-info');
@@ -137,77 +280,163 @@ function renderFicha(obj) {
   badge.textContent = etiquetaNivel(obj.nivel).toUpperCase();
   filaTitulo.appendChild(badge);
   identidad.appendChild(filaTitulo);
-  const subtitle = document.createElement('div');
-  subtitle.className = 'objeto-subtitle';
-  const nivelLabel = etiquetaNivel(obj.nivel);
-  const extras = [];
-  if (obj.cod_indec) extras.push(`Código INDEC ${obj.cod_indec}`);
-  if (obj.clase_municipio) extras.push(obj.clase_municipio);
-  if (obj.clase_barrio) extras.push(obj.clase_barrio);
-  const supLabel = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : 'Sin dato oficial todavía';
-  subtitle.textContent = [nivelLabel, ...extras, supLabel].join(' · ');
-  identidad.appendChild(subtitle);
-  const fuenteTexto = obj.sup_fuente_corta || obj.sup_fuente;
-  if (fuenteTexto || obj.sup_fuente_url) {
-    const fuente = document.createElement('div');
-    fuente.className = 'objeto-fuente';
-    if (obj.sup_fuente_url) {
-      const a = document.createElement('a');
-      a.href = obj.sup_fuente_url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = fuenteTexto || obj.sup_fuente_url;
-      fuente.appendChild(a);
-    } else {
-      fuente.textContent = fuenteTexto;
-    }
-    identidad.appendChild(fuente);
+  const pert = frasePertenencia(obj);
+  const sup = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : null;
+  if (pert || sup) {
+    const subtitle = document.createElement('div');
+    subtitle.className = 'objeto-subtitle';
+    subtitle.textContent = [pert, sup].filter(Boolean).join(' ');
+    identidad.appendChild(subtitle);
   }
   contenedor.appendChild(identidad);
 
-  const poblacion = prop(obj, 'población') ?? prop(obj, 'poblacion');
-  const viviendas = prop(obj, 'viviendas');
-  const vivParticulares = prop(obj, 'viviendas_particulares');
-  const vivColectivas = prop(obj, 'viviendas_colectivas');
-  const kmFfcc = prop(obj, 'km_ffcc_total');
-  const metricas = [];
+  const narrativa = document.createElement('div');
+  narrativa.className = 'objeto-narrativa';
+  const sk = document.createElement('p');
+  sk.className = 'skeleton';
+  sk.textContent = 'Cargando datos…';
+  narrativa.appendChild(sk);
+  contenedor.appendChild(narrativa);
 
-  const popFmt = fmtEntero(poblacion);
-  if (popFmt) metricas.push(metrica(popFmt, 'POBLACI\u00D3N \u00B7 CENSO 2022'));
+  renderBreadcrumbInline(contenedor, obj);
+  renderHijos(contenedor, obj, null);
+  renderDatasetsAplicables(contenedor, obj);
 
-  const vivFmt = fmtEntero(viviendas);
-  if (vivFmt) metricas.push(metrica(vivFmt, 'TOTAL DE VIVIENDAS'));
+  componerNarrativa(obj).then(({ frases, refs }) => {
+    if (token !== renderToken) return;
+    narrativa.innerHTML = '';
+    for (const f of frases) {
+      const p = document.createElement('p');
+      p.textContent = f;
+      narrativa.appendChild(p);
+    }
+    if (refs.length > 0) {
+      const r = document.createElement('div');
+      r.className = 'objeto-referencias';
+      const lab = document.createElement('span');
+      lab.className = 'objeto-referencias__label';
+      lab.textContent = 'Referencias · ';
+      r.appendChild(lab);
+      refs.forEach((ref, i) => {
+        if (i > 0) {
+          const sep = document.createElement('span');
+          sep.textContent = ' · ';
+          r.appendChild(sep);
+        }
+        if (ref.url) {
+          const a = document.createElement('a');
+          a.href = ref.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.textContent = ref.nombre;
+          r.appendChild(a);
+        } else {
+          const s = document.createElement('span');
+          s.textContent = ref.nombre;
+          r.appendChild(s);
+        }
+        if (ref.fecha) {
+          const v = document.createElement('span');
+          v.textContent = ` (vigencia ${ref.fecha})`;
+          r.appendChild(v);
+        }
+      });
+      contenedor.appendChild(r);
+    }
+    obj._narrativa = frases;
+    obj._refs = refs;
+    contenedor.appendChild(botonCopiar(obj));
+  });
+}
 
-  // Viviendas particulares y colectivas: solo en municipios
-  if (obj.nivel === 'municipio') {
-    const vivPrtFmt = fmtEntero(vivParticulares);
-    if (vivPrtFmt) metricas.push(metrica(vivPrtFmt, 'VIVIENDAS PARTICULARES', { small: true }));
-    const vivColFmt = fmtEntero(vivColectivas);
-    if (vivColFmt) metricas.push(metrica(vivColFmt, 'VIVIENDAS COLECTIVAS', { small: true }));
+const LIMITE_HIJOS = 8;
+
+function renderHijos(contenedor, obj, filtroNivel) {
+  const grupos = gruposHijos(obj);
+  let extras = [];
+  if (!filtroNivel && obj.nivel === 'provincia') {
+    const munis = todosMunicipios(obj);
+    if (munis.length > 0) extras.push({ nivel: 'municipio', items: munis, titulo: `Municipios · ${munis.length}` });
   }
-
-  const ffccFmt = fmtKm(kmFfcc);
-  // FFCC ocupa ancho completo en el grid con acento
-  if (ffccFmt) {
-    const m = metrica(ffccFmt, 'RED FERROVIARIA', { accent: true });
-    m.classList.add('objeto-metrica--accent');
-    metricas.push(m);
+  const lista = filtroNivel ? grupos.filter((g) => g.nivel === filtroNivel) : grupos;
+  for (const g of lista) {
+    contenedor.appendChild(seccionHijos(obj, g.nivel, g.items, g.titulo));
   }
-
-  if (metricas.length > 0) {
-    const grid = document.createElement('div');
-    grid.className = 'objeto-metricas-grid';
-    for (const m of metricas) grid.appendChild(m);
-    contenedor.appendChild(grid);
+  for (const g of extras) {
+    if (filtroNivel && g.nivel !== filtroNivel) continue;
+    contenedor.appendChild(seccionHijos(obj, g.nivel, g.items, g.titulo));
   }
+}
 
-  // Datasets (Fase 3): una sección colapsada por tipo con vigencia.
-  // El detalle se trae lazy por yvy_id; null/0 en colectivas/calle = "–".
-  const datasets = getDatasets();
-  for (const ds of datasets) {
-    contenedor.appendChild(seccionDataset(obj, ds));
+function etiquetaPlural(nivel, n) {
+  const base = { provincia: 'Provincias', depto: 'Departamentos', municipio: 'Municipios', barrio: 'Barrios' }[nivel] || nivel;
+  return `${base} · ${n}`;
+}
+
+function seccionHijos(obj, nivel, items, tituloForzado) {
+  const d = seccion(tituloForzado || etiquetaPlural(nivel, items.length));
+  const visibles = items.slice(0, LIMITE_HIJOS);
+  for (const h of visibles) d.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
+  if (items.length > LIMITE_HIJOS) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'objeto-more-btn';
+    more.textContent = `Ver los ${items.length} →`;
+    more.addEventListener('click', () => renderDetalleHijos(obj, nivel, items, tituloForzado));
+    d.appendChild(more);
   }
+  return d;
+}
 
+function renderDetalleHijos(obj, nivel, items, tituloForzado) {
+  renderToken++;
+  const contenedor = document.getElementById('objeto-info');
+  if (!contenedor) return;
+  contenedor.innerHTML = '';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'objeto-volver';
+  back.textContent = `← ${obj.nombre_oficial}`;
+  back.addEventListener('click', () => renderFicha(obj));
+  contenedor.appendChild(back);
+  const d = seccion(tituloForzado || etiquetaPlural(nivel, items.length));
+  for (const h of items) d.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
+  contenedor.appendChild(d);
+}
+
+function renderBreadcrumb(ruta) {
+  const bc = document.createElement('nav');
+  bc.className = 'objeto-breadcrumb';
+  bc.setAttribute('aria-label', 'Jerarquía');
+  ruta.forEach((o, i) => {
+    const ultimo = i === ruta.length - 1;
+    const chip = document.createElement('span');
+    if (ultimo) {
+      chip.className = 'objeto-breadcrumb__final';
+      chip.textContent = o.nombre_oficial;
+    } else {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'objeto-breadcrumb__btn';
+      b.textContent = o.nombre_oficial;
+      b.title = `Ir a ${o.nombre_oficial}`;
+      b.addEventListener('click', () => navegarA(o.yvy_id));
+      chip.appendChild(b);
+    }
+    bc.appendChild(chip);
+    if (!ultimo) {
+      const sep = document.createElement('span');
+      sep.className = 'objeto-breadcrumb__sep';
+      sep.setAttribute('aria-hidden', 'true');
+      sep.textContent = '›';
+      bc.appendChild(sep);
+    }
+  });
+  return bc;
+}
+
+// Breadcrumb inline (el del topbar se oculta en móvil).
+function renderBreadcrumbInline(contenedor, obj) {
   const ruta = [];
   let cur = obj;
   while (cur) {
@@ -215,18 +444,75 @@ function renderFicha(obj) {
     cur = getPadre(cur);
   }
   if (ruta.length > 1) contenedor.appendChild(renderBreadcrumb(ruta.reverse()));
+}
 
-  const dep = seccionDependencias(obj);
-  if (dep) contenedor.appendChild(dep);
-  if (metricas.length === 0 && !dep && datasets.length === 0) {
-    const vacio = document.createElement('div');
-    vacio.className = 'objeto-empty-state';
-    const p = document.createElement('p');
-    p.textContent = 'Sin datos registrados todavía.';
-    vacio.appendChild(p);
-    contenedor.appendChild(vacio);
+function seccion(title) {
+  const d = document.createElement('div');
+  d.className = 'objeto-section';
+  const t = document.createElement('h4');
+  t.className = 'objeto-section__title';
+  t.textContent = title;
+  d.appendChild(t);
+  return d;
+}
+
+function btnNavegar(tipo, nombre, yvyId) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'objeto-nav';
+  const left = document.createElement('span');
+  left.style.display = 'flex';
+  left.style.flexDirection = 'column';
+  left.style.minWidth = '0';
+  if (tipo) {
+    const t = document.createElement('span');
+    t.className = 'objeto-nav__tipo';
+    t.textContent = tipo;
+    left.appendChild(t);
   }
-  contenedor.appendChild(botonCopiar(obj));
+  const n = document.createElement('span');
+  n.className = 'objeto-nav__nombre';
+  n.textContent = nombre;
+  left.appendChild(n);
+  b.appendChild(left);
+  b.addEventListener('click', () => navegarA(yvyId));
+  return b;
+}
+
+function textoResumen(obj) {
+  const ruta = [];
+  let cur = obj;
+  while (cur) {
+    ruta.push(cur.nombre_oficial);
+    cur = getPadre(cur);
+  }
+  ruta.reverse();
+  const líneas = [`${obj.nombre_oficial} · ${etiquetaNivel(obj.nivel)}`];
+  for (const f of obj._narrativa || []) líneas.push(f);
+  líneas.push(ruta.join(' › '));
+  const refs = (obj._refs || []).map((r) => `${r.nombre}${r.fecha ? ` (vigencia ${r.fecha})` : ''}`);
+  if (refs.length > 0) líneas.push(`Referencias: ${refs.join(' · ')}`);
+  líneas.push(location.href);
+  return líneas.join('\n');
+}
+
+function botonCopiar(obj) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'objeto-copy';
+  b.textContent = 'Copiar resumen';
+  b.addEventListener('click', async () => {
+    const txt = textoResumen(obj);
+    try {
+      await navigator.clipboard.writeText(txt);
+      b.textContent = 'Copiado';
+    } catch {
+      window.prompt('Copia este resumen:', txt);
+    }
+    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel });
+    setTimeout(() => { b.textContent = 'Copiar resumen'; }, 2000);
+  });
+  return b;
 }
 
 const METRICA_LABEL = {
@@ -255,12 +541,13 @@ function valorMetrica(key, v) {
 
 /** Sección colapsada por dataset: header con vigencia + detalle lazy por yvy_id. */
 function seccionDataset(obj, ds) {
-  const d = seccion(ds.tipo.toUpperCase());
+  const d = seccion(tituloTipo(ds.tipo));
   const head = document.createElement('button');
   head.type = 'button';
   head.className = 'objeto-dataset-btn';
-  const vig = [ds.fuente, ds.fecha_vigencia].filter(Boolean).join(' · ');
-  head.textContent = vig ? `${ds.tipo} · ${vig}` : ds.tipo;
+  const f = fuenteHumana(ds.fuente);
+  const vig = [f.corto, ds.fecha_vigencia].filter(Boolean).join(' · ');
+  head.textContent = vig ? `${tituloTipo(ds.tipo)} · ${vig}` : tituloTipo(ds.tipo);
   const body = document.createElement('div');
   body.className = 'objeto-dataset-body';
   body.hidden = true;
@@ -302,126 +589,38 @@ function seccionDataset(obj, ds) {
       body.appendChild(btn);
       body.appendChild(gridResto);
     }
-    const f = document.createElement('div');
-    f.className = 'objeto-fuente';
-    f.textContent = `Fuente: ${ag.fuente || 'pendiente'} · Vigencia: ${ag.fecha_vigencia || 'pendiente'}`;
-    body.appendChild(f);
+    const foot = document.createElement('div');
+    foot.className = 'objeto-fuente';
+    const af = fuenteHumana(ag.fuente);
+    foot.textContent = '';
+    const fl = document.createElement('span');
+    fl.textContent = `Fuente: ${af.nombre}${ag.fecha_vigencia ? ` · Vigencia: ${ag.fecha_vigencia}` : ''}`;
+    foot.appendChild(fl);
+    if (af.url) {
+      const sp = document.createElement('span');
+      sp.textContent = ' · ';
+      foot.appendChild(sp);
+      const a = document.createElement('a');
+      a.href = af.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'sitio oficial';
+      foot.appendChild(a);
+    }
+    body.appendChild(foot);
   });
   d.appendChild(head);
   d.appendChild(body);
   return d;
 }
 
-function renderBreadcrumb(ruta) {
-  const bc = document.createElement('nav');
-  bc.className = 'objeto-breadcrumb';
-  bc.setAttribute('aria-label', 'Jerarquía');
-  ruta.forEach((o, i) => {
-    const ultimo = i === ruta.length - 1;
-    const chip = document.createElement('span');
-    if (ultimo) {
-      chip.className = 'objeto-breadcrumb__final';
-      chip.textContent = o.nombre_oficial;
-    } else {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'objeto-breadcrumb__btn';
-      b.textContent = o.nombre_oficial;
-      b.title = `Ir a ${o.nombre_oficial}`;
-      b.addEventListener('click', () => navegarA(o.yvy_id));
-      chip.appendChild(b);
-    }
-    bc.appendChild(chip);
-    if (!ultimo) {
-      const sep = document.createElement('span');
-      sep.className = 'objeto-breadcrumb__sep';
-      sep.setAttribute('aria-hidden', 'true');
-      sep.textContent = '›';
-      bc.appendChild(sep);
-    }
-  });
-  return bc;
-}
-
-function seccion(title) {
-  const d = document.createElement('div');
-  d.className = 'objeto-section';
-  const t = document.createElement('h4');
-  t.className = 'objeto-section__title';
-  t.textContent = title;
-  d.appendChild(t);
-  return d;
-}
-
-function seccionDependencias(obj) {
-  const hijos = getHijos(obj.yvy_id);
-  if (hijos.length === 0) return null;
-  const d = seccion(`Dependencias \u00B7 ${hijos.length}`);
-  const LIMITE = 4;
-  const visibles = hijos.slice(0, LIMITE);
-  visibles.forEach((h) => d.appendChild(btnNavegar(etiquetaNivel(h.nivel), h.nombre_oficial, h.yvy_id)));
-  if (hijos.length > LIMITE) {
-    const more = document.createElement('div');
-    more.className = 'objeto-more';
-    more.textContent = `+ ${hijos.length - LIMITE} más — filtrá en el explorador`;
-    d.appendChild(more);
+// Detalle por dataset (acordeones): solo donde el tipo aplica al nivel.
+function renderDatasetsAplicables(contenedor, obj) {
+  const aplicables = getDatasets().filter((ds) => (ds.niveles || []).includes(obj.nivel));
+  for (const ds of aplicables) {
+    contenedor.appendChild(seccionDataset(obj, ds));
   }
-  return d;
+  return aplicables.length;
 }
 
-function btnNavegar(tipo, nombre, yvyId) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'objeto-nav';
-  const left = document.createElement('span');
-  left.style.display = 'flex';
-  left.style.flexDirection = 'column';
-  left.style.minWidth = '0';
-  const t = document.createElement('span');
-  t.className = 'objeto-nav__tipo';
-  t.textContent = tipo;
-  const n = document.createElement('span');
-  n.className = 'objeto-nav__nombre';
-  n.textContent = nombre;
-  left.appendChild(t);
-  left.appendChild(n);
-  b.appendChild(left);
-  b.addEventListener('click', () => navegarA(yvyId));
-  return b;
-}
-
-function textoResumen(obj) {
-  const ruta = [];
-  let cur = obj;
-  while (cur) {
-    ruta.push(cur.nombre_oficial);
-    cur = getPadre(cur);
-  }
-  ruta.reverse();
-  const sup = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : 'Sin dato';
-  const fuente = obj.sup_fuente_corta || obj.sup_fuente || 'Fuente pendiente';
-  return `${obj.nombre_oficial} · ${ruta.join(' › ')} · yvy:${obj.yvy_id}
-${etiquetaNivel(obj.nivel)} · ${sup}
-Fuente: ${fuente}
-Link: ${location.href}`;
-}
-
-function botonCopiar(obj) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'objeto-copy';
-  b.textContent = 'Copiar resumen';
-  b.addEventListener('click', async () => {
-    const txt = textoResumen(obj);
-    try {
-      await navigator.clipboard.writeText(txt);
-      b.textContent = 'Copiado';
-    } catch {
-      window.prompt('Copia este resumen:', txt);
-    }
-    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel });
-    setTimeout(() => { b.textContent = 'Copiar resumen'; }, 2000);
-  });
-  return b;
-}
-
+export { renderDatasetsAplicables };

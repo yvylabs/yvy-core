@@ -678,6 +678,28 @@ const CATEGORIA_TIPO = {
   rutas: 'Infraestructura', ffcc: 'Infraestructura', energia: 'Infraestructura', agua: 'Infraestructura',
   catastro: 'Infraestructura',
 };
+// Niveles donde aplica cada tipo (SPEC §10 nivel_agregacion; la ficha filtra por esto)
+const NIVEL_AGREGACION = {
+  demografia: ['pais', 'provincia', 'depto', 'municipio'],
+  barrios: ['municipio'],
+  mineria: ['depto'],
+  catastro: ['depto'],
+};
+// Agregación curada por tipo (SPEC §10 métricas por tipo): solo estas
+// columnas sobreviven al rollup por contenedor. El resto (códigos,
+// expedientes) no se suma ni se lista: sumar códigos es basura.
+const AGREGACION_TIPO = {
+  mineria: {
+    conteo: 'total_concesiones',
+    sumas: { area_ha: 'area_total_ha' },
+    top: { tipo: 'por_tipo', estado: 'por_estado', mineral: 'por_mineral' },
+  },
+  catastro: {
+    conteo: 'total_parcelas',
+    sumas: { area_m2: 'area_total_m2', area_ha: 'area_total_ha' },
+    top: { categoria: 'por_categoria', localid: 'por_localidad' },
+  },
+};
 // Columnas que NO son métricas (identidad/meta del agregado)
 const NO_METRICA = new Set(['yvy_id', 'id', 'nivel', 'parent_yvy_id', 'yvy_id_contenedor', 'cod_indec', 'georef_id', 'nombre_oficial', 'nombre', 'fuente', 'fuente_url', 'fecha_vigencia', 'version', 'categoria', 'tipo']);
 
@@ -734,36 +756,70 @@ async function construirDatasets(objetos, advertencias) {
     let fecha = null;
     let version = null;
     const base = [];
+    // Agrupar filas por yvy_id: los datasets fila-a-fila (catastro, minería)
+    // traen N filas por contenedor y se agregan (suma numérica + top-20 por
+    // columna de texto). Un grupo de 1 fila sale idéntico a antes.
+    const grupos = new Map();
     for (const f of filas) {
       const yvyId = num(f[iYvy]);
       if (yvyId == null) continue;
+      if (!grupos.has(yvyId)) grupos.set(yvyId, []);
+      grupos.get(yvyId).push(f);
+    }
+    const metricaDeCelda = (raw) => {
+      if (raw == null || raw === '') return 0;
+      const n = num(raw);
+      return n == null ? raw : (Number.isInteger(n) ? n : Math.round(n * 100) / 100);
+    };
+    for (const [yvyId, gf] of grupos) {
       if (!idsCatalogo.has(yvyId)) {
         advertencias.push(`Dataset "${archivo}": yvy_id ${yvyId} no existe en el catálogo (agregado huérfano, igual se emite).`);
       }
-      const metricas = {};
-      for (const i of iMetrica) {
-        const raw = f[i];
-        if (raw == null || raw === '') metricas[normalizar(encabezados[i])] = 0;
-        else {
-          const n = num(raw);
-          metricas[normalizar(encabezados[i])] = n == null ? raw : (Number.isInteger(n) ? n : Math.round(n * 100) / 100);
+      const f0 = gf[0];
+      let metricas = {};
+      const regla = AGREGACION_TIPO[tipo];
+      if (!regla) {
+        for (const i of iMetrica) metricas[normalizar(encabezados[i])] = metricaDeCelda(f0[i]);
+      } else {
+        // Agregado curado: conteo + sumas + top-20 de columnas listadas.
+        // Nada fuera de la regla sobrevive (ni códigos sumados ni dropdowns).
+        metricas[regla.conteo] = gf.length;
+        const colIdx = {};
+        for (let i = 0; i < encabezados.length; i++) colIdx[normalizar(encabezados[i])] = i;
+        for (const [col, out] of Object.entries(regla.sumas || {})) {
+          if (!(col in colIdx)) continue;
+          const s = gf.map((r) => num(r[colIdx[col]])).filter((n) => n != null)
+            .reduce((a, b) => a + b, 0);
+          metricas[out] = Number.isInteger(s) ? s : Math.round(s * 100) / 100;
+        }
+        for (const [col, out] of Object.entries(regla.top || {})) {
+          if (!(col in colIdx)) continue;
+          const vc = new Map();
+          for (const r of gf) {
+            const v = r[colIdx[col]];
+            if (v == null || v === '') continue;
+            const k = String(v);
+            vc.set(k, (vc.get(k) || 0) + 1);
+          }
+          const top = [...vc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+          metricas[out] = JSON.stringify(Object.fromEntries(top));
         }
       }
       const ag = {
         tipo,
-        categoria: iCat >= 0 && f[iCat] ? f[iCat] : (CATEGORIA_TIPO[tipo] || null),
+        categoria: iCat >= 0 && f0[iCat] ? f0[iCat] : (CATEGORIA_TIPO[tipo] || null),
         yvy_id: yvyId,
         yvy_id_contenedor: yvyId,
-        fuente: iFuente >= 0 && f[iFuente] ? f[iFuente] : null,
-        fecha_vigencia: iFecha >= 0 && f[iFecha] ? f[iFecha] : null,
-        version: (iVersion >= 0 && f[iVersion] ? f[iVersion] : null) || version,
+        fuente: iFuente >= 0 && f0[iFuente] ? f0[iFuente] : null,
+        fecha_vigencia: iFecha >= 0 && f0[iFecha] ? f0[iFecha] : null,
+        version: (iVersion >= 0 && f0[iVersion] ? f0[iVersion] : null) || version,
         metricas,
       };
       if (ag.fuente && !fuente) fuente = ag.fuente;
       if (ag.fecha_vigencia && !fecha) fecha = ag.fecha_vigencia;
       if (ag.version && !version) version = ag.version;
       await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
-      count++;
+      count += gf.length;
       base.push(ag);
     }
     // Rollup a ancestros (suma numérica; el directo manda si ya existe)
@@ -802,7 +858,7 @@ async function construirDatasets(objetos, advertencias) {
       rolled++;
     }
     if (!version) version = m[2] || null;
-    datasets.push({ tipo, categoria: CATEGORIA_TIPO[tipo] || null, version, fecha_vigencia: fecha, fuente, count: count + rolled, archivo });
+    datasets.push({ tipo, categoria: CATEGORIA_TIPO[tipo] || null, niveles: NIVEL_AGREGACION[tipo] || null, version, fecha_vigencia: fecha, fuente, count: count + rolled, archivo });
   }
   return datasets;
 }

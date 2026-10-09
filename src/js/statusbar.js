@@ -61,7 +61,7 @@ export function setObjetoBarra(obj) {
   const el = document.getElementById('st-objeto');
   if (!el) return;
   if (!obj) {
-    el.textContent = 'Ninguna jurisdicción seleccionada';
+    el.textContent = 'Ningún lugar seleccionado';
     pintarBreadcrumb(null);
     return;
   }

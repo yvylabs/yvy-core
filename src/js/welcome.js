@@ -56,7 +56,6 @@ function renderResultado(o, onPick) {
       <span class="welcome-result__nombre">${escapar(o.nombre_oficial)}</span>
       <span class="welcome-result__meta">${escapar(tipo)}${sup ? ` · ${escapar(sup)}` : ''}</span>
     </span>
-    <span class="welcome-result__id">yvy:${Number(o.yvy_id)}</span>
   `;
   el.addEventListener('click', () => onPick(o.yvy_id));
   el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(o.yvy_id); } });

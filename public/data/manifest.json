@@ -1,5 +1,5 @@
 {
-  "generado": 1791565265664,
+  "generado": 1791577367648,
   "schema": "yvy-manifest-v3",
   "fuentes": [
     {
@@ -135290,6 +135290,9 @@
     {
       "tipo": "catastro",
       "categoria": "Infraestructura",
+      "niveles": [
+        "depto"
+      ],
       "version": "1.0",
       "fecha_vigencia": "2026-06",
       "fuente": "DGI Salta",
@@ -135299,6 +135302,12 @@
     {
       "tipo": "demografia",
       "categoria": "Sociedad",
+      "niveles": [
+        "pais",
+        "provincia",
+        "depto",
+        "municipio"
+      ],
       "version": "1.0",
       "fecha_vigencia": "2022-05",
       "fuente": "Censo 2022 - censo.gob.ar/gobiernos-locales",
@@ -135308,6 +135317,9 @@
     {
       "tipo": "mineria",
       "categoria": "Economía",
+      "niveles": [
+        "depto"
+      ],
       "version": "1.0",
       "fecha_vigencia": "2026-09",
       "fuente": "Secretaría de Minería de Salta",

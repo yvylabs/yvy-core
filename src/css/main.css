@@ -940,12 +940,6 @@ button.topbar__crumb:hover { color: var(--accent); }
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.welcome-result__id {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  flex-shrink: 0;
-}
 .welcome-empty { padding: 16px; font-size: 12px; color: var(--text-dim); text-align: center; }
 .welcome__foot { padding: 10px 22px 16px; border-top: 1px solid #1E293B; }
 .welcome__foot-label {
@@ -991,6 +985,55 @@ button.topbar__crumb:hover { color: var(--accent); }
 .objeto-dataset-btn:hover{border-color:var(--accent)}
 .objeto-dataset-body{padding:4px 0}
 .objeto-more-btn{margin-top:8px;background:none;border:none;color:var(--accent);cursor:pointer;padding:4px 0}
+
+/* ==============================================================
+   FICHA REPORTE — narrativa textual + referencias
+   ============================================================== */
+.objeto-narrativa {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+.objeto-narrativa p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0;
+}
+.objeto-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+.objeto-volver:hover { color: var(--accent); border-color: var(--accent); }
+.objeto-referencias {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  opacity: 0.85;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.objeto-referencias__label {
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.objeto-referencias a { color: var(--accent); text-decoration: none; }
+.objeto-referencias a:hover { text-decoration: underline; }
 
 /* ==============================================================
    ACABADO SOFISTICADO — micro-interacciones y detalle
