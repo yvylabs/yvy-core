@@ -2,7 +2,6 @@ import {
   getObjeto,
   getPadre,
   getHijos,
-  getObjetoActivo,
   setObjetoActivo,
   navegarA,
   formatKM2,
@@ -104,11 +103,6 @@ export function mostrarObjeto(yvyId) {
   renderFicha(obj);
   setModoInspect(obj);
   abrirPanelObjeto();
-}
-
-export function refrescarFicha() {
-  const obj = getObjetoActivo();
-  if (obj) renderFicha(obj);
 }
 
 export function limpiarFicha() {

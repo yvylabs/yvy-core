@@ -21,7 +21,6 @@ export const NIVEL_LABEL = {
   concesion: 'Concesión',
 };
 
-export const NIVEL_ORDEN = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
 
 /** Carga (una vez) el manifest y las relaciones. Tolerante a archivos faltantes. */
 export async function cargarDatos() {
@@ -79,13 +78,6 @@ export function getObjeto(yvyId) {
   return datos ? datos.objetos.get(Number(yvyId)) : undefined;
 }
 
-/** Raíces del árbol (países / objetos sin padre presente en el catálogo). */
-export function getRaices() {
-  const objetos = getObjetos();
-  const ids = new Set(objetos.map((o) => o.yvy_id));
-  return objetos.filter((o) => o.parent_yvy_id == null || !ids.has(Number(o.parent_yvy_id)));
-}
-
 export function getHijos(yvyId) {
   if (hijosIndex) return hijosIndex.get(Number(yvyId)) || [];
   // Fallback antes de cargar (no debería ocurrir en uso normal)
@@ -125,10 +117,6 @@ export async function getAgregado(tipo, yvyId) {
 // --------------------------------------------------------------
 export function setObjetoActivo(objeto) {
   objetoActivo = objeto || null;
-}
-
-export function getObjetoActivo() {
-  return objetoActivo;
 }
 
 /**

@@ -22,7 +22,6 @@ import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
 // Atribución del basemap (la pone MapLibre desde el style): OpenFreeMap © OpenMapTiles © OpenStreetMap.
-const BASE_ATTR = 'OpenFreeMap © OpenMapTiles © OpenStreetMap';
 
 /** Basemap vectorial oscuro (fork OpenFreeMap, etiquetas en español). Con fallback a fondo plano. */
 let estiloAplicado = false;
@@ -202,27 +201,28 @@ async function irAYvyId(yvyId) {
   // el zoom para que entre entero (con padding); si no, centro/zoom fijos
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
-  if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
-    const b = obj.bounds_objeto;
-    const cam = map.cameraForBounds(
-      [
-        [b[0], b[1]],
-        [b[2], b[3]],
-      ],
-      {
-        padding: 80,
-        maxZoom: (obj.maxzoom ?? 22) + 3,
-        minZoom: Math.min(obj.minzoom ?? 0, 6),
+  try {
+    if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
+      const b = obj.bounds_objeto;
+      const cam = map.cameraForBounds(
+        [
+          [b[0], b[1]],
+          [b[2], b[3]],
+        ],
+        {
+          padding: 80,
+          maxZoom: (obj.maxzoom ?? 22) + 3,
+          minZoom: Math.min(obj.minzoom ?? 0, 6),
+        }
+      );
+      if (cam) {
+        centro = cam.center;
+        zoomObjetivo = cam.zoom;
       }
-    );
-    if (cam) {
-      centro = cam.center;
-      zoomObjetivo = cam.zoom;
     }
+  } catch {
+    // bounds degenerados: se vuela a centro/zoom fijos, nunca se aborta la ficha
   }
-  // La capa on-demand pinta por overzoom en cualquier zoom: el vuelo se
-  // mantiene dentro de [minzoom, maxzoom+3] para no volar en vacío.
-  zoomObjetivo = Math.min(Math.max(zoomObjetivo, obj.minzoom ?? 0), (obj.maxzoom ?? 22) + 3);
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
 
   // La ficha es fija a la izquierda. Si el objeto queda debajo del panel
@@ -233,7 +233,8 @@ async function irAYvyId(yvyId) {
     if (!obj || !Array.isArray(obj.centro)) return;
     try {
       const pt = map.project(obj.centro);
-      const panelLimit = 320 + 24; // ancho de la ficha + aire
+      const panel = document.getElementById('panel-explorador');
+      const panelLimit = (panel && !panel.hidden ? panel.offsetWidth : 320) + 24;
       if (pt.x < panelLimit) {
         const nc = map.unproject([pt.x + (panelLimit - pt.x), pt.y]);
         map.easeTo({ center: [nc.lng, nc.lat], duration: 700 });
@@ -248,10 +249,8 @@ async function irAYvyId(yvyId) {
 setNavegador(irAYvyId);
 
 // --------------------------------------------------------------
-// Carga perezosa del Explorador (árbol desde el manifest)
-// El árbol de jurisdicciones (miles de nodos) NO se construye en
-// el load: solo globo 3D al iniciar. Se arma la primera vez que
-// el usuario abre el panel Explorador.
+// Carga perezosa del catálogo (una vez, en memoria).
+// El globo 3D arranca solo; la ficha navega por padre/hijos.
 // --------------------------------------------------------------
 let datosGarantizados = false;
 

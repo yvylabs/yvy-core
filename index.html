@@ -90,12 +90,7 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- CONTROL DE CAPA BASE (esquina inferior izquierda) -->
-  <!-- ============================================================ -->
-  <div class="basemap-control" id="basemap-control" style="display:none;"></div>
-
-  <!-- ============================================================ -->
-  <!-- TOOLBAR IZQUIERDO (Explorador + Capas) -->
+  <!-- TOOLBAR IZQUIERDO (Buscar + Ficha + Compartir) -->
   <!-- ============================================================ -->
   <nav class="toolbar toolbar--left" id="toolbar-left" aria-label="Barra de navegación">
     <button class="toolbar-btn" id="btn-buscar" aria-expanded="false" aria-label="Buscar jurisdicción" data-tooltip="Buscar jurisdicción">
@@ -106,12 +101,6 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></svg>
     </button>
 
-    <button class="toolbar-btn" id="btn-asistente" aria-expanded="false" aria-label="Asistente de geointeligencia" data-tooltip="Asistente de geointeligencia">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg>
-    </button>
-    <button class="toolbar-btn" id="btn-medir" aria-expanded="false" aria-label="Medir distancias y superficies" data-tooltip="Medir distancias y superficies">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3v-4z"/><path d="m14 6 1.5 1.5M11 9l1.5 1.5M8 12l1.5 1.5" stroke-linecap="round"/></svg>
-    </button>
     <button class="toolbar-btn" id="btn-compartir" aria-label="Compartir vista" data-tooltip="Compartir vista">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.9 7.6-4.7M8.2 13.1l7.6 4.7"/></svg>
     </button>
@@ -132,60 +121,6 @@
     </header>
     <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
       <div id="objeto-info"></div>
-    </div>
-  </section>
-
-  <!-- Panel MEDICIÓN -->
-  <section class="floating-panel" id="panel-medir" hidden aria-label="Medición de distancias y superficies">
-    <header class="floating-panel__head">
-      <h2>Medición</h2>
-      <button class="floating-panel__close" data-close aria-label="Cerrar">✕</button>
-    </header>
-    <div class="floating-panel__body">
-      <div class="measure-results">
-        <span class="measure-results__row"><span class="status-bar__k">Distancia:</span><span class="measure-results__v" id="measure-dist">–</span></span>
-        <span class="measure-results__row"><span class="status-bar__k">Superficie:</span><span class="measure-results__v" id="measure-area">–</span></span>
-      </div>
-      <div class="measure-actions">
-        <button type="button" class="measure-btn" id="measure-clear">Limpiar</button>
-        <button type="button" class="measure-btn measure-btn--primary" id="measure-close">Listo</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Panel ASISTENTE DE GEOINTELIGENCIA -->
-  <section class="floating-panel assistant-panel" id="panel-asistente" hidden aria-label="Asistente de geointeligencia">
-    <header class="assistant-panel__head">
-      <div class="assistant-panel__title">
-        <span class="assistant-panel__title-badge"></span>
-        <span>Asistente · Ontología</span>
-      </div>
-      <button class="assistant-panel__close" data-close aria-label="Cerrar">✕</button>
-    </header>
-    <div class="assistant-panel__body" id="assistant-body">
-      <div class="assistant-message assistant-message--system">
-        <div>Consultá la ontología territorial en tiempo real (0ms). Probá los comandos rápidos:</div>
-      </div>
-      <div class="assistant-quick-actions">
-        <button type="button" class="assistant-chip" data-assistant-prompt="ir a Neuquen">
-          <span>Ir a Neuquén</span> <span class="assistant-chip__arrow">→</span>
-        </button>
-        <button type="button" class="assistant-chip" data-assistant-prompt="ficha de Santa Fe">
-          <span>Ficha de Santa Fe</span> <span class="assistant-chip__arrow">→</span>
-        </button>
-        <button type="button" class="assistant-chip" data-assistant-prompt="ver ffcc">
-          <span>Activar FFCC</span> <span class="assistant-chip__arrow">→</span>
-        </button>
-        <button type="button" class="assistant-chip" data-assistant-prompt="comparar Cordoba y Santa Fe">
-          <span>Comparar Cba vs Sta Fe</span> <span class="assistant-chip__arrow">→</span>
-        </button>
-      </div>
-    </div>
-    <div class="assistant-panel__footer">
-      <div class="assistant-input-wrap">
-        <input type="text" id="assistant-input" class="assistant-input" placeholder="Comando o territorio (ej: ir a Rosario, ver ffcc)…" autocomplete="off" spellcheck="false" />
-        <button type="button" id="assistant-send" class="assistant-send-btn" aria-label="Enviar">➔</button>
-      </div>
     </div>
   </section>
 

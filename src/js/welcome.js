@@ -8,7 +8,6 @@ import { getObjetos } from './manifest.js';
 import { track } from './telemetry.js';
 
 let navegarHandler = null;
-let bienvenidaLista = false;
 let overlay, input, results, hint, suggestions;
 
 function normalizar(txt) {
@@ -160,7 +159,6 @@ export function inicializarBienvenida(fnNavegar) {
     }
   });
 
-  bienvenidaLista = true;
   render('');
   abrir();
 }
