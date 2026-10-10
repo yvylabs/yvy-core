@@ -50,13 +50,15 @@ El build además valida estructura (prefijo == padre), no solo intervalo.
 
 ## 1b. Cobertura (nacional desde v2)
 
-**Jurisdicciones** (`data/registry/jurisdicciones.parquet`, 3336 nodos):
+**Jurisdicciones** (`data/registry/jurisdicciones.parquet`, 3334 nodos):
 - Argentina (0)
 - 24 provincias (`1000 + in1`: CABA 1002 … Salta 1066 … TDF 1094)
 - 529 departamentos (`100000 + in1`)
 - 2348 gobiernos locales (`1000000 + in1`; incluye 10 "Sin gobierno
   local" provinciales + 8 indeterminados `9000000001..08` como raíces)
-- 434 barrios de Salta ciudad (`1660063001 → 1660063434`)
+- 432 barrios de Salta ciudad (con superficie calculada en ha al mostrar)
+- Superficie (`sup_oficial_km2` + `sup_fuente`) donde hay dato oficial;
+  en blanco = sin dato. La ficha deriva densidad (hab/km²).
 
 Etiquetas de `nivel` en el parquet: `pais, provincia, departamento,
 gobierno_local, barrio` (el build las mapea a su canónico

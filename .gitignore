@@ -22,6 +22,8 @@ public/data/catastro.pmtiles
 public/data.zip
 data/registry.7z
 data/registry/*.zip
+# Backups locales del pipeline (nunca al repo)
+02_backup/
 *.gpkg
 __pycache__/
 

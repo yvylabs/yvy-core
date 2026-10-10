@@ -2,9 +2,9 @@ import {
   getObjeto,
   getPadre,
   getHijos,
+  getRelaciones,
   setObjetoActivo,
   navegarA,
-  formatKM2,
   etiquetaNivel,
   getDatasets,
   getAgregado,
@@ -14,6 +14,16 @@ import { track } from './telemetry.js';
 
 const fmtInt = new Intl.NumberFormat('es-AR');
 const fmt1dec = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmt2dec = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+
+// Superficie legible: bajo 1 km² se muestra en hectáreas (barrios,
+// comunas chicas). Si no hay dato, null (se omite, no se grita).
+function fmtSup(km2) {
+  const n = Number(km2);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1) return `${fmt2dec.format(Math.round(n * 100 * 100) / 100)} ha`;
+  return `${fmt1dec.format(Math.round(n * 10) / 10)} km²`;
+}
 
 // Token anti-carrera: si el usuario navega antes de que vuelva el fetch,
 // la respuesta vieja no pinta.
@@ -200,6 +210,22 @@ function fraseResto(m) {
   return `Viven ${partes.join(' y ')}.`;
 }
 
+function fraseLinderos(obj) {
+  const nombres = [];
+  const vistos = new Set();
+  for (const r of getRelaciones(obj.yvy_id)) {
+    if (r.tipo !== 'lindero') continue;
+    const dest = getObjeto(r.destino_yvy_id);
+    if (!dest || vistos.has(dest.yvy_id)) continue;
+    vistos.add(dest.yvy_id);
+    nombres.push(dest.nombre_oficial);
+  }
+  if (nombres.length === 0) return null;
+  const tope = nombres.slice(0, 6);
+  const resto = nombres.length - tope.length;
+  return `Limita con ${tope.join(', ')}${resto > 0 ? ` y ${resto} más` : ''}.`;
+}
+
 async function componerNarrativa(obj) {
   const aplicables = getDatasets().filter((ds) => (ds.niveles || []).includes(obj.nivel));
   const ags = {};
@@ -227,6 +253,10 @@ async function componerNarrativa(obj) {
     } else s1 = `El municipio de ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
     frases.push(`${s1} (${f.corto}${vig}).`);
     refs.push({ ...f, fecha: demo.fecha_vigencia });
+    const supKm2 = Number(obj.sup_oficial_km2);
+    if (Number.isFinite(supKm2) && supKm2 > 0 && pob > 0) {
+      frases.push(`La densidad es de ${fmt1dec.format(Math.round((pob / supKm2) * 10) / 10)} habitantes por km².`);
+    }
     const resto = fraseResto(m);
     if (resto) frases.push(resto);
   } else if (aplicables.some((ds) => ds.tipo === 'demografia')) {
@@ -244,6 +274,8 @@ async function componerNarrativa(obj) {
   }
   const est = fraseEstructura(obj);
   if (est) frases.push(est);
+  const lind = fraseLinderos(obj);
+  if (lind) frases.push(lind);
   const min = ags.mineria;
   if (min && min.metricas && Number(min.metricas.total_concesiones) > 0) {
     const area = fmtHa(min.metricas.area_total_ha);
@@ -255,6 +287,9 @@ async function componerNarrativa(obj) {
     const area = fmtHa(cat.metricas.area_total_ha);
     frases.push(`El catastro registra ${plural(Number(cat.metricas.total_parcelas), 'parcela', 'parcelas')}${area ? ` (${area})` : ''}.`);
     refs.push({ ...fuenteHumana(cat.fuente), fecha: cat.fecha_vigencia });
+  }
+  if (obj.sup_oficial_km2 != null && obj.sup_fuente) {
+    refs.push({ nombre: `Superficie (${obj.sup_fuente})`, fecha: null });
   }
   return { frases, refs, ags };
 }
@@ -281,7 +316,7 @@ function renderFicha(obj) {
   filaTitulo.appendChild(badge);
   identidad.appendChild(filaTitulo);
   const pert = frasePertenencia(obj);
-  const sup = obj.sup_oficial_km2 != null ? formatKM2(obj.sup_oficial_km2) : null;
+  const sup = obj.sup_oficial_km2 != null ? fmtSup(obj.sup_oficial_km2) : null;
   if (pert || sup) {
     const subtitle = document.createElement('div');
     subtitle.className = 'objeto-subtitle';

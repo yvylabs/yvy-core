@@ -94,7 +94,8 @@ interno del pipeline).
 
 ## Estado actual
 
-- `jurisdicciones.parquet` (3336: 1 + 24 + 529 + 2348 + 434)
+- `jurisdicciones.parquet` (3334: 1 + 24 + 529 + 2348 + 432; con
+  `sup_oficial_km2` + `sup_fuente` donde hay dato)
 - `demografia.parquet` (2843, nacional Censo 2022)
 - `mineria.parquet` (3927)
 - `catastro.parquet` (309405)
