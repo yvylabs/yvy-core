@@ -109,7 +109,7 @@ escribir_catalogo(nodos, tipos, {"demografia": [1660063, ...]}, "07_manifest/cat
 |---|---|---|
 | `{nivel}.parquet` jurisdicciones | `data/registry/` del repo | build → manifest |
 | `tipos/<tipo>.parquet` | `data/registry/<tipo>.parquet` (input del build, sin límite salvo 100MB de GitHub) | build → agregados |
-| `agregados/{tipo}/{yvy}.json` | los **regenera el build**; los de Colab son QC | portal (lazy) |
+| `agregados/{tipo}/{yvy}.json` | los **regenera el build**; los de referencia son QC | portal (lazy) |
 | `*.pmtiles` ≤50MB | `public/data/` del repo | portal directo |
 | `*.pmtiles` >50MB | R2 + Functions (o local en dev) | portal vía proxy |
 

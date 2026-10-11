@@ -4,18 +4,20 @@
 
 **Problema:** intendentes, periodistas y funcionarios no saben quién manda dónde ni de dónde sale cada número (INDEC, IGN y ministerios dispersos, formatos incompatibles). **Solución:** grafo determinista curado — eliges territorio → ves totales con fuente+fecha → drill solo si lo pides. **No es** visor GIS, ni IDE, ni OSINT.
 
-**Estado:** cobertura nacional (3336 nodos, 3 tipos de dato) en `develop`; `master` estable. I+D en Argentina. Ver `SPEC.md` (fuente de verdad), `docs/TRL.md` (evidencia) y `docs/ROADMAP.md` (plan 24 meses).
+**Estado:** cobertura nacional (3334 nodos, 3 tipos de dato) en `develop`; `master` estable. I+D en Argentina. Ver `SPEC.md` (fuente de verdad), `docs/TRL.md` (evidencia) y `docs/ROADMAP.md` (plan 24 meses).
 
 ## Cómo se arma el catálogo (fuente de verdad)
 
 ```
 data/registry/                → jurisdicciones.parquet (1 país + 24 prov +
-                                  529 depto + 2348 gob + 434 barrios) y
+                                  529 depto + 2348 gob + 432 barrios,
+                                  con sup_oficial_km2 donde hay dato) y
                                   parquets por tipo (demografia, mineria,
                                   catastro): yvy_id, nombre_oficial, parent
 public/data/                  → geometría: un PMTiles por nivel o tipo
-                                (`provincias`, `departamentos`,
-                                `municipios`, `barrios`, `mineria`),
+                                (`paises`, `provincias`,
+                                `departamentos`, `municipios`, `barrios`,
+                                `mineria`, `catastro`),
                                 con una propiedad única por feature:
                                 id = yvy_id (los atributos viven en el parquet)
 public/data/agregados/        → JSON por tipo y yvy_id (Fase 3, lazy):
@@ -45,29 +47,30 @@ fetch de manifest al abrir.
 - El objeto activo y sus ancestros pintan (una source por nivel + capas
   on-demand filtradas por `id`); los niveles inferiores nunca se cargan
   (banda visible por contexto).
-- La ficha del objeto sale del manifest (cero fetch): click en el mapa o
+- La ficha del objeto sale del manifest + agregados lazy por tipo
+  (narrativa en prosa, hijos linkeados, referencias): click en el mapa o
   en el welcome → ficha + `Copiar resumen` (texto) + `window.print()`.
 
 ## Comandos (pnpm, Node 22)
 
-\ash
+```bash
 corepack enable
 pnpm install --frozen-lockfile
 pnpm run dev      # desarrollo (localhost:5173)
 pnpm run build    # build de producción en dist/ (+ regenera manifest)
 pnpm run preview  # probar el build local
 git config core.hooksPath scripts
-\\n
+```
 ## Deploy (Cloudflare Pages — Git integration, única vía)
 
 PR → preview deploy, merge a master → production. Prohibido deployar desde CI.
 Conectar el repo en el dashboard: build pnpm run build, output dist,
-Node vía .nvmrc (22) o NODE_VERSION=22. R2 yvy-data enlazado en
-production y preview. Ver SPEC.md §9.
+Node vía .nvmrc (22) o NODE_VERSION=22. R2 `yvy-data` (cuando exista)
+enlazado en production y preview. Ver SPEC.md §9.
 
 ## Notas
 
-- La atribución `Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community`
+- La atribución `OpenFreeMap © OpenMapTiles © OpenStreetMap`
   es obligatoria por licencia: no quitarla de la esquina inferior.
 - El estado de la vista se comparte por URL (`#y=<yvy_id>&c=…&z=…`), sin
   backend. El botón de compartir copia el link al portapapeles.

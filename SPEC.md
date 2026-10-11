@@ -12,7 +12,7 @@ No apila capas. No tiene query builder. No scrapea. No compite por "ver el terri
 **Grafo de decisiones conectadas, no de entidades.**
 
 - **Nodos jurisdiccionales**: país, provincia, depto, municipio, barrio.
-  Son los nodos del grafo. Piloto Salta.
+  Son los nodos del grafo (cobertura nacional; barrios solo Salta ciudad).
 - **Ficha**: el contenido que aparece cuando seleccionás un nodo. Agregados
   (demografía, escuelas, rutas, etc.) + relaciones del nodo.
 - **Agregados**: NO son nodos. Son atributos de las fichas, colgando del
@@ -93,8 +93,8 @@ gobierno_local, barrio` (el build las mapea a su canónico
   - `empty` = "No hay resultados en esta zona"
   - Nunca silencio, nunca invento.
 - `fetch` con base absoluta (`import.meta.env.BASE_URL`), tolerante a 404.
-- Welcome exige click explícito (no `Enter` ciego). Búsqueda agrupa por
-  nivel, Salta primero en piloto.
+- Welcome exige click explícito (Enter elige el primer resultado). Búsqueda agrupa por
+  nivel; sugerencias iniciales Salta/Jujuy/Buenos Aires.
 - Ficha: totales siempre (Fase 1 = solo manifest), detalle lazy por
   dataset (Fase 3 = +agregados on-click con acordeón colapsado).
 
@@ -119,7 +119,7 @@ gobierno_local, barrio` (el build las mapea a su canónico
 
 - Solo agregados: `{day, country(cf-ipcountry), event, yvy_id, nivel}`.
   Nunca texto libre, IP, coords exactas.
-- Eventos: `app_load, search_miss(q_hash), pick, ficha_view, report_copy`.
+- Eventos: `app_load, search_miss(q_hash), pick, report_copy`.
 - `DNT` + `?telemetry=0` opt-out. En dev no se emite.
 - Stack free: Pages + Web Analytics + Zaraz + 1 Worker → D1.
 - `functions/api/event.js`: POST validado, allowlist de eventos,
@@ -166,7 +166,7 @@ carpetas por-objeto. Datasets `{tipo}.parquet` → versión activa +
   `pages_build_output_dir=dist`).
 - **Firmador R2** (URLs cortas) = Labs, no Explorer free.
 
-## 7c. Contrato de archivos para el build (handoff Colab → repo)
+## 7c. Contrato de archivos para el build (handoff Sheet → repo)
 
 **Copias del Drive al repo (rutas exactas):**
 
@@ -174,9 +174,9 @@ carpetas por-objeto. Datasets `{tipo}.parquet` → versión activa +
 |---|---|---|
 | `05_curacion/jurisdicciones.parquet` | `data/registry/jurisdicciones.parquet` | build → manifest |
 | `05_curacion/tipos/*.parquet` | `data/registry/*.parquet` | build → agregados |
-| `07_manifest/relaciones.json` | `public/data/relaciones.json` | portal (grafo) |
+| `07_manifest/relaciones.json` | `public/data/relaciones.json` | portal (ficha: Limita con) |
 | `08_pmtiles/*.pmtiles` | `public/data/*.pmtiles` | portal |
-| `06_agregados/<tipo>/*.json` | *(los regenera el build; Colab = QC)* | portal (Fase 3, lazy) |
+| `06_agregados/<tipo>/*.json` | *(los regenera el build; referencia = QC)* | portal (Fase 3, lazy) |
 | `07_manifest/catalogo.json` | **No entra** (QC interno, D3=A) | — |
 
 **NO se copian:**
@@ -205,12 +205,11 @@ carpetas por-objeto. Datasets `{tipo}.parquet` → versión activa +
   `public/data/` locales.
 - Sin Cloudflare, sin R2, sin Pages. Todo en la máquina.
 
-## 10. Contrato datasets v1 (piloto Salta, congelado)
+## 10. Contrato datasets v1 (cobertura nacional, congelado)
 
 **Niveles:**
-- País 0, Salta 1066, Capital 166028, Los Andes 166105.
-- 4 municipios piloto: 1660063, 1660070, 1660245, 1660252.
-- Barrios `1660063xxx` (solo Salta ciudad).
+- País 0, 24 provincias (`1000 + in1`), 529 departamentos, 2348 gobiernos,
+  432 barrios (solo Salta ciudad).
 
 **Tipos:**
 
@@ -237,8 +236,8 @@ fecha_vigencia, version, metricas{...}}`.
   viv_colectivas, pob_colectivas, pob_calle.
 - barrios: total_barrios, formales, asentamientos, otros_tipos,
   con_geometria_valida, sin_geometria, por_estado.
-- mineria: total_concesiones, area_total_ha, por_tipo, por_estado,
-  por_mineral.
+- mineria: total_concesiones, area_total_ha, por_estado,
+  por_mineral (por_tipo solo si el parquet trae columna `tipo`).
 - catastro: total_parcelas, area_total_m2, area_total_ha, por_categoria,
   por_localidad (top 20).
 
@@ -251,20 +250,22 @@ fecha_vigencia, version, metricas{...}}`.
 - `clase_barrio` (Barrio/Asentamiento) + `formalidad`.
 
 **Versionado:**
-- Snapshots `<tipo>_<YYYY-MM>.parquet` inmutables en R2.
+- R2 guarda snapshots inmutables con fecha; el repo copia la activa
+  como `<tipo>.parquet` (sin fecha, versión en columna).
 - Solo versión activa en manifest. Evolución = Labs.
 
-**Superficies municipio:** calculadas GK faja 3 POSGAR 2007
-(`sup_oficial_tipo: calculada`). Geometrías en 4326.
+**Superficies:** `sup_oficial_km2` + `sup_fuente` (+ `sup_oficial_tipo`
+opcional) por objeto; en blanco = sin dato. IGN oficial donde existe,
+cálculo propio donde no. La ficha deriva densidad (hab/km²).
+Geometrías en 4326.
 
-## 10b. Pipeline curación (Drive Yvy_v2, fuera del repo)
+## 10b. Pipeline curación (Sheet, sin Colab)
 
-Herramienta canónica versionada en `tools/yvy_plantilla.py` (la copia de
-trabajo vive en Drive; el repo manda). Runner oficial: Colab con
-checkpoint por celda (ver `tools/`). Etapas numeradas: `00_entrada`
-(crudo) → `01_work` (GPKG por banda) → `02_backup` → `03_config` →
-`04_logs` → `05_curacion/{jurisdicciones,tipos}` → `06_agregados/`
-→ `07_manifest/` → `08_pmtiles/` → `99_legacy/` (solo lectura).
+Fuente: Google Sheet (edición) → CSV → `tools/sheet_a_parquet.py`
+(valida contrato, solo escribe si da ok) → `data/registry/`.
+Etapas Drive históricas: `00_entrada` → `01_work` (GPKG por banda) →
+`08_pmtiles/` (tippecanoe 2.79.0). Sin runner con estado: el contrato
+vive en el CLI + el build.
 
 Handoff al repo: ver §7c.
 
@@ -292,8 +293,7 @@ Relaciones: `lindero` + `cerca_de` computadas
 - Rollup en build (rellena huecos; el directo manda).
 - Curación sin Colab: Sheet -> CSV -> `tools/sheet_a_parquet.py`
   (valida contrato, solo escribe si da ok).
-- Wizard = CLI (`tools/wizard_dataset.py` futuro), no ipywidgets.
-- Estado = por dataset (`6_<tipo>`), no por celda vieja.
+- Curación = CLI (`tools/sheet_a_parquet.py`), no ipywidgets.
 - Tippecanoe pinneado a 2.79.0.
 - Catastro y minería cuelgan de depto. Demografía de municipio.
 - Barrios cuelgan de Salta muni (1660063).

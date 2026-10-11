@@ -27,5 +27,5 @@ YvyExplorerProduction/
 └── 99_legacy/           # solo lectura
 ```
 
-Runner: Colab con checkpoint por celda (`yvy_runner.py` orquesta `celda_N(ctx)`,
-`yvy_estado.py` persiste fases). Handoff al repo: ver SPEC §7c.
+Runner: Sheet → CSV → `tools/sheet_a_parquet.py` (valida contrato; sin Colab).
+Handoff al repo: ver SPEC §7c.

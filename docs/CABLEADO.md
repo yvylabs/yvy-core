@@ -38,7 +38,7 @@ Este manual define el contrato entre `Yvy_v2/` (Drive) y `yvyexplorer/` (repo).
 - El build verifica `X/Y con id coincidente` y calcula centroides + `bounds_objeto` reales.
 
 ### 4. Agregados (`public/data/agregados/{tipo}/{yvy_id}.json`)
-- **Los genera el build** desde el registry. Los JSON de Colab (`06_agregados/`) son referencia QC: si difieren del build, manda el build (fuente única).
+- **Los genera el build** desde el registry. Los JSON de referencia (`06_agregados/`) son QC: si difieren del build, manda el build (fuente única).
 - El portal los trae lazy on-click (`getAgregado(tipo, yvy_id)`); ausente = “Sin datos registrados todavía.”
 
 ### 4b. Relaciones (`public/data/relaciones.json`)
