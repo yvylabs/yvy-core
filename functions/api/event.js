@@ -1,9 +1,10 @@
 // functions/api/event.js — Ingesta agregada free-tier. Lee cf-ipcountry, no guarda IP.
-// TODO Fase 2: flush diario a D1 (hoy solo valida + cuenta en memoria).
+// Persiste contadores en D1 (binding YVY_TELEMETRY); sin binding solo valida.
+// TODO Fase 2: dashboard de lectura (hoy: SQL directo en dashboard D1).
 
 const MAX_BODY = 2048;
 
-export async function onRequestPost({ request }) {
+export async function onRequestPost({ request, env }) {
   const ctype = request.headers.get('content-type') || '';
   if (!ctype.includes('application/json')) return new Response('bad request', { status: 400 });
   let raw = '';
@@ -32,5 +33,19 @@ export async function onRequestPost({ request }) {
     day: new Date().toISOString().slice(0, 10),
   };
   const headers = new Headers({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  try {
+    const db = env && env.YVY_TELEMETRY;
+    if (db) {
+      await db
+        .prepare(
+          'INSERT INTO eventos (day, event, yvy_id, nivel, country, n) VALUES (?1, ?2, ?3, ?4, ?5, 1) ' +
+            'ON CONFLICT (day, event, yvy_id, nivel, country) DO UPDATE SET n = n + 1'
+        )
+        .bind(safe.day, safe.event, safe.yvy_id, safe.nivel, safe.country)
+        .run();
+    }
+  } catch {
+    // Sin D1 o fallo de escritura: se valida igual (dev/preview sin binding).
+  }
   return new Response(JSON.stringify({ ok: true, ...safe }), { headers });
 }

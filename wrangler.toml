@@ -7,6 +7,9 @@
 # y functions/data/*, NUNCA de bucket público directo (SPEC §6).
 # R2 binding: YVY_DATA (crear el bucket en el dashboard y enlazarlo
 # al proyecto Pages con ese nombre exacto, en production y preview).
+# D1 binding: YVY_TELEMETRY (crear la database `yvy-telemetry` y pegar
+# su database_id abajo + enlazar en dashboard, en production y preview).
+# Sin binding, functions/api/event.js valida sin persistir (no rompe dev).
 # ==============================================================
 
 name = "yvy-explorer"
@@ -17,14 +20,29 @@ pages_build_output_dir = "dist"
 binding = "YVY_DATA"
 bucket_name = "yvy-data"
 
+[[d1_databases]]
+binding = "YVY_TELEMETRY"
+database_name = "yvy-telemetry"
+database_id = "REEMPLAZAR-con-database_id-de-D1"
+
 [env.production]
 
 [[env.production.r2_buckets]]
 binding = "YVY_DATA"
 bucket_name = "yvy-data"
 
+[[env.production.d1_databases]]
+binding = "YVY_TELEMETRY"
+database_name = "yvy-telemetry"
+database_id = "REEMPLAZAR-con-database_id-de-D1"
+
 [env.preview]
 
 [[env.preview.r2_buckets]]
 binding = "YVY_DATA"
 bucket_name = "yvy-data"
+
+[[env.preview.d1_databases]]
+binding = "YVY_TELEMETRY"
+database_name = "yvy-telemetry"
+database_id = "REEMPLAZAR-con-database_id-de-D1"
