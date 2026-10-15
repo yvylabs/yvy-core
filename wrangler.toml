@@ -5,10 +5,8 @@
 # Output: dist · Node: .nvmrc (22) o NODE_VERSION=22 en dashboard.
 # Los assets pesados (pmtiles/fgb) salen de R2 vía functions/tiles/*
 # y functions/data/*, NUNCA de bucket público directo (SPEC §6).
-# R2 binding: YVY_DATA (crear el bucket en el dashboard y enlazarlo
-# al proyecto Pages con ese nombre exacto, en production y preview).
-# D1 binding: YVY_TELEMETRY (crear la database `yvy-telemetry` y pegar
-# su database_id abajo + enlazar en dashboard, en production y preview).
+# R2 binding: YVY_DATA (bucket yvy-data)
+# D1 binding: YVY_TELEMETRY (database yvy-telemetry)
 # Sin binding, functions/api/event.js valida sin persistir (no rompe dev).
 # ==============================================================
 
@@ -23,7 +21,7 @@ bucket_name = "yvy-data"
 [[d1_databases]]
 binding = "YVY_TELEMETRY"
 database_name = "yvy-telemetry"
-database_id = "REEMPLAZAR-con-database_id-de-D1"
+database_id = "32c4f34f-ed8d-4381-9b13-667fe311f8ef"
 
 [env.production]
 
@@ -34,7 +32,7 @@ bucket_name = "yvy-data"
 [[env.production.d1_databases]]
 binding = "YVY_TELEMETRY"
 database_name = "yvy-telemetry"
-database_id = "REEMPLAZAR-con-database_id-de-D1"
+database_id = "32c4f34f-ed8d-4381-9b13-667fe311f8ef"
 
 [env.preview]
 
@@ -45,4 +43,4 @@ bucket_name = "yvy-data"
 [[env.preview.d1_databases]]
 binding = "YVY_TELEMETRY"
 database_name = "yvy-telemetry"
-database_id = "REEMPLAZAR-con-database_id-de-D1"
+database_id = "32c4f34f-ed8d-4381-9b13-667fe311f8ef"
