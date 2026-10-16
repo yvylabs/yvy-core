@@ -29,5 +29,26 @@ export async function onRequestGet({ request, env, params }) {
     }
     return new Response(obj.body, { status: range ? 206 : 200, headers: h });
   }
-  return env.ASSETS.fetch(request);
+  // Miss en R2: el estático vía ASSETS.fetch devuelve 200-full ante Range
+  // (no hace byte-serving en este path); se rebana acá para devolver el
+  // 206 que pmtiles.js exige (si no, aborta el tile en silencio).
+  const up = await env.ASSETS.fetch(request);
+  const range = request.headers.get('range');
+  if (up.ok && up.status === 200 && range) {
+    const m = /bytes=(\d+)-(\d*)/.exec(range);
+    if (m) {
+      const buf = await up.arrayBuffer();
+      const total = buf.byteLength;
+      const start = Math.min(Number(m[1]), total);
+      const end = m[2] === '' ? total - 1 : Math.min(Number(m[2]), total - 1);
+      if (start < total && end >= start) {
+        const h = new Headers(up.headers);
+        h.set('Content-Range', `bytes ${start}-${end}/${total}`);
+        h.set('Accept-Ranges', 'bytes');
+        h.append('Vary', 'Range');
+        return new Response(buf.slice(start, end + 1), { status: 206, headers: h });
+      }
+    }
+  }
+  return up;
 }

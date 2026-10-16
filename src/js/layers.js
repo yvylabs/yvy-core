@@ -17,9 +17,8 @@ const LINEA_ACTIVA = '#34D399';
 
 // Geometría por nivel (SPEC §6: liviano en el deploy, pesado en R2):
 // - municipio → R2 vía functions/tiles/* (único >25 MB, no entra a dist).
-// - resto → estático de Pages vía /data/* (con _routes.json que los
-//   excluye de las Functions: el hop ASSETS.fetch dentro de un worker
-//   devuelve 200-full ante Range y pmtiles.js aborta el tile).
+// - resto → estático de Pages vía /data/* (la Function de /data/* rebana
+//   los rangos a 206 porque ASSETS.fetch devuelve 200-full ante Range).
 // La capa interna se infiere del nombre igual que hace el build
 // (capa === nombre del archivo: paises, provincias, departamentos…).
 const PMTILES_R2_POR_NIVEL = { municipio: 'municipios.pmtiles' };
