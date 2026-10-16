@@ -17,8 +17,12 @@ const LINEA_ACTIVA = '#34D399';
 
 // Archivos que NO viajan en el deploy (superan el límite 25 MB/archivo
 // de Pages) y se sirven desde R2 vía functions/tiles/*. SPEC §6.
+// Se decide por NOMBRE de archivo, no por ausencia en el manifest:
+// hay manifests generados cuando el archivo aún estaba en el repo
+// (pmtiles seteado) y otros sin él (null). Ambos deben ir a R2.
 // La capa interna se infiere del nombre igual que hace el build
 // (capa === nombre del archivo: paises, provincias, departamentos…).
+const PMTILES_R2 = new Set(['municipios.pmtiles', 'catastro.pmtiles']);
 const PMTILES_R2_POR_NIVEL = { municipio: 'municipios.pmtiles' };
 
 /** Nombre del archivo PMTiles del objeto, venga de Pages o de R2 (null si no hay). */
@@ -31,7 +35,7 @@ function archivoPmtiles(obj) {
 function rutaPmtiles(obj) {
   const archivo = archivoPmtiles(obj);
   if (!archivo) return null;
-  return obj.pmtiles ? `data/${archivo}` : `tiles/${archivo}`;
+  return PMTILES_R2.has(archivo) ? `tiles/${archivo}` : `data/${archivo}`;
 }
 
 // --------------------------------------------------------------
