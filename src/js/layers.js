@@ -15,27 +15,29 @@ const OPACIDAD_CONTEXTO = 0.15;
 const FILL_ACTIVO = '#10B981';
 const LINEA_ACTIVA = '#34D399';
 
-// Archivos que NO viajan en el deploy (superan el límite 25 MB/archivo
-// de Pages) y se sirven desde R2 vía functions/tiles/*. SPEC §6.
-// Se decide por NOMBRE de archivo, no por ausencia en el manifest:
-// hay manifests generados cuando el archivo aún estaba en el repo
-// (pmtiles seteado) y otros sin él (null). Ambos deben ir a R2.
-// La capa interna se infiere del nombre igual que hace el build
-// (capa === nombre del archivo: paises, provincias, departamentos…).
-const PMTILES_R2 = new Set(['municipios.pmtiles', 'catastro.pmtiles']);
-const PMTILES_R2_POR_NIVEL = { municipio: 'municipios.pmtiles' };
+// Toda la geometría sale de R2 vía functions/tiles/* (único camino canónico,
+// con Range + CORS + Vary correctos y probado en prod con municipios).
+// SPEC §6. Los archivos chicos también viven en el repo, pero el mapa
+// siempre usa R2: un solo comportamiento, cero bifurcaciones por tamaño.
+// Si falta la key en R2 la Function responde 404 determinístico (missing).
+const PMTILES_R2_POR_NIVEL = {
+  pais: 'paises.pmtiles',
+  provincia: 'provincias.pmtiles',
+  depto: 'departamentos.pmtiles',
+  municipio: 'municipios.pmtiles',
+  barrio: 'barrios.pmtiles',
+};
 
-/** Nombre del archivo PMTiles del objeto, venga de Pages o de R2 (null si no hay). */
+/** Nombre del archivo PMTiles del objeto (el nivel manda; fallback al manifest). */
 function archivoPmtiles(obj) {
-  if (obj.pmtiles) return obj.pmtiles;
-  return PMTILES_R2_POR_NIVEL[obj.nivel] || null;
+  return PMTILES_R2_POR_NIVEL[obj.nivel] || obj.pmtiles || null;
 }
 
-/** Ruta del archivo: data/* (estático de Pages) o tiles/* (R2 vía Function). */
+/** Ruta del archivo: tiles/* (R2 vía Function) o data/* (legado estático). */
 export function rutaPmtiles(obj) {
   const archivo = archivoPmtiles(obj);
   if (!archivo) return null;
-  return PMTILES_R2.has(archivo) ? `tiles/${archivo}` : `data/${archivo}`;
+  return PMTILES_R2_POR_NIVEL[obj.nivel] ? `tiles/${archivo}` : `data/${archivo}`;
 }
 
 // --------------------------------------------------------------
