@@ -113,7 +113,11 @@ export function agregarCapaObjeto(map, obj) {
   // Sin esto, volar a un barrio (z15+) ocultaba su propia capa (max14).
   const minzoom = 0;
   const maxzoom = 22;
-  const filtro = ['==', ['to-number', ['coalesce', ['id'], ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
+  // El id MVT no siempre existe (paises trae id como propiedad): se prueban
+  // primero las propiedades (yvy_id, id) y recién al final el id top-level.
+  // Con ['id'] primero, MapLibre hace to-number(undefined) → error y el
+  // filtro da null (el país nunca pintaba, sin ningún error visible).
+  const filtro = ['==', ['to-number', ['coalesce', ['get', 'yvy_id'], ['get', 'id'], ['id']]], obj.yvy_id];
 
   map.addLayer({
     id: `layer-${id}`,
