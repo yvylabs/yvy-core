@@ -12,7 +12,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 
 import { cargarDatos, getObjeto, getPadre, setObjetoActivo, setNavegador } from './manifest.js';
-import { agregarCapaObjeto, setVisibilidadObjeto } from './layers.js';
+import { agregarCapaObjeto, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
 import { inicializarUIPaneles } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
@@ -156,7 +156,9 @@ const cargados = new Set(); // yvy_ids con geometría ya en el mapa
 function cargarConContexto(obj) {
   // Solo el objeto elegido pinta. Los ancestros viven en el breadcrumb,
   // no en el mapa. Un addLayer nunca aborta la navegación.
-  if (obj.pmtiles && !cargados.has(obj.yvy_id)) {
+  // La geometría puede venir de Pages (obj.pmtiles) o de R2 (fallback
+  // por nivel en rutaPmtiles): el gate usa el resolver, no el campo crudo.
+  if (rutaPmtiles(obj) && !cargados.has(obj.yvy_id)) {
     try {
       agregarCapaObjeto(map, obj);
     } catch (e) {

@@ -32,7 +32,7 @@ function archivoPmtiles(obj) {
 }
 
 /** Ruta del archivo: data/* (estático de Pages) o tiles/* (R2 vía Function). */
-function rutaPmtiles(obj) {
+export function rutaPmtiles(obj) {
   const archivo = archivoPmtiles(obj);
   if (!archivo) return null;
   return PMTILES_R2.has(archivo) ? `tiles/${archivo}` : `data/${archivo}`;
