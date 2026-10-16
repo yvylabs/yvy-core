@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Yvy Explorer — Visor Territorial</title>
-  <meta name="description" content="Explorá jurisdicciones, concesiones y datos territoriales. Geointeligencia para minería, agro y gobierno." />
+  <title>Yvy Explorer</title>
+  <meta name="description" content="Visor de datos geoespaciales vectoriales y satelitales en formato PMTiles de alto rendimiento." />
+  <meta name="theme-color" content="#0B0E14" />
+  <link rel="manifest" href="./manifest.webmanifest" />
 
   <!-- Open Graph / Twitter -->
-  <meta property="og:title" content="Yvy Explorer — Visor Territorial" />
-  <meta property="og:description" content="Explorá jurisdicciones, concesiones y datos territoriales. Geointeligencia para minería, agro y gobierno." />
+  <meta property="og:title" content="Yvy Explorer" />
+  <meta property="og:description" content="Visor de datos geoespaciales vectoriales y satelitales en formato PMTiles de alto rendimiento." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://explorer.yvylabs.com" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -54,6 +56,7 @@
     <nav class="topbar__crumbs" id="topbar-crumbs" aria-label="Jerarquía activa"></nav>
 
     <div class="topbar__right">
+      <a class="topbar__labs" href="https://yvylabs.com" target="_blank" rel="noopener" aria-label="Yvy Labs — versión marca blanca">Labs →</a>
       <span class="topbar__fps" id="topbar-fps" title="Cuadros por segundo" hidden></span>
     </div>
   </header>
@@ -85,6 +88,7 @@
       <footer class="welcome__foot">
         <span class="welcome__foot-label">SUGERENCIAS</span>
         <div class="welcome__suggestions" id="welcome-suggestions"></div>
+        <span class="welcome__kbd">Ctrl+K para buscar · Esc para cerrar</span>
       </footer>
     </div>
   </section>
@@ -103,6 +107,10 @@
 
     <button class="toolbar-btn" id="btn-compartir" aria-label="Compartir vista" data-tooltip="Compartir vista">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.9 7.6-4.7M8.2 13.1l7.6 4.7"/></svg>
+    </button>
+
+    <button class="toolbar-btn" id="btn-satelite" aria-expanded="false" aria-label="Vista satelital" data-tooltip="Vista satelital">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.4 3.8 5 3.8 8S14.5 17.6 12 20c-2.5-2.4-3.8-5-3.8-8S9.5 6.4 12 4z"/></svg>
     </button>
   </nav>
 
@@ -129,6 +137,7 @@
   <!-- ============================================================ -->
   <footer class="status-bar" id="status-bar">
     <span class="status-bar__item status-bar__item--objeto"><span class="status-bar__v" id="st-objeto">Ninguna jurisdicción seleccionada</span></span>
+    <span class="status-bar__item status-bar__item--right"><span class="status-bar__k">Free-forever · ¿Marca blanca?</span>&nbsp;<a class="status-bar__link" href="mailto:yvylabs@proton.me?subject=Marca%20blanca%20Yvy%20Explorer">hablemos →</a></span>
   </footer>
 
   <!-- Cloudflare Web Analytics: visitantes únicos (privado, sin cookies).

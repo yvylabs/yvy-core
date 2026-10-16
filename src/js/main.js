@@ -149,6 +149,46 @@ map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric', maxWidth: 120 }), 'bottom-right');
 
 // --------------------------------------------------------------
+// Satélite ESRI (toggle + auto-sugerencia a z>=12)
+// World Imagery keyless con atribución (ver _headers CSP img-src).
+// No reemplaza el oscuro: capa raster al fondo, solo visible a pedido.
+// --------------------------------------------------------------
+const SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const SAT_ATTR = '© Esri, Vantor, Earthstar Geographics';
+let sateliteOn = false;
+let sateliteSugerido = false;
+
+function setSatelite(on) {
+  if (on && !map.loaded()) return; // estilo base aún cargando: sin capa fantasma
+  sateliteOn = on;
+  const id = 'yvy-satelite';
+  if (on && !map.getSource(id)) {
+    map.addSource(id, { type: 'raster', tiles: [SAT_URL], tileSize: 256, maxzoom: 19, attribution: SAT_ATTR });
+    const capas = map.getStyle().layers;
+    map.addLayer({ id, type: 'raster', source: id }, capas.length ? capas[0].id : undefined);
+  }
+  if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+  const btn = document.getElementById('btn-satelite');
+  if (btn) {
+    btn.classList.toggle('is-active', on);
+    btn.setAttribute('aria-expanded', String(on));
+    btn.classList.remove('is-sugerido');
+  }
+  track('satelite', { on });
+}
+
+const btnSat = document.getElementById('btn-satelite');
+if (btnSat) btnSat.addEventListener('click', () => setSatelite(!sateliteOn));
+
+map.on('moveend', () => {
+  if (!sateliteOn && !sateliteSugerido && map.getZoom() >= 12) {
+    sateliteSugerido = true;
+    const b = document.getElementById('btn-satelite');
+    if (b) b.classList.add('is-sugerido');
+  }
+});
+
+// --------------------------------------------------------------
 // Carga de objetos Yvy — load once, dibujar siempre
 // --------------------------------------------------------------
 const cargados = new Set(); // yvy_ids con geometría ya en el mapa

@@ -337,9 +337,25 @@ function renderFicha(obj) {
   renderHijos(contenedor, obj, null);
   renderDatasetsAplicables(contenedor, obj);
 
-  componerNarrativa(obj).then(({ frases, refs }) => {
+  componerNarrativa(obj).then(({ frases, refs, ags }) => {
     if (token !== renderToken) return;
     narrativa.innerHTML = '';
+    // Hero de población: el número que vende, primero y grande.
+    const demo = ags ? ags.demografia : null;
+    const pob = demo && demo.metricas ? Number(demo.metricas.poblacion) : NaN;
+    if (Number.isFinite(pob) && pob > 0) {
+      const hero = document.createElement('div');
+      hero.className = 'objeto-hero';
+      const num = document.createElement('div');
+      num.className = 'objeto-hero__num';
+      num.textContent = fmtInt.format(pob);
+      hero.appendChild(num);
+      const lab = document.createElement('div');
+      lab.className = 'objeto-hero__label';
+      lab.textContent = demo.fecha_vigencia ? `Habitantes · vigencia ${demo.fecha_vigencia}` : 'Habitantes';
+      hero.appendChild(lab);
+      contenedor.insertBefore(hero, narrativa);
+    }
     for (const f of frases) {
       const p = document.createElement('p');
       p.textContent = f;
@@ -381,7 +397,17 @@ function renderFicha(obj) {
     obj._narrativa = frases;
     obj._refs = refs;
     contenedor.appendChild(botonCopiar(obj));
+    contenedor.appendChild(enlaceMarcaBlanca());
   });
+}
+
+/** Marca blanca: link terciario, sutil, nunca banner. */
+function enlaceMarcaBlanca() {
+  const a = document.createElement('a');
+  a.className = 'objeto-marcablanca';
+  a.href = 'mailto:yvylabs@proton.me?subject=Marca%20blanca%20Yvy%20Explorer';
+  a.textContent = '¿Esto con tus datos? →';
+  return a;
 }
 
 const LIMITE_HIJOS = 8;
@@ -409,34 +435,51 @@ function etiquetaPlural(nivel, n) {
 }
 
 function seccionHijos(obj, nivel, items, tituloForzado) {
-  const d = seccion(tituloForzado || etiquetaPlural(nivel, items.length));
+  const d = document.createElement('div');
+  d.className = 'objeto-section';
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'objeto-collapse-btn';
+  head.setAttribute('aria-expanded', 'true');
+  const t = document.createElement('span');
+  t.textContent = tituloForzado || etiquetaPlural(nivel, items.length);
+  head.appendChild(t);
+  const ch = document.createElement('span');
+  ch.className = 'objeto-collapse-btn__chev';
+  ch.textContent = '▾';
+  head.appendChild(ch);
+  const body = document.createElement('div');
+  body.className = 'objeto-collapse-body';
+  head.addEventListener('click', () => {
+    const estabaPlegado = body.hidden;
+    body.hidden = !estabaPlegado;
+    ch.textContent = estabaPlegado ? '▾' : '▸';
+    head.setAttribute('aria-expanded', String(estabaPlegado));
+  });
   const visibles = items.slice(0, LIMITE_HIJOS);
-  for (const h of visibles) d.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
+  for (const h of visibles) body.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
   if (items.length > LIMITE_HIJOS) {
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'objeto-more-btn';
     more.textContent = `Ver los ${items.length} →`;
-    more.addEventListener('click', () => renderDetalleHijos(obj, nivel, items, tituloForzado));
-    d.appendChild(more);
+    more.addEventListener('click', () => {
+      const abierto = body.dataset.expandido === '1';
+      body.dataset.expandido = abierto ? '' : '1';
+      for (const el of body.querySelectorAll('[data-extra]')) el.hidden = abierto;
+      more.textContent = abierto ? `Ver los ${items.length} →` : 'Ver menos';
+    });
+    for (const h of items.slice(LIMITE_HIJOS)) {
+      const b = btnNavegar(null, h.nombre_oficial, h.yvy_id);
+      b.setAttribute('data-extra', '1');
+      b.hidden = true;
+      body.appendChild(b);
+    }
+    body.appendChild(more);
   }
+  d.appendChild(head);
+  d.appendChild(body);
   return d;
-}
-
-function renderDetalleHijos(obj, nivel, items, tituloForzado) {
-  renderToken++;
-  const contenedor = document.getElementById('objeto-info');
-  if (!contenedor) return;
-  contenedor.innerHTML = '';
-  const back = document.createElement('button');
-  back.type = 'button';
-  back.className = 'objeto-volver';
-  back.textContent = `← ${obj.nombre_oficial}`;
-  back.addEventListener('click', () => renderFicha(obj));
-  contenedor.appendChild(back);
-  const d = seccion(tituloForzado || etiquetaPlural(nivel, items.length));
-  for (const h of items) d.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
-  contenedor.appendChild(d);
 }
 
 function renderBreadcrumb(ruta) {

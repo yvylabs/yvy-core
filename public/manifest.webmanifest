@@ -1,0 +1,19 @@
+{
+  "name": "Yvy Explorer",
+  "short_name": "Yvy",
+  "description": "Visor de datos geoespaciales vectoriales y satelitales en formato PMTiles de alto rendimiento.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B0E14",
+  "theme_color": "#0B0E14",
+  "icons": [
+    {
+      "src": "./assets/yvy_logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
