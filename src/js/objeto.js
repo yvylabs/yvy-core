@@ -644,29 +644,8 @@ function seccionDataset(obj, ds) {
       body.appendChild(p);
       return;
     }
-    const keys = Object.keys(ag.metricas);
-    const top = keys.filter((k) => METRICA_TOP.includes(k));
-    const resto = keys.filter((k) => !METRICA_TOP.includes(k));
-    const grid = document.createElement('div');
-    grid.className = 'objeto-metricas-grid';
-    for (const k of top) grid.appendChild(metrica(valorMetrica(k, ag.metricas[k]), etiquetaMetrica(k)));
-    body.appendChild(grid);
-    if (resto.length > 0) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'objeto-more-btn';
-      btn.textContent = 'Ver todas las métricas →';
-      const gridResto = document.createElement('div');
-      gridResto.className = 'objeto-metricas-grid';
-      gridResto.hidden = true;
-      for (const k of resto) gridResto.appendChild(metrica(valorMetrica(k, ag.metricas[k]), etiquetaMetrica(k), { small: true }));
-      btn.addEventListener('click', () => {
-        gridResto.hidden = !gridResto.hidden;
-        btn.textContent = gridResto.hidden ? 'Ver todas las métricas →' : 'Ver menos';
-      });
-      body.appendChild(btn);
-      body.appendChild(gridResto);
-    }
+    // Sin tabla de métricas: los números ya están en el hero y la narrativa
+    // (duplicaban todo). El acordeón conserva fuente + vigencia + oficial.
     const foot = document.createElement('div');
     foot.className = 'objeto-fuente';
     const af = fuenteHumana(ag.fuente);

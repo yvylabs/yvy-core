@@ -168,6 +168,12 @@ function setSatelite(on) {
     map.addLayer({ id, type: 'raster', source: id }, capas.length ? capas[0].id : undefined);
   }
   if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+  // El fondo oscuro del style es opaco: sin ocultarlo, el raster queda
+  // debajo y el satélite "no carga" aunque los tiles lleguen bien.
+  try {
+    const base = map.getStyle().layers.find((l) => l.type === 'background');
+    if (base && map.getLayer(base.id)) map.setLayoutProperty(base.id, 'visibility', on ? 'none' : 'visible');
+  } catch { /* sin fondo: nada que ocultar */ }
   const btn = document.getElementById('btn-satelite');
   if (btn) {
     btn.classList.toggle('is-active', on);
@@ -239,6 +245,8 @@ async function irAYvyId(yvyId) {
   setObjetoBarra(obj);
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
+  // Satélite automático a nivel municipio/barrio; oscuro en el resto.
+  setSatelite(obj.nivel === 'municipio' || obj.nivel === 'barrio');
 
   // Vuelo: si el build calculó los límites reales del objeto, se ajusta
   // el zoom para que entre entero (con padding); si no, centro/zoom fijos

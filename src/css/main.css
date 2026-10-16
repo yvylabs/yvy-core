@@ -1095,10 +1095,11 @@ button.topbar__crumb:hover { color: var(--accent); }
    ============================================================== */
 
 /* Ficha como panel fijo: anclado bajo el topbar, altura completa, 380px.
-   Nada flotante: siempre en el mismo lugar. */
+   Nada flotante: siempre en el mismo lugar. Arranca a la derecha del
+   toolbar izquierdo para no taparlo. */
 #panel-explorador {
   top: var(--topbar-height);
-  left: 0;
+  left: 56px;
   bottom: 28px; /* status-bar */
   width: 380px;
   max-height: none;
