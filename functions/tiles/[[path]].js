@@ -48,6 +48,10 @@ export async function onRequestGet({ request, env, params }) {
   headers.set('Content-Type', 'application/octet-stream');
   headers.set('Accept-Ranges', 'bytes');
   headers.set('Cache-Control', 'public, max-age=60, must-revalidate');
+  // Vary: Range es obligatorio: sin esto el edge puede servir a un
+  // Range-request el cuerpo cacheado de OTRO rango (o de un 200 completo)
+  // y pmtiles aborta el tile en silencio.
+  headers.append('Vary', 'Range');
   headers.set('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges');
   headers.set('X-Content-Type-Options', 'nosniff');
   if (obj.httpMetadata && obj.httpMetadata.contentType) {
