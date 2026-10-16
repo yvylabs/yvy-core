@@ -15,6 +15,25 @@ const OPACIDAD_CONTEXTO = 0.15;
 const FILL_ACTIVO = '#10B981';
 const LINEA_ACTIVA = '#34D399';
 
+// Archivos que NO viajan en el deploy (superan el límite 25 MB/archivo
+// de Pages) y se sirven desde R2 vía functions/tiles/*. SPEC §6.
+// La capa interna se infiere del nombre igual que hace el build
+// (capa === nombre del archivo: paises, provincias, departamentos…).
+const PMTILES_R2_POR_NIVEL = { municipio: 'municipios.pmtiles' };
+
+/** Nombre del archivo PMTiles del objeto, venga de Pages o de R2 (null si no hay). */
+function archivoPmtiles(obj) {
+  if (obj.pmtiles) return obj.pmtiles;
+  return PMTILES_R2_POR_NIVEL[obj.nivel] || null;
+}
+
+/** Ruta del archivo: data/* (estático de Pages) o tiles/* (R2 vía Function). */
+function rutaPmtiles(obj) {
+  const archivo = archivoPmtiles(obj);
+  if (!archivo) return null;
+  return obj.pmtiles ? `data/${archivo}` : `tiles/${archivo}`;
+}
+
 // --------------------------------------------------------------
 // Tooltip de hover: nombre del objeto bajo el cursor.
 // Sale del manifest (cada PMTiles = un objeto), no de las
@@ -62,11 +81,12 @@ function configurarHover(map, obj, layerId) {
 function cargarSourceNivel(map, obj) {
   const sourceId = `source-yvy-${obj.nivel}`;
   if (map.getSource(sourceId)) return sourceId;
-  if (!obj.pmtiles) return null;
+  const ruta = rutaPmtiles(obj);
+  if (!ruta) return null;
 
   map.addSource(sourceId, {
     type: 'vector',
-    tiles: [`pmtiles://data/${obj.pmtiles}/{z}/{x}/{y}`],
+    tiles: [`pmtiles://${ruta}/{z}/{x}/{y}`],
     // Provincias (TDF con Antártida) permiten zoom bajo para encuadre completo
     minzoom: obj.nivel === 'provincia' ? Math.min(obj.minzoom ?? 4, 1.5) : (obj.minzoom ?? 0),
     maxzoom: obj.maxzoom ?? 22,
@@ -86,7 +106,7 @@ export function agregarCapaObjeto(map, obj) {
   const sourceId = cargarSourceNivel(map, obj);
   if (!sourceId) return;
 
-  const capaInterna = obj.capa_interna || obj.pmtiles.replace(/\.pmtiles$/, '');
+  const capaInterna = obj.capa_interna || (archivoPmtiles(obj) || '').replace(/\.pmtiles$/, '');
   // On-demand: la capa ignora el min/max del header y pinta por overzoom
   // en cualquier zoom (el header solo limita el fetch en la source).
   // Sin esto, volar a un barrio (z15+) ocultaba su propia capa (max14).
