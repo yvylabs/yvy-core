@@ -105,9 +105,20 @@ export function inicializarCompartirVista(map, onRestaurarObjeto) {
       }
     }
   };
-  if (mapa.loaded()) {
+  // Restaurar el permalink: si el 'load' del estilo ya se disparó durante
+  // el await del catálogo, loaded() puede estar en falso transitorio y el
+  // once('load') quedaría esperando un evento que no vuelve. Por eso se
+  // intenta ya, ante 'load' y ante 'idle' (lo primero que ocurra con el
+  // mapa cargado gana; el flag evita doble restauración).
+  let restaurado = false;
+  const intentarRestaurar = () => {
+    if (restaurado || !mapa.loaded()) return;
+    restaurado = true;
+    mapa.off('load', intentarRestaurar);
+    mapa.off('idle', intentarRestaurar);
     restaurar();
-  } else {
-    mapa.once('load', restaurar);
-  }
+  };
+  mapa.on('load', intentarRestaurar);
+  mapa.on('idle', intentarRestaurar);
+  intentarRestaurar();
 }
