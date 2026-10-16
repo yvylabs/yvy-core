@@ -667,6 +667,33 @@ async function construirManifest() {
 
   const datasets = await construirDatasets(objetos, advertencias);
 
+  // Cámara heredada: si el PMTiles del nivel no está en el repo (R2, SPEC §6),
+  // no hay centros/bounds nuevos. Se conservan los del manifest previo en
+  // disco (última build con geometría completa) en vez de null: volar a un
+  // municipio sin centro caía al centro del padre con zoom fijo ("zoom malo").
+  // Solo cámara (centro/zoom/bounds/bounds_objeto); el resto lo manda el build.
+  {
+    let previos = null;
+    try {
+      const raw = await fs.readFile(path.join(DATA_DIR, 'manifest.json'), 'utf8');
+      previos = new Map(JSON.parse(raw).objetos.map((o) => [Number(o.yvy_id), o]));
+    } catch { /* primera build: no hay previo */ }
+    if (previos) {
+      let heredados = 0;
+      for (const o of objetos) {
+        const p = previos.get(Number(o.yvy_id));
+        if (!p) continue;
+        let tomo = false;
+        if (!Array.isArray(o.centro) && Array.isArray(p.centro)) { o.centro = p.centro; tomo = true; }
+        if (o.zoom == null && p.zoom != null) { o.zoom = p.zoom; tomo = true; }
+        if (!Array.isArray(o.bounds) && Array.isArray(p.bounds)) { o.bounds = p.bounds; tomo = true; }
+        if (!Array.isArray(o.bounds_objeto) && Array.isArray(p.bounds_objeto)) { o.bounds_objeto = p.bounds_objeto; tomo = true; }
+        if (tomo) heredados++;
+      }
+      if (heredados > 0) console.log(`[yvy-manifest] cámara heredada del manifest previo: ${heredados} objetos`);
+    }
+  }
+
   return { fuentes, objetos, datasets, advertencias };
 }
 
