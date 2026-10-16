@@ -23,10 +23,12 @@
 
 /*.pmtiles
   Cache-Control: public, max-age=60, must-revalidate
+  Vary: Range
   Access-Control-Allow-Origin: https://yvylabs.com
 
 /*.fgb
   Cache-Control: public, max-age=60, must-revalidate
+  Vary: Range
   Access-Control-Allow-Origin: https://yvylabs.com
 
 /data/*.json
