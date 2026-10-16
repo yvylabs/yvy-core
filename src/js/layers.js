@@ -15,18 +15,14 @@ const OPACIDAD_CONTEXTO = 0.15;
 const FILL_ACTIVO = '#10B981';
 const LINEA_ACTIVA = '#34D399';
 
-// Toda la geometría sale de R2 vía functions/tiles/* (único camino canónico,
-// con Range + CORS + Vary correctos y probado en prod con municipios).
-// SPEC §6. Los archivos chicos también viven en el repo, pero el mapa
-// siempre usa R2: un solo comportamiento, cero bifurcaciones por tamaño.
-// Si falta la key en R2 la Function responde 404 determinístico (missing).
-const PMTILES_R2_POR_NIVEL = {
-  pais: 'paises.pmtiles',
-  provincia: 'provincias.pmtiles',
-  depto: 'departamentos.pmtiles',
-  municipio: 'municipios.pmtiles',
-  barrio: 'barrios.pmtiles',
-};
+// Geometría por nivel (SPEC §6: liviano en el deploy, pesado en R2):
+// - municipio → R2 vía functions/tiles/* (único >25 MB, no entra a dist).
+// - resto → estático de Pages vía /data/* (con _routes.json que los
+//   excluye de las Functions: el hop ASSETS.fetch dentro de un worker
+//   devuelve 200-full ante Range y pmtiles.js aborta el tile).
+// La capa interna se infiere del nombre igual que hace el build
+// (capa === nombre del archivo: paises, provincias, departamentos…).
+const PMTILES_R2_POR_NIVEL = { municipio: 'municipios.pmtiles' };
 
 /** Nombre del archivo PMTiles del objeto (el nivel manda; fallback al manifest). */
 function archivoPmtiles(obj) {
