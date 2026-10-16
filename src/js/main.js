@@ -17,7 +17,7 @@ import { inicializarUIPaneles } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
-import { inicializarBienvenida } from './welcome.js';
+import { inicializarBienvenida, cerrarBienvenida } from './welcome.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -195,6 +195,7 @@ async function irAYvyId(yvyId) {
   if (!obj) return;
   setObjetoActivo(obj);
   setObjetoActual(yvyId);
+  cerrarBienvenida();
   setObjetoBarra(obj);
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
@@ -203,6 +204,11 @@ async function irAYvyId(yvyId) {
   // el zoom para que entre entero (con padding); si no, centro/zoom fijos
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
+  // Encuadre: padding izquierdo = ancho de la ficha + margen, para que el
+  // objeto quede en el área visible y no debajo de los paneles. Sin esto,
+  // cameraForBounds centraba en todo el viewport y el país quedaba tapado.
+  const panelEl = document.getElementById('panel-explorador');
+  const padIzq = Math.max(panelEl ? panelEl.offsetWidth : 0, 380) + 100;
   try {
     if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
       const b = obj.bounds_objeto;
@@ -212,7 +218,7 @@ async function irAYvyId(yvyId) {
           [b[2], b[3]],
         ],
         {
-          padding: 80,
+          padding: { top: 80, bottom: 80, right: 80, left: padIzq },
           maxZoom: (obj.maxzoom ?? 22) + 3,
           minZoom: Math.min(obj.minzoom ?? 0, 6),
         }

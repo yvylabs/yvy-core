@@ -161,3 +161,13 @@ export function inicializarBienvenida(fnNavegar) {
   render('');
   abrir();
 }
+
+/**
+ * Cierra la bienvenida si está abierta (ej. al restaurar un permalink, donde
+ * la ficha ya muestra el objeto y el modal solo tapa). Idempotente.
+ */
+export function cerrarBienvenida() {
+  if (!overlay || overlay.hasAttribute('hidden')) return;
+  overlay.classList.add('welcome--hide');
+  setTimeout(() => overlay.setAttribute('hidden', ''), 220);
+}
