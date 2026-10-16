@@ -233,6 +233,13 @@ async function irAYvyId(yvyId) {
   // bajo la ficha; el resto no se mueve.
   map.once('moveend', () => {
     if (!obj || !Array.isArray(obj.centro)) return;
+    // Sin desplazamiento para objetos grandes (país/provincia o bounds de
+    // más de ~1.5°): el encuadre por bounds ya es exacto y moverlo lo rompe
+    // (dejaba océano a la izquierda en Argentina). Solo se aplica a los
+    // chicos que quedarían tapados bajo la ficha.
+    if (obj.nivel === 'pais' || obj.nivel === 'provincia') return;
+    const b = Array.isArray(obj.bounds_objeto) ? obj.bounds_objeto : null;
+    if (b && Math.abs(b[2] - b[0]) > 1.5) return;
     try {
       const pt = map.project(obj.centro);
       const panel = document.getElementById('panel-explorador');
