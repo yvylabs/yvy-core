@@ -1,6 +1,11 @@
 // share.js — Compartir vista: permalink 100% client-side
 // Formato: #y=<yvy_id>&c=<lng>,<lat>&z=<zoom>
 
+// El hash de entrada se congela al importar el módulo (antes de que el
+// mapa exista): un moveend previo al 'load' reescribe el hash con solo
+// c&z y borraría el y=<id> antes de que restaurar() lo lea.
+const HASH_INICIAL = typeof window !== 'undefined' ? window.location.hash : '';
+
 const COMPARTIR_ID = 'btn-compartir';
 
 let mapa = null;
@@ -79,7 +84,7 @@ export function inicializarCompartirVista(map, onRestaurarObjeto) {
   mapa.on('moveend', actualizarHash);
 
   const restaurar = async () => {
-    const q = new URLSearchParams(window.location.hash.slice(1));
+    const q = new URLSearchParams(HASH_INICIAL.slice(1));
     const y = q.get('y');
     const c = q.get('c');
     const z = q.get('z');
