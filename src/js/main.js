@@ -168,11 +168,15 @@ function setSatelite(on) {
     map.addLayer({ id, type: 'raster', source: id }, capas.length ? capas[0].id : undefined);
   }
   if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-  // El fondo oscuro del style es opaco: sin ocultarlo, el raster queda
-  // debajo y el satélite "no carga" aunque los tiles lleguen bien.
+  // El fondo oscuro del style es opaco: ocultar capas de relleno para que
+  // el raster satelital se vea. Se dejan líneas y símbolos (límites, etiquetas).
   try {
-    const base = map.getStyle().layers.find((l) => l.type === 'background');
-    if (base && map.getLayer(base.id)) map.setLayoutProperty(base.id, 'visibility', on ? 'none' : 'visible');
+    map.getStyle().layers.forEach((l) => {
+      if (l.id === id) return;
+      if (l.type === 'background' || l.type === 'fill' || l.type === 'fill-extrusion') {
+        map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible');
+      }
+    });
   } catch { /* sin fondo: nada que ocultar */ }
   const btn = document.getElementById('btn-satelite');
   if (btn) {

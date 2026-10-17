@@ -335,7 +335,6 @@ function renderFicha(obj) {
 
   renderBreadcrumbInline(contenedor, obj);
   renderHijos(contenedor, obj, null);
-  renderDatasetsAplicables(contenedor, obj);
 
   componerNarrativa(obj).then(({ frases, refs, ags }) => {
     if (token !== renderToken) return;
@@ -398,6 +397,7 @@ function renderFicha(obj) {
     obj._refs = refs;
     contenedor.appendChild(botonCopiar(obj));
     contenedor.appendChild(enlaceMarcaBlanca());
+    renderDatasetsAplicables(contenedor, obj, ags);
   });
 }
 
@@ -440,16 +440,17 @@ function seccionHijos(obj, nivel, items, tituloForzado) {
   const head = document.createElement('button');
   head.type = 'button';
   head.className = 'objeto-collapse-btn';
-  head.setAttribute('aria-expanded', 'true');
+  head.setAttribute('aria-expanded', 'false');
   const t = document.createElement('span');
   t.textContent = tituloForzado || etiquetaPlural(nivel, items.length);
   head.appendChild(t);
   const ch = document.createElement('span');
   ch.className = 'objeto-collapse-btn__chev';
-  ch.textContent = '▾';
+  ch.textContent = '▸';
   head.appendChild(ch);
   const body = document.createElement('div');
   body.className = 'objeto-collapse-body';
+  body.hidden = true;
   head.addEventListener('click', () => {
     const estabaPlegado = body.hidden;
     body.hidden = !estabaPlegado;
@@ -672,9 +673,14 @@ function seccionDataset(obj, ds) {
 }
 
 // Detalle por dataset (acordeones): solo donde el tipo aplica al nivel.
-function renderDatasetsAplicables(contenedor, obj) {
+// Si ya mostramos narrativa de demografía (hero + párrafos), no duplicamos el acordeón.
+function renderDatasetsAplicables(contenedor, obj, ags) {
   const aplicables = getDatasets().filter((ds) => (ds.niveles || []).includes(obj.nivel));
   for (const ds of aplicables) {
+    if (ds.tipo === 'demografia') {
+      const d = ags && ags.demografia && ags.demografia.metricas;
+      if (d && Number(d.metricas.poblacion || 0) > 0) continue; // ya está en hero + narrativa
+    }
     contenedor.appendChild(seccionDataset(obj, ds));
   }
   return aplicables.length;
