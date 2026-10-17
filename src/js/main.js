@@ -159,32 +159,38 @@ let sateliteOn = false;
 let sateliteSugerido = false;
 
 function setSatelite(on) {
-  if (on && !map.loaded()) return; // estilo base aún cargando: sin capa fantasma
   sateliteOn = on;
-  const id = 'yvy-satelite';
-  if (on && !map.getSource(id)) {
-    map.addSource(id, { type: 'raster', tiles: [SAT_URL], tileSize: 256, maxzoom: 19, attribution: SAT_ATTR });
-    const capas = map.getStyle().layers;
-    map.addLayer({ id, type: 'raster', source: id }, capas.length ? capas[0].id : undefined);
+  const apply = () => {
+    const id = 'yvy-satelite';
+    if (on && !map.getSource(id)) {
+      map.addSource(id, { type: 'raster', tiles: [SAT_URL], tileSize: 256, maxzoom: 19, attribution: SAT_ATTR });
+      const capas = map.getStyle().layers;
+      map.addLayer({ id, type: 'raster', source: id }, capas.length ? capas[0].id : undefined);
+    }
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+    // El fondo oscuro del style es opaco: ocultar capas de relleno para que
+    // el raster satelital se vea. Se dejan líneas y símbolos (límites, etiquetas).
+    try {
+      map.getStyle().layers.forEach((l) => {
+        if (l.id === id) return;
+        if (l.type === 'background' || l.type === 'fill' || l.type === 'fill-extrusion') {
+          map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible');
+        }
+      });
+    } catch { /* sin fondo: nada que ocultar */ }
+    const btn = document.getElementById('btn-satelite');
+    if (btn) {
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-expanded', String(on));
+      btn.classList.remove('is-sugerido');
+    }
+    track('satelite', { on });
+  };
+  if (!map.loaded()) {
+    map.once('load', apply);
+  } else {
+    apply();
   }
-  if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-  // El fondo oscuro del style es opaco: ocultar capas de relleno para que
-  // el raster satelital se vea. Se dejan líneas y símbolos (límites, etiquetas).
-  try {
-    map.getStyle().layers.forEach((l) => {
-      if (l.id === id) return;
-      if (l.type === 'background' || l.type === 'fill' || l.type === 'fill-extrusion') {
-        map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible');
-      }
-    });
-  } catch { /* sin fondo: nada que ocultar */ }
-  const btn = document.getElementById('btn-satelite');
-  if (btn) {
-    btn.classList.toggle('is-active', on);
-    btn.setAttribute('aria-expanded', String(on));
-    btn.classList.remove('is-sugerido');
-  }
-  track('satelite', { on });
 }
 
 const btnSat = document.getElementById('btn-satelite');
