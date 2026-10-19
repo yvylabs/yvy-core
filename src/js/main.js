@@ -162,6 +162,16 @@ function agregarControlIzquierda() {
   });
 }
 
+// Controles del satélite (botón en la toolbar izquierda)
+function agregarControlSatelite() {
+  const btnSat = document.getElementById('btn-satelite');
+  if (!btnSat) {
+    console.warn('[sat] botón btn-satelite no encontrado en el DOM');
+    return;
+  }
+  btnSat.addEventListener('click', () => setSatelite(!sateliteOn));
+}
+
 // --------------------------------------------------------------
 // Satélite ESRI (toggle + auto-sugerencia a z>=12)
 // World Imagery keyless con atribución (ver _headers CSP img-src).
@@ -210,9 +220,6 @@ function setSatelite(on) {
   if (map.loaded()) apply();
   else map.once('load', apply);
 }
-
-const btnSat = document.getElementById('btn-satelite');
-if (btnSat) btnSat.addEventListener('click', () => setSatelite(!sateliteOn));
 
 map.on('moveend', () => {
   if (!sateliteOn && !sateliteSugerido && map.getZoom() >= 12) {
@@ -392,8 +399,9 @@ map.on('load', async () => {
     console.error('No se pudo cargar el manifiesto territorial:', err);
   }
 
-  // Controles de la izquierda (zoom in/out + ubicación)
+  // Controles de la izquierda (zoom in/out + ubicación + satélite)
   agregarControlIzquierda();
+  agregarControlSatelite();
 
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
