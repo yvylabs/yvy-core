@@ -173,15 +173,19 @@ let sateliteOn = false;
 let sateliteSugerido = false;
 
 function setSatelite(on) {
+  console.log('[sat] setSatelite called:', on, 'loaded=', map.loaded());
   sateliteOn = on;
   const id = 'yvy-satelite';
 
   const apply = () => {
+    console.log('[sat] apply() on=', on, 'loaded=', map.loaded());
     if (on && !map.getSource(id)) {
+      console.log('[sat] adding source');
       map.addSource(id, { type: 'raster', tiles: [SAT_URL], tileSize: 256, maxzoom: 19, attribution: SAT_ATTR });
       map.addLayer({ id, type: 'raster', source: id });
     }
     const layer = map.getLayer(id);
+    console.log('[sat] layer exists=', !!layer);
     if (layer) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
 
     // Ocultar fondo oscuro y capas de relleno para que el raster satelital se vea
