@@ -141,12 +141,26 @@ if (mapCanvas) {
   });
 }
 
-// Controles nativos (toolbar derecho)
-map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
-map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), 'top-right');
-if (!globeFallback) map.addControl(new maplibregl.GlobeControl(), 'top-right');
-map.addControl(new maplibregl.FullscreenControl(), 'top-right');
-map.addControl(new maplibregl.ScaleControl({ unit: 'metric', maxWidth: 120 }), 'bottom-right');
+// --------------------------------------------------------------
+// Controles de la izquierda (zoom in/out + ubicación)
+// --------------------------------------------------------------
+function agregarControlIzquierda() {
+  const btnIn = document.getElementById('btn-zoom-in');
+  const btnOut = document.getElementById('btn-zoom-out');
+  const btnLoc = document.getElementById('btn-location');
+
+  if (btnIn) btnIn.addEventListener('click', () => map.zoomIn());
+  if (btnOut) btnOut.addEventListener('click', () => map.zoomOut());
+  if (btnLoc) btnLoc.addEventListener('click', () => {
+    if (!navigator.geolocation) return alert('Geolocalización no disponible');
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude, longitude } = pos.coords;
+      map.flyTo({ center: [longitude, latitude], zoom: 13, duration: 1400 });
+    }, (err) => {
+      console.warn('Geolocalización denegada o no disponible:', err);
+    });
+  });
+}
 
 // --------------------------------------------------------------
 // Satélite ESRI (toggle + auto-sugerencia a z>=12)
@@ -160,16 +174,17 @@ let sateliteSugerido = false;
 
 function setSatelite(on) {
   sateliteOn = on;
+  const id = 'yvy-satelite';
+
   const apply = () => {
-    const id = 'yvy-satelite';
     if (on && !map.getSource(id)) {
       map.addSource(id, { type: 'raster', tiles: [SAT_URL], tileSize: 256, maxzoom: 19, attribution: SAT_ATTR });
-      const capas = map.getStyle().layers;
-      map.addLayer({ id, type: 'raster', source: id }, capas.length ? capas[0].id : undefined);
+      map.addLayer({ id, type: 'raster', source: id });
     }
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-    // El fondo oscuro del style es opaco: ocultar capas de relleno para que
-    // el raster satelital se vea. Se dejan líneas y símbolos (límites, etiquetas).
+    const layer = map.getLayer(id);
+    if (layer) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+
+    // Ocultar fondo oscuro y capas de relleno para que el raster satelital se vea
     try {
       map.getStyle().layers.forEach((l) => {
         if (l.id === id) return;
@@ -177,7 +192,8 @@ function setSatelite(on) {
           map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible');
         }
       });
-    } catch { /* sin fondo: nada que ocultar */ }
+    } catch { /* nada que ocultar */ }
+
     const btn = document.getElementById('btn-satelite');
     if (btn) {
       btn.classList.toggle('is-active', on);
@@ -186,11 +202,9 @@ function setSatelite(on) {
     }
     track('satelite', { on });
   };
-  if (!map.loaded()) {
-    map.once('load', apply);
-  } else {
-    apply();
-  }
+
+  if (map.loaded()) apply();
+  else map.once('load', apply);
 }
 
 const btnSat = document.getElementById('btn-satelite');
@@ -373,6 +387,9 @@ map.on('load', async () => {
   } catch (err) {
     console.error('No se pudo cargar el manifiesto territorial:', err);
   }
+
+  // Controles de la izquierda (zoom in/out + ubicación)
+  agregarControlIzquierda();
 
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
