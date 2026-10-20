@@ -104,6 +104,9 @@ export function agregarCapaObjeto(map, obj) {
   const id = `yvy-${obj.yvy_id}`;
   if (map.getLayer(`layer-${id}`)) return;
 
+  // Barrio se desactiva temporalmente por cableado incorrecto de sus capas internas
+  if (obj.nivel === 'barrio') return;
+
   const sourceId = cargarSourceNivel(map, obj);
   if (!sourceId) return;
 
