@@ -162,100 +162,8 @@ function agregarControlIzquierda() {
   });
 }
 
-// Controles del satélite (botón en la toolbar izquierda)
-function agregarControlSatelite() {
-  const btnSat = document.getElementById('btn-satelite');
-  if (!btnSat) {
-    console.warn('[sat] botón btn-satelite no encontrado en el DOM');
-    return;
-  }
-  btnSat.addEventListener('click', () => setSatelite(!sateliteOn));
-}
-
 // --------------------------------------------------------------
-// Satélite ESRI (toggle + auto-sugerencia a z>=12)
-// World Imagery keyless con atribución (ver _headers CSP img-src).
-// No reemplaza el oscuro: capa raster al fondo, solo visible a pedido.
-// --------------------------------------------------------------
-const SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SAT_ATTR = '© Esri, Vantor, Earthstar Geographics';
-let sateliteOn = false;
-let sateliteSugerido = false;
-
-function setSatelite(on) {
-  sateliteOn = on;
-  const id = 'yvy-satelite';
-
-  const apply = () => {
-    if (!map.loaded()) {
-      map.once('load', apply);
-      return;
-    }
-
-    if (on && !map.getSource(id)) {
-      map.addSource(id, { type: 'raster', tiles: [SAT_URL], tileSize: 256, maxzoom: 19, attribution: SAT_ATTR });
-    }
-
-    if (!map.getLayer(id)) {
-      // Si la capa no existe todavía, esperar a style.load y agregarla
-      map.once('style.load', () => {
-        map.addLayer({ id, type: 'raster', source: id });
-        map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-        try {
-          map.getStyle().layers.forEach((l) => {
-            if (l.id === id) return;
-            if (l.type === 'background' || l.type === 'fill' || l.type === 'fill-extrusion') {
-              map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible');
-            }
-          });
-        } catch {}
-        const btn = document.getElementById('btn-satelite');
-        if (btn) {
-          btn.classList.toggle('is-active', on);
-          btn.setAttribute('aria-expanded', String(on));
-          btn.classList.remove('is-sugerido');
-        }
-        track('satelite', { on });
-      });
-      return;
-    }
-
-    map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
-
-    try {
-      map.getStyle().layers.forEach((l) => {
-        if (l.id === id) return;
-        if (l.type === 'background' || l.type === 'fill' || l.type === 'fill-extrusion') {
-          map.setLayoutProperty(l.id, 'visibility', on ? 'none' : 'visible');
-        }
-      });
-    } catch {}
-
-    const btn = document.getElementById('btn-satelite');
-    if (btn) {
-      btn.classList.toggle('is-active', on);
-      btn.setAttribute('aria-expanded', String(on));
-      btn.classList.remove('is-sugerido');
-    }
-    track('satelite', { on });
-  };
-
-  if (map.loaded()) {
-    apply();
-  } else {
-    map.once('load', apply);
-  }
-}
-
-map.on('moveend', () => {
-  if (!sateliteOn && !sateliteSugerido && map.getZoom() >= 12) {
-    sateliteSugerido = true;
-    const b = document.getElementById('btn-satelite');
-    if (b) b.classList.add('is-sugerido');
-  }
-});
-
-// --------------------------------------------------------------
+// Carga de objetos Yvy — load once, dibujar siempre
 // Carga de objetos Yvy — load once, dibujar siempre
 // --------------------------------------------------------------
 const cargados = new Set(); // yvy_ids con geometría ya en el mapa
@@ -306,8 +214,6 @@ async function irAYvyId(yvyId) {
   setObjetoBarra(obj);
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
-  // Satélite automático a nivel municipio/barrio; oscuro en el resto.
-  setSatelite(obj.nivel === 'municipio' || obj.nivel === 'barrio');
 
   // Vuelo: si el build calculó los límites reales del objeto, se ajusta
   // el zoom para que entre entero (con padding); si no, centro/zoom fijos
@@ -425,9 +331,8 @@ map.on('load', async () => {
     console.error('No se pudo cargar el manifiesto territorial:', err);
   }
 
-  // Controles de la izquierda (zoom in/out + ubicación + satélite)
+  // Controles de la izquierda (zoom in/out + ubicación)
   agregarControlIzquierda();
-  agregarControlSatelite();
 
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.

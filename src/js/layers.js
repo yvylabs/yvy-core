@@ -107,17 +107,15 @@ export function agregarCapaObjeto(map, obj) {
   const sourceId = cargarSourceNivel(map, obj);
   if (!sourceId) return;
 
-  const capaInterna = obj.capa_interna || obj.nivel;
+  const capaInterna = obj.capa_interna || (archivoPmtiles(obj) || '').replace(/\.pmtiles$/, '');
   // On-demand: la capa ignora el min/max del header y pinta por overzoom
   // en cualquier zoom (el header solo limita el fetch en la source).
   // Sin esto, volar a un barrio (z15+) ocultaba su propia capa (max14).
   const minzoom = 0;
   const maxzoom = 22;
   // El id MVT no siempre existe (paises trae id como propiedad): se prueban
-  // primero las propiedades (yvy_id, id) y recién al final el id top-level.
-  // Con ['id'] primero, MapLibre hace to-number(undefined) → error y el
-  // filtro da null (el país nunca pintaba, sin ningún error visible).
-  const filtro = ['==', ['to-number', ['coalesce', ['get', 'yvy_id'], ['get', 'id']]], obj.yvy_id];
+  // primero las propiedades (id, yvy_id) y recién al final el id top-level.
+  const filtro = ['==', ['to-number', ['coalesce', ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
 
   map.addLayer({
     id: `layer-${id}`,
