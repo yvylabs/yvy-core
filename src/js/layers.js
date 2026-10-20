@@ -120,8 +120,8 @@ export function agregarCapaObjeto(map, obj) {
   const minzoom = 0;
   const maxzoom = 22;
   // El id MVT no siempre existe (paises trae id como propiedad): se prueban
-  // primero las propiedades (id, yvy_id) y recién al final el id top-level.
-  const filtro = ['==', ['to-number', ['coalesce', ['id'], ['get', 'id'], ['get', 'yvy_id']]], obj.yvy_id];
+  // primero yvy_id, luego id como propiedad, y recién al final el id top-level.
+  const filtro = ['==', ['to-number', ['coalesce', ['get', 'yvy_id'], ['get', 'id'], ['id']]], obj.yvy_id];
 
   map.addLayer({
     id: `layer-${id}`,
