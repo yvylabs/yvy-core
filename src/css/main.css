@@ -1247,3 +1247,199 @@ button.topbar__crumb:hover { color: var(--accent); }
     border-top: 1px solid #1E293B;
   }
 }
+
+/* ==============================================================
+   UX v7 — Panel fijo (Dossier): estilo de capa fina
+   ============================================================== */
+#panel-explorador {
+  top: var(--topbar-height);
+  left: 0;
+  bottom: 28px;
+  width: 380px;
+  max-height: none;
+  border-radius: 0;
+  border-top: none;
+  border-left: none;
+  border-bottom: none;
+  box-shadow: none;
+  border-right: 1px solid #1E293B;
+  background: #12151D;
+  overflow-y: auto;
+}
+
+#panel-explorador .dossier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #1E293B;
+}
+
+#panel-explorador .dossier-header .dossier-nombre {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.15;
+  margin: 0;
+}
+
+#panel-explorador .dossier-chip {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--accent);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+#panel-explorador .dossier-superficie {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Hero de población */
+.dossier-hero {
+  margin: 12px 0 12px;
+  padding: 12px 16px 10px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: var(--radius);
+}
+
+.dossier-hero-num {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.dossier-hero-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Grid atómico de métricas */
+.dossier-grid {
+  margin: 12px 16px 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.dossier-metrica {
+  background: #0B0E14;
+  border: 1px solid #1E293B;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dossier-metrica__valor {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: #F1F5F9;
+  font-variant-numeric: tabular-nums;
+}
+
+.dossier-metrica__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  line-height: 1.2;
+}
+
+/* Briefing */
+.dossier-briefing {
+  margin: 12px 16px;
+  padding: 12px;
+  background: #0B0E14;
+  border: 1px solid #1E293B;
+  border-radius: var(--radius);
+}
+
+.dossier-briefing__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.dossier-briefing__texto {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Referencias */
+.dossier-ref {
+  margin: 12px 16px;
+  padding: 8px;
+  background: rgba(148, 163, 184, 0.04);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.dossier-ref__label {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.dossier-ref__item {
+  color: var(--text-dim);
+}
+
+/* Botón copiar */
+.dossier-copy {
+  margin: 12px 16px;
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+.dossier-copy:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Línea separadora fina */
+.dossier-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 16px;
+}

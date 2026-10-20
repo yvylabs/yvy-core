@@ -294,114 +294,105 @@ async function componerNarrativa(obj) {
   return { frases, refs, ags };
 }
 
-function renderFicha(obj) {
-  const token = ++renderToken;
-  const detalle = document.getElementById('explorer-detalle');
-  if (detalle) detalle.hidden = false;
-  const contenedor = document.getElementById('objeto-info');
-  if (!contenedor) return;
-  contenedor.innerHTML = '';
+export function renderFicha(obj) {
+  const panel = document.getElementById('panel-explorador');
+  if (!panel) return;
+  panel.hidden = false;
+  panel.innerHTML = '';
 
-  const identidad = document.createElement('div');
-  identidad.className = 'objeto-identidad';
-  const filaTitulo = document.createElement('div');
-  filaTitulo.className = 'objeto-titulo';
-  const nombre = document.createElement('h3');
-  nombre.className = 'objeto-nombre';
-  nombre.textContent = obj.nombre_oficial;
-  filaTitulo.appendChild(nombre);
-  const badge = document.createElement('span');
-  badge.className = 'objeto-badge';
-  badge.textContent = etiquetaNivel(obj.nivel).toUpperCase();
-  filaTitulo.appendChild(badge);
-  identidad.appendChild(filaTitulo);
-  const pert = frasePertenencia(obj);
-  const sup = obj.sup_oficial_km2 != null ? fmtSup(obj.sup_oficial_km2) : null;
-  if (pert || sup) {
-    const subtitle = document.createElement('div');
-    subtitle.className = 'objeto-subtitle';
-    subtitle.textContent = [pert, sup].filter(Boolean).join(' ');
-    identidad.appendChild(subtitle);
+  if (!obj) {
+    panel.innerHTML = '<div class="dossier-vacio">Sin jurisdicción seleccionada.</div>';
+    return;
   }
-  contenedor.appendChild(identidad);
 
-  const narrativa = document.createElement('div');
-  narrativa.className = 'objeto-narrativa';
-  const sk = document.createElement('p');
-  sk.className = 'skeleton';
-  sk.textContent = 'Cargando datos…';
-  narrativa.appendChild(sk);
-  contenedor.appendChild(narrativa);
+  const datos = getAgregado('demografia', obj.yvy_id);
+  const m = datos?.metricas || {};
+  const poblacion = Number(m.poblacion) || 0;
+  const viviendas = Number(m.viviendas) || 0;
+  const densidad = obj.sup_oficial_km2 && poblacion ? (poblacion / obj.sup_oficial_km2).toFixed(1) : '–';
 
-  renderBreadcrumbInline(contenedor, obj);
-  renderHijos(contenedor, obj, null);
+  // ── Header fijo: nombre + chip + superficie
+  const header = document.createElement('div');
+  header.className = 'dossier-header';
+  const nivelBadge = document.createElement('span');
+  nivelBadge.className = 'dossier-chip';
+  nivelBadge.textContent = etiquetaNivel(obj.nivel).toUpperCase();
+  const nombre = document.createElement('h1');
+  nombre.className = 'dossier-nombre';
+  nombre.textContent = obj.nombre_oficial;
+  const sup = document.createElement('span');
+  sup.className = 'dossier-superficie';
+  sup.textContent = obj.sup_oficial_km2 ? obj.sup_oficial_km2.toLocaleString('es-AR') + ' km²' : 'Sin superficie';
+  header.appendChild(nivelBadge);
+  header.appendChild(nombre);
+  header.appendChild(sup);
 
-  componerNarrativa(obj).then(({ frases, refs, ags }) => {
-    if (token !== renderToken) return;
-    narrativa.innerHTML = '';
-    // Hero de población: el número que vende, primero y grande.
-    const demo = ags ? ags.demografia : null;
-    const pob = demo && demo.metricas ? Number(demo.metricas.poblacion) : NaN;
-    if (Number.isFinite(pob) && pob > 0) {
-      const hero = document.createElement('div');
-      hero.className = 'objeto-hero';
-      const num = document.createElement('div');
-      num.className = 'objeto-hero__num';
-      num.textContent = fmtInt.format(pob);
-      hero.appendChild(num);
-      const lab = document.createElement('div');
-      lab.className = 'objeto-hero__label';
-      lab.textContent = demo.fecha_vigencia ? `Habitantes · vigencia ${demo.fecha_vigencia}` : 'Habitantes';
-      hero.appendChild(lab);
-      contenedor.insertBefore(hero, narrativa);
-    }
-    for (const f of frases) {
-      const p = document.createElement('p');
-      p.textContent = f;
-      narrativa.appendChild(p);
-    }
-    if (refs.length > 0) {
-      const r = document.createElement('div');
-      r.className = 'objeto-referencias';
-      const lab = document.createElement('span');
-      lab.className = 'objeto-referencias__label';
-      lab.textContent = 'Referencias · ';
-      r.appendChild(lab);
-      refs.forEach((ref, i) => {
-        if (i > 0) {
-          const sep = document.createElement('span');
-          sep.textContent = ' · ';
-          r.appendChild(sep);
-        }
-        if (ref.url) {
-          const a = document.createElement('a');
-          a.href = ref.url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          a.textContent = ref.nombre;
-          r.appendChild(a);
-        } else {
-          const s = document.createElement('span');
-          s.textContent = ref.nombre;
-          r.appendChild(s);
-        }
-        if (ref.fecha) {
-          const v = document.createElement('span');
-          v.textContent = ` (vigencia ${ref.fecha})`;
-          r.appendChild(v);
-        }
-      });
-      contenedor.appendChild(r);
-    }
-    obj._narrativa = frases;
-    obj._refs = refs;
-    contenedor.appendChild(botonCopiar(obj));
-    contenedor.appendChild(enlaceMarcaBlanca());
-    renderDatasetsAplicables(contenedor, obj, ags);
+  // ── Hero de población
+  const hero = document.createElement('div');
+  hero.className = 'dossier-hero';
+  const num = document.createElement('div');
+  num.className = 'dossier-hero-num';
+  num.textContent = poblacion ? poblacion.toLocaleString('es-AR') : '–';
+  const lab = document.createElement('div');
+  lab.className = 'dossier-hero-label';
+  lab.textContent = 'Habitantes · Censo 2022';
+  hero.appendChild(num);
+  hero.appendChild(lab);
+
+  // ── Grid atómico
+  const grid = document.createElement('div');
+  grid.className = 'dossier-grid';
+  const metricas = [
+    { label: 'Población', valor: poblacion ? poblacion.toLocaleString('es-AR') : '–' },
+    { label: 'Viviendas', valor: viviendas ? viviendas.toLocaleString('es-AR') : '–' },
+    { label: 'Densidad', valor: densidad !== '–' ? densidad + ' hab/km²' : '–' },
+    { label: 'Viviendas colectivas', valor: '–' },
+    { label: 'Población en calle', valor: '–' },
+    { label: 'Jurisdicción', valor: obj.nivel === 'pais' ? '24 provincias' : '–' },
+  ];
+  metricas.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'dossier-metrica';
+    item.innerHTML = '<div class="dossier-metrica__valor">' + m.valor + '</div><div class="dossier-metrica__label">' + m.label + '</div>';
+    grid.appendChild(item);
   });
-}
 
-/** Marca blanca: link terciario, sutil, nunca banner. */
+  // ── Briefing: texto auto-generado
+  const briefing = document.createElement('div');
+  briefing.className = 'dossier-briefing';
+  const briefLabel = document.createElement('div');
+  briefLabel.className = 'dossier-briefing__label';
+  briefLabel.textContent = 'Breve descripción';
+  const briefTexto = document.createElement('div');
+  briefTexto.className = 'dossier-briefing__texto';
+  briefTexto.textContent = 'El ' + obj.nivel + ' de ' + obj.nombre_oficial + ' cuenta con ' + (poblacion ? poblacion.toLocaleString('es-AR') : '–') + ' habitantes según el Censo Nacional 2022 (INDEC).';
+  briefing.appendChild(briefLabel);
+  briefing.appendChild(briefTexto);
+
+  // ── Referencias
+  const refs = document.createElement('div');
+  refs.className = 'dossier-ref';
+  refs.innerHTML = '<span class="dossier-ref__label">Referencias:</span> <span class="dossier-ref__item">Censo Nacional 2022 (INDEC)</span> · <span class="dossier-ref__item">IGN</span>';
+
+  // ── Botón copiar dossier
+  const btnCopiar = document.createElement('button');
+  btnCopiar.className = 'dossier-copy';
+  btnCopiar.textContent = 'Copiar dossier';
+  btnCopiar.addEventListener('click', () => {
+    const texto = obj.nombre_oficial + ' · ' + etiquetaNivel(obj.nivel) + ' · ' + (obj.sup_oficial_km2 ? obj.sup_oficial_km2.toLocaleString('es-AR') + ' km²' : '') + '\n--- \nPOBLACIÓN: ' + (poblacion ? poblacion.toLocaleString('es-AR') : '–') + '\nVIVIENDAS: ' + (viviendas ? viviendas.toLocaleString('es-AR') : '–') + '\nReferencias: Censo Nacional 2022 (INDEC\)\nVer en Yvy: ' + location.href;
+    navigator.clipboard.writeText(texto).then(() => {
+      btnCopiar.textContent = 'Copiado';
+      setTimeout(() => btnCopiar.textContent = 'Copiar dossier', 2000);
+    });
+  });
+
+  panel.appendChild(header);
+  panel.appendChild(hero);
+  panel.appendChild(grid);
+  panel.appendChild(briefing);
+  panel.appendChild(refs);
+  panel.appendChild(btnCopiar);
+}
 function enlaceMarcaBlanca() {
   const a = document.createElement('a');
   a.className = 'objeto-marcablanca';

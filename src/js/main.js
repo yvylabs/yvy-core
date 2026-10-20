@@ -215,28 +215,26 @@ async function irAYvyId(yvyId) {
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
 
-  // Vuelo: si el build calculó los límites reales del objeto, se ajusta
-  // el zoom para que entre entero (con padding); si no, centro/zoom fijos
+  // Vuelo inicial para país: globo centrado en Argentina
+  if (obj.nivel === 'pais') {
+    map.flyTo({ center: [-64, -50], zoom: 2.3, duration: 1400 });
+    map.once('moveend', () => {
+      map.setPadding({ top: 40, right: 40, bottom: 40, left: 440 });
+    });
+    mostrarObjeto(yvyId);
+    return;
+  }
+
+  // Vuelo normal para provincias, departamentos y municipios
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
-  // Encuadre: padding izquierdo = ancho de la ficha + margen, para que el
-  // objeto quede en el área visible y no debajo de los paneles. Sin esto,
-  // cameraForBounds centraba en todo el viewport y el país quedaba tapado.
-  const panelEl = document.getElementById('panel-explorador');
-  const padIzq = Math.max(panelEl ? panelEl.offsetWidth : 0, 380) + 100;
+  const padIzq = Math.max(document.getElementById('panel-explorador')?.offsetWidth ?? 380, 380) + 100;
   try {
     if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
       const b = obj.bounds_objeto;
       const cam = map.cameraForBounds(
-        [
-          [b[0], b[1]],
-          [b[2], b[3]],
-        ],
-        {
-          padding: { top: 80, bottom: 80, right: 80, left: padIzq },
-          maxZoom: (obj.maxzoom ?? 22) + 3,
-          minZoom: Math.min(obj.minzoom ?? 0, 6),
-        }
+        [[b[0], b[1]], [b[2], b[3]]],
+        { padding: { top: 80, bottom: 80, right: 80, left: padIzq }, maxZoom: (obj.maxzoom ?? 22) + 3, minZoom: Math.min(obj.minzoom ?? 0, 6) }
       );
       if (cam) {
         centro = cam.center;
@@ -244,29 +242,24 @@ async function irAYvyId(yvyId) {
       }
     }
   } catch {
-    // bounds degenerados: se vuela a centro/zoom fijos, nunca se aborta la ficha
+    // bounds degenerados: se vuela a centro/zoom fijos
   }
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
 
-  // La ficha es fija a la izquierda. Si el objeto queda debajo del panel
-  // (zona izquierda), se desplaza el mapa suavemente hacia la derecha lo
-  // justo para que nunca quede tapado. Solo se aplica a los que quedarían
-  // bajo la ficha; el resto no se mueve.
+  // Siempre que hay un objeto activo, el mapa se corre a la derecha para
+  // no tapar el panel fijo. Solo se desplaza más si el objeto queda muy a
+  // la izquierda (objetos pequeños en zoom alto).
   map.once('moveend', () => {
+    map.setPadding({ top: 40, right: 40, bottom: 40, left: 440 });
     if (!obj || !Array.isArray(obj.centro)) return;
-    // Sin desplazamiento para objetos grandes (país/provincia o bounds de
-    // más de ~1.5°): el encuadre por bounds ya es exacto y moverlo lo rompe
-    // (dejaba océano a la izquierda en Argentina). Solo se aplica a los
-    // chicos que quedarían tapados bajo la ficha.
     if (obj.nivel === 'pais' || obj.nivel === 'provincia') return;
     const b = Array.isArray(obj.bounds_objeto) ? obj.bounds_objeto : null;
     if (b && Math.abs(b[2] - b[0]) > 1.5) return;
     try {
       const pt = map.project(obj.centro);
-      const panel = document.getElementById('panel-explorador');
-      const panelLimit = (panel && !panel.hidden ? panel.offsetWidth : 320) + 24;
+      const panelLimit = 440;
       if (pt.x < panelLimit) {
-        const nc = map.unproject([pt.x + (panelLimit - pt.x), pt.y]);
+        const nc = map.unproject([pt.x + panelLimit - pt.x, pt.y]);
         map.easeTo({ center: [nc.lng, nc.lat], duration: 700 });
       }
     } catch { /* no desplaza si falla la proyección */ }
