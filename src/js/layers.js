@@ -25,7 +25,10 @@ const PMTILES_R2_POR_NIVEL = { municipio: 'municipios.pmtiles' };
 
 /** Nombre del archivo PMTiles del objeto (el nivel manda; fallback al manifest). */
 function archivoPmtiles(obj) {
-  return PMTILES_R2_POR_NIVEL[obj.nivel] || obj.pmtiles || null;
+  if (PMTILES_R2_POR_NIVEL[obj.nivel]) return PMTILES_R2_POR_NIVEL[obj.nivel];
+  if (obj.pmtiles) return obj.pmtiles;
+  if (obj.capa_interna) return obj.capa_interna + '.pmtiles';
+  return null;
 }
 
 /** Ruta del archivo: tiles/* (R2 vía Function) o data/* (legado estático). */
