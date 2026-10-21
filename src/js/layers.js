@@ -14,6 +14,13 @@ const OPACIDAD_ACTIVO = 0.22;
 const OPACIDAD_CONTEXTO = 0.15;
 const FILL_ACTIVO = '#10B981';
 const LINEA_ACTIVA = '#34D399';
+// País: solo contorno, sin relleno. El borde es la marca, no el área.
+const BORDE_PAIS_COLOR = '#00FF88';
+const BORDE_PAIS_ANCHO = 1.2;
+
+// Nivel por yvy_id: setVisibilidadObjeto necesita saber si es país para no
+// pisar el estilo de contorno (ninguno de los dos se rellena).
+const niveles = new Map();
 
 // Geometría por nivel (SPEC §6: liviano en el deploy, pesado en R2):
 // - municipio → R2 vía functions/tiles/* (único >25 MB, no entra a dist).
@@ -123,6 +130,11 @@ export function agregarCapaObjeto(map, obj) {
   // primero yvy_id, luego id como propiedad, y recién al final el id top-level.
   const filtro = ['==', ['to-number', ['coalesce', ['get', 'yvy_id'], ['get', 'id'], ['id']]], obj.yvy_id];
 
+  // País: contorno puro (sin relleno). Los eventos van al outline, porque
+  // un fill transparente no es un blanco confiable para el hit-test.
+  const esPais = obj.nivel === 'pais';
+  niveles.set(Number(obj.yvy_id), obj.nivel);
+
   map.addLayer({
     id: `layer-${id}`,
     type: 'fill',
@@ -133,7 +145,7 @@ export function agregarCapaObjeto(map, obj) {
     filter: filtro,
     paint: {
       'fill-color': FILL_ACTIVO,
-      'fill-opacity': OPACIDAD_ACTIVO,
+      'fill-opacity': esPais ? 0 : OPACIDAD_ACTIVO,
     },
   });
 
@@ -148,22 +160,24 @@ export function agregarCapaObjeto(map, obj) {
     paint: {
       // Opacidad 1.0 a propósito: los bordes compartidos entre tiles se
       // pintan 2 veces; con <1 se oscurecen y aparece la "costura".
-      'line-color': LINEA_ACTIVA,
-      'line-width': obj.nivel === 'pais' ? 3 : 2.5,
+      'line-color': esPais ? BORDE_PAIS_COLOR : LINEA_ACTIVA,
+      'line-width': esPais ? BORDE_PAIS_ANCHO : 2.5,
       'line-opacity': 1,
     },
   });
 
+  const capaEventos = esPais ? `outline-${id}` : `layer-${id}`;
+
   // Clic → navegar al objeto (vuelo + ficha + hash), igual que el resto.
-  map.on('click', `layer-${id}`, (e) => {
+  map.on('click', capaEventos, (e) => {
     if (!e.features || e.features.length === 0) return;
     navegarA(obj.yvy_id);
   });
-  configurarHover(map, obj, `layer-${id}`);
-  map.on('mouseenter', `layer-${id}`, () => {
+  configurarHover(map, obj, capaEventos);
+  map.on('mouseenter', capaEventos, () => {
     map.getCanvas().style.cursor = 'pointer';
   });
-  map.on('mouseleave', `layer-${id}`, () => {
+  map.on('mouseleave', capaEventos, () => {
     map.getCanvas().style.cursor = '';
   });
 }
@@ -175,13 +189,18 @@ export function agregarCapaObjeto(map, obj) {
  */
 export function setVisibilidadObjeto(map, yvyId, visible, esActivo) {
   const id = `yvy-${yvyId}`;
-  const paint = esActivo
+  const esPais = niveles.get(Number(yvyId)) === 'pais';
+  const foco = esActivo
     ? { 'fill-opacity': OPACIDAD_ACTIVO,
         'line-width': 3,
         'line-opacity': 1 }
     : { 'fill-opacity': OPACIDAD_CONTEXTO,
         'line-width': 1.5,
         'line-opacity': 0.5 };
+  // País: el estilo es fijo (contorno 1.2 sin relleno); solo se prende/apaga.
+  const paint = esPais
+    ? { 'fill-opacity': 0, 'line-width': BORDE_PAIS_ANCHO, 'line-opacity': 1 }
+    : foco;
   for (const [layerId, props] of [
     [`layer-${id}`, { visibility: visible ? 'visible' : 'none', 'fill-opacity': paint['fill-opacity'] }],
     [`outline-${id}`, { visibility: visible ? 'visible' : 'none', 'line-width': paint['line-width'], 'line-opacity': paint['line-opacity'] }],
