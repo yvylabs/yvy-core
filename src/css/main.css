@@ -775,7 +775,8 @@ button.topbar__crumb:hover { color: var(--accent); }
   box-shadow: none;
   border-right: 1px solid #1E293B;
   background: #12151D;
-  overflow-y: auto;
+  /* El scroll vive en el cuerpo (.explorer-detalle), no en el panel:
+   la clase .floating-panel ya deja overflow:hidden y flex column. */
 }
 
 /* Header fijo: no scrollea con el cuerpo */
