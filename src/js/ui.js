@@ -68,9 +68,12 @@ export function inicializarUIPaneles() {
     setPanelAbierto(abiertoActual, def.btn); // toggle => cierra
   });
 
-  // Esc cierra el panel abierto
+  // Esc cierra el panel abierto (salvo cuando el buscador está abierto:
+  // ese Esc es del buscador, no del dossier — Evita la pantalla atrapada)
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !abiertoActual) return;
+    const w = document.getElementById('welcome');
+    if (w && !w.hasAttribute('hidden')) return;
     const def = PANEL_DEFS.find((d) => d.panel === abiertoActual);
     if (def) setPanelAbierto(abiertoActual, def.btn);
   });

@@ -5,9 +5,13 @@
 // ==============================================================
 
 import { getObjetos } from './manifest.js';
+import { abrirPanelObjeto } from './ui.js';
 import { track } from './telemetry.js';
 
 let navegarHandler = null;
+// marcado cuando abrir() esconde una ficha ya mostrada; cerrar() se la
+// devuelve (el buscador nunca deja pantalla vacía: ese era el bug B3).
+let fichaOcultaPorBuscador = false;
 let overlay, input, results, hint, suggestions;
 
 function normalizar(txt) {
@@ -100,19 +104,30 @@ export function inicializarBienvenida(fnNavegar) {
   }
 
   function cerrar() {
+    const devolverFicha = fichaOcultaPorBuscador;
+    fichaOcultaPorBuscador = false;
+    const bBuscar = document.getElementById('btn-buscar');
+    if (bBuscar) bBuscar.setAttribute('aria-expanded', 'false');
     overlay.classList.add('welcome--hide');
-    setTimeout(() => overlay.setAttribute('hidden', ''), 220);
+    setTimeout(() => {
+      overlay.setAttribute('hidden', '');
+      if (devolverFicha) abrirPanelObjeto();
+    }, 220);
   }
 
   function abrir() {
-    // Al abrir el buscador se apaga la ficha (nunca ambas prendidas)
+    // Al abrir el buscador se apaga la ficha (nunca ambas prendidas).
+    // Si había ficha mostrada, cerrar() se la devuelve al usuario.
     const pEl = document.getElementById('panel-explorador');
+    fichaOcultaPorBuscador = !!(pEl && !pEl.hidden);
     if (pEl) pEl.hidden = true;
     const bFicha = document.getElementById('btn-ficha');
     if (bFicha) {
       bFicha.setAttribute('aria-expanded', 'false');
       bFicha.classList.remove('is-active');
     }
+    const bBuscar = document.getElementById('btn-buscar');
+    if (bBuscar) bBuscar.setAttribute('aria-expanded', 'true');
     overlay.removeAttribute('hidden');
     overlay.classList.remove('welcome--hide');
     input.focus();

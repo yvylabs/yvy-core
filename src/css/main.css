@@ -145,7 +145,11 @@ button.topbar__crumb {
   letter-spacing: inherit;
   text-transform: inherit;
 }
-button.topbar__crumb:hover { color: var(--accent); }
+button.topbar__crumb:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .topbar__crumb--sep { opacity: 0.5; }
 .topbar__crumb--active { color: var(--text); }
 .topbar__right {
@@ -995,3 +999,192 @@ button.topbar__crumb:hover { color: var(--accent); }
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ==============================================================
+   EL GRAFO en el dossier: breadcrumb de padres + acordeones
+   (Contiene / Limita con / cerca de / datasets) + nodo JSON-LD
+   ============================================================== */
+.objeto-breadcrumb {
+  margin: 10px 16px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.objeto-breadcrumb__btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--text-dim);
+  text-decoration: underline transparent;
+  transition: color var(--transition), text-decoration-color var(--transition);
+}
+.objeto-breadcrumb__btn:hover,
+.objeto-breadcrumb__btn:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+.objeto-breadcrumb__sep { color: var(--text-dim); opacity: 0.5; }
+.objeto-breadcrumb__final { color: var(--text); }
+
+/* Acordeón base */
+.dossier-acc {
+  margin: 10px 16px 0;
+  border: 1px solid #1E293B;
+  border-radius: var(--radius);
+  background: #0B0E14;
+  overflow: hidden;
+}
+
+.dossier-acc__head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+  transition: color var(--transition);
+}
+.dossier-acc__head:hover { color: var(--accent); }
+
+.dossier-acc__conteo {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.dossier-acc__chevron::before {
+  content: '▸';
+  display: inline-block;
+  transition: transform var(--transition), color var(--transition);
+  color: var(--text-dim);
+}
+.dossier-acc__head[aria-expanded='true'] .dossier-acc__chevron::before {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+.dossier-acc__body { padding: 4px 6px 8px; }
+.dossier-acc__body[hidden] { display: none; }
+
+/* El grid de métricas vive anidado en el cuerpo del acordeón:
+   sin los márgenes horizontales de la versión top-level. */
+.dossier-acc .dossier-grid { margin: 6px 4px 0; }
+
+.dossier-acc__grupo {
+  padding: 8px 10px 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+/* Ítem navegable del grafo (hijo o vecino) */
+.dossier-nav-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: none;
+  border: 0;
+  border-top: 1px solid #141821;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  transition: background var(--transition), color var(--transition);
+}
+.dossier-nav-item:hover,
+.dossier-nav-item:focus-visible {
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--accent);
+}
+.dossier-nav-item__nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dossier-nav-item__tipo {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.dossier-nav-item[hidden] { display: none; }
+
+.dossier-more {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: 0;
+  border-top: 1px solid #141821;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  transition: color var(--transition);
+}
+.dossier-more:hover { color: var(--accent); }
+
+.dossier-acc__vacio {
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Fuente del dataset (dct:source) */
+.dossier-fuente {
+  padding: 8px 10px 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.dossier-fuente a { color: var(--text-dim); text-decoration: underline; }
+.dossier-fuente a:hover { color: var(--accent); }
+
+/* Nodo JSON-LD */
+.dossier-json-bloque { margin: 12px 16px 0; }
+
+.dossier-json {
+  margin: 8px 0 0;
+  max-height: 300px;
+  overflow: auto;
+  padding: 12px;
+  background: #07090D;
+  border: 1px solid #1E293B;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: #7EE2A8;
+  white-space: pre;
+}
+.dossier-json[hidden] { display: none; }
