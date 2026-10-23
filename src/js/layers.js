@@ -8,8 +8,8 @@
 // Estilo unificado (P2): TODOS los niveles contorno puro de 1.2 px
 // (el mismo de la marca país), 2D y globo. Esmeralda = activo,
 // gris neutro = cargado sin foco. Sin relleno en ningún nivel.
-// Las etiquetas del basemap van atenuadas (vecinos); la del objeto
-// activo la dibuja el grafo, en esmeralda.
+// El texto del basemap se oculta por completo: el único texto en el
+// mapa es el de la ontología (una etiqueta por nodo, punto centro).
 // ==============================================================
 
 import { navegarA } from './manifest.js';
@@ -23,17 +23,22 @@ const BORDE_PX = 1.2;
 // La geometría es solo render (SPEC §1): el relleno no dice nada.
 // La capa fill queda (in) porque sostiene el clic por objeto.
 const SIN_RELLENO = 0;
-// Nombres de vecinos (texto del basemap) al 0.3; la etiqueta activa
-// la pinta el grafo.
+// Texto del basemap: OCULTO por completo (feedback fase 1). El único
+// texto visible en el mapa es el de la ontología (los nodos del grafo).
 const OPACIDAD_VECINOS = 0.3;
 
-/** Atenuar todas las etiquetas de lugar del basemap (place_*). */
-export function atenuarEtiquetasBase(map) {
+/**
+ * Ocultar todas las capas de texto del basemap: lugar, agua, rutas,
+ * POI, escudos ("5", "43" incluidos). Si es symbol y lleva text-field,
+ * la capa se apaga. Los iconos sin texto no se tocan.
+ */
+export function silenciarTextosBase(map) {
   const capas = (map.getStyle() && map.getStyle().layers) || [];
   for (const l of capas) {
-    if (l.id.startsWith('place_') && map.getLayer(l.id) && l.type === 'symbol') {
-      try { map.setPaintProperty(l.id, 'text-opacity', OPACIDAD_VECINOS); } catch { /* capa sin texto */ }
-    }
+    if (l.type !== 'symbol' || !l.layout || !('text-field' in l.layout)) continue;
+    try {
+      if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+    } catch { /* capa no consultable: ignorar */ }
   }
 }
 
