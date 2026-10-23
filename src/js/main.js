@@ -12,7 +12,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 
 import { cargarDatos, getObjeto, getPadre, setObjetoActivo, setNavegador } from './manifest.js';
-import { agregarCapaObjeto, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
+import { agregarCapaObjeto, atenuarEtiquetasBase, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
 import { inicializarUIPaneles } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
@@ -32,8 +32,11 @@ function aplicarEstiloBase(map) {
   map.once('styledata', () => {
     try {
       if (!globeFallback && map.setProjection) map.setProjection({ type: 'globe' });
+      // Vecinos atenuados (P2): los textos del basemap van al 0.3; la
+      // etiqueta del objeto activo la dibuja el grafo (layers.js).
+      atenuarEtiquetasBase(map);
     } catch (e) {
-      console.warn('[yvy] proyección no aplicada:', e?.message);
+      console.warn('[yvy] proyección o atenuado no aplicado:', e?.message);
     }
   });
   try {

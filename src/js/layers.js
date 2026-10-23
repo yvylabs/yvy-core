@@ -5,22 +5,37 @@
 // interna del header, vía manifest.json); el objeto elegido es una
 // capa on-demand con filtro ["id"] === yvy_id. Solo pinta lo elegido:
 // la jerarquía vive en el breadcrumb, no en el mapa.
-// Clic sobre un objeto → abre la ficha (panel Objeto).
+// Estilo unificado (P2): TODOS los niveles contorno puro de 1.2 px
+// (el mismo de la marca país), 2D y globo. Esmeralda = activo,
+// gris neutro = cargado sin foco. Sin relleno en ningún nivel.
+// Las etiquetas del basemap van atenuadas (vecinos); la del objeto
+// activo la dibuja el grafo, en esmeralda.
 // ==============================================================
 
 import { navegarA } from './manifest.js';
 
-const OPACIDAD_ACTIVO = 0.22;
-const OPACIDAD_CONTEXTO = 0.15;
-const FILL_ACTIVO = '#10B981';
-const LINEA_ACTIVA = '#34D399';
-// País: solo contorno, sin relleno. El borde es la marca, no el área.
-const BORDE_PAIS_COLOR = '#00FF88';
-const BORDE_PAIS_ANCHO = 1.2;
+// Esmeralda único acento (var(--accent) en la UI): el borde de la
+// jurisdicción activa. El gris neutro es para lo cargado sin foco.
+const LINEA_ACTIVA = '#10B981';
+const LINEA_INACTIVA = '#334155';
+// El px de la marca país, unificado para todos los niveles.
+const BORDE_PX = 1.2;
+// La geometría es solo render (SPEC §1): el relleno no dice nada.
+// La capa fill queda (in) porque sostiene el clic por objeto.
+const SIN_RELLENO = 0;
+// Nombres de vecinos (texto del basemap) al 0.3; la etiqueta activa
+// la pinta el grafo.
+const OPACIDAD_VECINOS = 0.3;
 
-// Nivel por yvy_id: setVisibilidadObjeto necesita saber si es país para no
-// pisar el estilo de contorno (ninguno de los dos se rellena).
-const niveles = new Map();
+/** Atenuar todas las etiquetas de lugar del basemap (place_*). */
+export function atenuarEtiquetasBase(map) {
+  const capas = (map.getStyle() && map.getStyle().layers) || [];
+  for (const l of capas) {
+    if (l.id.startsWith('place_') && map.getLayer(l.id) && l.type === 'symbol') {
+      try { map.setPaintProperty(l.id, 'text-opacity', OPACIDAD_VECINOS); } catch { /* capa sin texto */ }
+    }
+  }
+}
 
 // Geometría por nivel (SPEC §6: liviano en el deploy, pesado en R2):
 // - municipio → R2 vía functions/tiles/* (único >25 MB, no entra a dist).
@@ -106,7 +121,8 @@ function cargarSourceNivel(map, obj) {
 }
 
 /**
- * Agrega la capa del objeto (fill + outline) si no está cargada.
+ * Agrega las capas del objeto (fill invisible + contorno + etiqueta) si
+ * no están cargadas. Un solo estilo para país/provincia/depto/municipio.
  * @param {import('maplibre-gl').Map} map
  * @param {object} obj - entrada del manifest
  */
@@ -130,11 +146,8 @@ export function agregarCapaObjeto(map, obj) {
   // primero yvy_id, luego id como propiedad, y recién al final el id top-level.
   const filtro = ['==', ['to-number', ['coalesce', ['get', 'yvy_id'], ['get', 'id'], ['id']]], obj.yvy_id];
 
-  // País: contorno puro (sin relleno). Los eventos van al outline, porque
-  // un fill transparente no es un blanco confiable para el hit-test.
-  const esPais = obj.nivel === 'pais';
-  niveles.set(Number(obj.yvy_id), obj.nivel);
-
+  // Relleno invisible: solo sostiene el hit-test del clic (el render
+  // no muestra relleno en ningún nivel).
   map.addLayer({
     id: `layer-${id}`,
     type: 'fill',
@@ -144,8 +157,8 @@ export function agregarCapaObjeto(map, obj) {
     maxzoom,
     filter: filtro,
     paint: {
-      'fill-color': FILL_ACTIVO,
-      'fill-opacity': esPais ? 0 : OPACIDAD_ACTIVO,
+      'fill-color': LINEA_ACTIVA,
+      'fill-opacity': SIN_RELLENO,
     },
   });
 
@@ -160,15 +173,43 @@ export function agregarCapaObjeto(map, obj) {
     paint: {
       // Opacidad 1.0 a propósito: los bordes compartidos entre tiles se
       // pintan 2 veces; con <1 se oscurecen y aparece la "costura".
-      'line-color': esPais ? BORDE_PAIS_COLOR : LINEA_ACTIVA,
-      'line-width': esPais ? BORDE_PAIS_ANCHO : 2.5,
+      'line-color': LINEA_ACTIVA,
+      'line-width': BORDE_PX,
       'line-opacity': 1,
     },
   });
 
-  const capaEventos = esPais ? `outline-${id}` : `layer-${id}`;
+  // Etiqueta del grafo: el nombre del objeto activo en esmeralda.
+  // Las demás etiquetas (basemap) van atenuadas a OPACIDAD_VECINOS.
+  map.addLayer({
+    id: `label-${id}`,
+    type: 'symbol',
+    source: sourceId,
+    'source-layer': capaInterna,
+    minzoom,
+    maxzoom,
+    filter: filtro,
+    layout: {
+      'text-field': obj.nombre_oficial,
+      'text-font': ['Noto Sans Regular'],
+      'text-size': 11,
+      'text-transform': 'uppercase',
+      'text-letter-spacing': 0.08,
+      'text-anchor': 'center',
+    },
+    paint: {
+      'text-color': LINEA_ACTIVA,
+      'text-halo-color': 'rgba(0,0,0,0.75)',
+      'text-halo-width': 1.4,
+      'text-opacity': 1,
+    },
+  });
 
-  // Clic → navegar al objeto (vuelo + ficha + hash), igual que el resto.
+  // Clic → navegar al objeto (vuelo + ficha + hash). El target es el
+  // relleno invisible (policía por área); para país sigue el outline,
+  // que ya funcionaba así.
+  const capaEventos = obj.nivel === 'pais' ? `outline-${id}` : `layer-${id}`;
+
   map.on('click', capaEventos, (e) => {
     if (!e.features || e.features.length === 0) return;
     navegarA(obj.yvy_id);
@@ -183,35 +224,28 @@ export function agregarCapaObjeto(map, obj) {
 }
 
 /**
- * Alterna la visibilidad de la capa de un objeto y aplica el modo
- * foco: el activo se pinta fuerte (fill opaco + borde grueso), los
- * ancestros quedan como contexto tenue.
+ * Alterna la visibilidad de las capas de un objeto y aplica el estado:
+ * activo → esmeralda 1.2 px + etiqueta brillante; inactivo → gris neutro
+ * 1.2 px + etiqueta al 0.3. Presente en 2D y globo por igual (px line).
  */
 export function setVisibilidadObjeto(map, yvyId, visible, esActivo) {
   const id = `yvy-${yvyId}`;
-  const esPais = niveles.get(Number(yvyId)) === 'pais';
-  const foco = esActivo
-    ? { 'fill-opacity': OPACIDAD_ACTIVO,
-        'line-width': 3,
-        'line-opacity': 1 }
-    : { 'fill-opacity': OPACIDAD_CONTEXTO,
-        'line-width': 1.5,
-        'line-opacity': 0.5 };
-  // País: el estilo es fijo (contorno 1.2 sin relleno); solo se prende/apaga.
-  const paint = esPais
-    ? { 'fill-opacity': 0, 'line-width': BORDE_PAIS_ANCHO, 'line-opacity': 1 }
-    : foco;
+  const visibilidad = visible ? 'visible' : 'none';
+  const lineaFoco = esActivo
+    ? { 'line-color': LINEA_ACTIVA, 'line-width': BORDE_PX, 'line-opacity': 1 }
+    : { 'line-color': LINEA_INACTIVA, 'line-width': BORDE_PX, 'line-opacity': 1 };
+  const textoFoco = esActivo
+    ? { 'text-color': LINEA_ACTIVA, 'text-opacity': 1 }
+    : { 'text-color': LINEA_INACTIVA, 'text-opacity': OPACIDAD_VECINOS };
   for (const [layerId, props] of [
-    [`layer-${id}`, { visibility: visible ? 'visible' : 'none', 'fill-opacity': paint['fill-opacity'] }],
-    [`outline-${id}`, { visibility: visible ? 'visible' : 'none', 'line-width': paint['line-width'], 'line-opacity': paint['line-opacity'] }],
+    [`layer-${id}`, { visibility: visibilidad }],
+    [`outline-${id}`, { visibility: visibilidad, ...lineaFoco }],
+    [`label-${id}`, { visibility: visibilidad, ...textoFoco }],
   ]) {
-    if (map.getLayer(layerId)) {
-      map.setLayoutProperty(layerId, 'visibility', props.visibility);
-      for (const k of Object.keys(props)) {
-        if (k !== 'visibility') map.setPaintProperty(layerId, k, props[k]);
-      }
+    if (!map.getLayer(layerId)) continue;
+    map.setLayoutProperty(layerId, 'visibility', props.visibility);
+    for (const k of Object.keys(props)) {
+      if (k !== 'visibility') map.setPaintProperty(layerId, k, props[k]);
     }
   }
 }
-
-

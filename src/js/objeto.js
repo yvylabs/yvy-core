@@ -65,21 +65,6 @@ function fuenteHumana(raw) {
 // --------------------------------------------------------------
 // Nombre, hijos y superficie del objeto
 // --------------------------------------------------------------
-function nombreConArticulo(obj) {
-  if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
-    const padre = getPadre(obj);
-    return `El área sin gobierno local${padre ? ` de ${padre.nombre_oficial}` : ''}`;
-  }
-  switch (obj.nivel) {
-    case 'pais': return obj.nombre_oficial;
-    case 'provincia': return `La provincia de ${obj.nombre_oficial}`;
-    case 'depto': return `El departamento ${obj.nombre_oficial}`;
-    case 'municipio': return `El municipio de ${obj.nombre_oficial}`;
-    case 'barrio': return `El barrio ${obj.nombre_oficial}`;
-    default: return obj.nombre_oficial;
-  }
-}
-
 const HIJO_POR_NIVEL = { pais: 'provincia', provincia: 'depto', depto: 'municipio', municipio: 'barrio' };
 const ETIQUETA_HIJO = { provincia: ['provincia', 'provincias'], depto: ['departamento', 'departamentos'], municipio: ['municipio', 'municipios'], barrio: ['barrio', 'barrios'] };
 
@@ -211,6 +196,59 @@ function bloqueGrid(obj, m) {
   return grid;
 }
 
+// --------------------------------------------------------------
+// Síntesis: EL LUGAR DEL NODO EN EL GRAFO
+// Los números ya viven en el hero y en la grilla: la síntesis dice
+// con quién se relaciona el nodo (hacia arriba, hacia abajo, lateral),
+// sin repetir métricas. El valor está en la relación, no en el dato.
+// --------------------------------------------------------------
+function frasePertenencia(obj) {
+  const padre = getPadre(obj);
+  if (!padre) return null;
+  if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
+    return `Área de la provincia de ${padre.nombre_oficial} sin gobierno local.`;
+  }
+  switch (obj.nivel) {
+    case 'provincia': return `Provincia que integra ${padre.nombre_oficial}.`;
+    case 'depto': return `Departamento de la provincia de ${padre.nombre_oficial}.`;
+    case 'municipio':
+      if (padre.nivel === 'depto') {
+        const abuelo = getPadre(padre);
+        return `Municipio del departamento ${padre.nombre_oficial}${abuelo ? `, ${abuelo.nombre_oficial}` : ''}.`;
+      }
+      return `Municipio de la provincia de ${padre.nombre_oficial}.`;
+    case 'barrio': return `Barrio de ${padre.nombre_oficial}.`;
+    default: return `Integra ${padre.nombre_oficial}.`;
+  }
+}
+
+function fraseEstructura(obj) {
+  if (obj.nivel === 'pais') {
+    const provs = getHijos(obj.yvy_id).filter((h) => h.nivel === 'provincia');
+    return provs.length > 0 ? `Se organiza en ${provs.length} ${provs.length === 1 ? 'provincia' : 'provincias'}.` : null;
+  }
+  if (obj.nivel === 'provincia') {
+    const deptos = getHijos(obj.yvy_id).filter((h) => h.nivel === 'depto');
+    const munisDirectos = getHijos(obj.yvy_id).filter((h) => h.nivel === 'municipio');
+    const vistos = new Set(munisDirectos.map((m) => m.yvy_id));
+    const munis = [...munisDirectos, ...todosMunicipios(obj).filter((m) => !vistos.has(m.yvy_id))];
+    const partes = [];
+    if (deptos.length > 0) partes.push(`${deptos.length} ${deptos.length === 1 ? 'departamento' : 'departamentos'}`);
+    if (munis.length > 0) partes.push(`${munis.length} ${munis.length === 1 ? 'municipio' : 'municipios'}`);
+    if (partes.length === 0) return null;
+    return `Contiene ${partes.join(' y ')}.`;
+  }
+  if (obj.nivel === 'depto') {
+    const munis = getHijos(obj.yvy_id).filter((h) => h.nivel === 'municipio');
+    return munis.length > 0 ? `Contiene ${munis.length} ${munis.length === 1 ? 'municipio' : 'municipios'}.` : 'Sin municipios registrados.';
+  }
+  if (obj.nivel === 'municipio') {
+    const barrios = getHijos(obj.yvy_id).filter((h) => h.nivel === 'barrio');
+    return barrios.length > 0 ? `Contiene ${barrios.length} ${barrios.length === 1 ? 'barrio' : 'barrios'}.` : null;
+  }
+  return null;
+}
+
 function bloqueSintesis(obj, m, limitaTexto) {
   const div = document.createElement('div');
   div.className = 'dossier-briefing';
@@ -226,17 +264,13 @@ function bloqueSintesis(obj, m, limitaTexto) {
 }
 
 function sintesisTexto(obj, m, limitaTexto) {
-  const pob = Number(m && m.poblacion) || 0;
-  if (!pob) return 'Todavía no hay datos censales registrados.';
-  const viv = Number(m && m.viviendas) || 0;
-  const frases = [`${nombreConArticulo(obj)} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`];
-  const d = densidad(obj, pob);
-  const hijos = resumenHijos(obj);
-  const seg = [];
-  if (d) seg.push(`La densidad es de ${d} hab/km²`);
-  if (hijos) seg.push(`se organiza en ${hijos.texto}`);
-  if (seg.length > 0) frases.push(`${seg.join(' y ')}.`);
+  const frases = [];
+  const pert = frasePertenencia(obj);
+  if (pert) frases.push(pert);
+  const est = fraseEstructura(obj);
+  if (est) frases.push(est);
   if (limitaTexto) frases.push(limitaTexto);
+  if (frases.length === 0) return 'Todavía no hay relaciones registradas para este nodo.';
   return frases.join(' ');
 }
 
@@ -303,11 +337,11 @@ function textoDossier(obj, m, extras) {
     if (Number(m.pob_colectivas)) lineas.push(`POBLACIÓN EN VIVIENDAS COLECTIVAS: ${fmtInt.format(Number(m.pob_colectivas))}`);
     if (Number(m.pob_calle)) lineas.push(`POBLACIÓN EN SITUACIÓN DE CALLE: ${fmtInt.format(Number(m.pob_calle))}`);
     if (hijos) lineas.push(`JURISDICCIÓN: ${hijos.texto}`);
-    lineas.push('');
-    lineas.push(`Síntesis: ${sintesisTexto(obj, m, extras.limita || null)}`);
   } else {
     lineas.push('DATOS: no tengo ese dato todavía');
   }
+  lineas.push('');
+  lineas.push(`Síntesis: ${sintesisTexto(obj, m, extras.limita || null)}`);
   const ruta = ExtrasRuta(obj);
   if (ruta.length > 1) lineas.push(`RUTA: ${ruta.join(' › ')}`);
   if (extras.contiene) lineas.push(`CONTIENE: ${extras.contiene}`);
@@ -706,15 +740,15 @@ function bloqueJSONLD(obj, ags) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'dossier-copy';
-  btn.textContent = 'Ver como grafo (JSON-LD)';
+  btn.textContent = 'Mostrar Ficha Técnica (Ontología)';
   const pre = document.createElement('pre');
   pre.className = 'dossier-json';
-  pre.hidden = true;
+  pre.hidden = true; // la ficha técnica arranca cerrada
   const nodo = nodoJsonLd(obj, ags);
   pre.textContent = JSON.stringify(nodo, null, 2);
   btn.addEventListener('click', async () => {
     pre.hidden = !pre.hidden;
-    btn.textContent = pre.hidden ? 'Ver como grafo (JSON-LD)' : 'Ocultar JSON-LD';
+    btn.textContent = pre.hidden ? 'Mostrar Ficha Técnica (Ontología)' : 'Ocultar Ficha Técnica (Ontología)';
   });
   wrap.appendChild(btn);
   wrap.appendChild(pre);
@@ -763,7 +797,9 @@ export async function renderFicha(obj) {
 
   contenedor.appendChild(bloqueHero(m, d));
   contenedor.appendChild(bloqueGrid(obj, m));
-  if (m && Number(m.poblacion)) contenedor.appendChild(bloqueSintesis(obj, m, limita));
+  // La síntesis ya no depende del censo: habla del lugar del nodo en
+  // el grafo (padre, contiene, vecinos) aunque falte el dato demográfico.
+  contenedor.appendChild(bloqueSintesis(obj, m, limita));
 
   // ---- Contiene ----
   const cont = seccionContiene(obj);

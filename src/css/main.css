@@ -1173,10 +1173,17 @@ button.topbar__crumb:hover {
 /* Nodo JSON-LD */
 .dossier-json-bloque { margin: 12px 16px 0; }
 
+/* Scroll: nada de desplazamiento horizontal en el panel ni en el JSON */
+.floating-panel__body {
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
 .dossier-json {
   margin: 8px 0 0;
   max-height: 300px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px;
   background: #07090D;
   border: 1px solid #1E293B;
@@ -1185,6 +1192,7 @@ button.topbar__crumb:hover {
   font-size: 10px;
   line-height: 1.5;
   color: #7EE2A8;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .dossier-json[hidden] { display: none; }
