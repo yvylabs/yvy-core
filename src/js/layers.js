@@ -181,14 +181,25 @@ export function agregarCapaObjeto(map, obj) {
 
   // Etiqueta del grafo: el nombre del objeto activo en esmeralda.
   // Las demás etiquetas (basemap) van atenuadas a OPACIDAD_VECINOS.
+  // NO sale del source vectorial: un polígono vive recortado en cada
+  // tesela y partido en islas, y cada fragmento pondría su propio label
+  // (el bug de las múltiples "ARGENTINA"). Sale de un source GeoJSON de
+  // UN solo punto (el `centro` del manifest, el mismo del flyTo):
+  // una etiqueta por nodo, garantizado, 2D y globo.
+  map.addSource(`punto-` + id, {
+    type: 'geojson',
+    data: {
+      type: 'Feature',
+      properties: { yvy_id: obj.yvy_id },
+      geometry: { type: 'Point', coordinates: obj.centro },
+    },
+  });
   map.addLayer({
     id: `label-${id}`,
     type: 'symbol',
-    source: sourceId,
-    'source-layer': capaInterna,
+    source: `punto-${id}`,
     minzoom,
     maxzoom,
-    filter: filtro,
     layout: {
       'text-field': obj.nombre_oficial,
       'text-font': ['Noto Sans Regular'],
@@ -196,6 +207,7 @@ export function agregarCapaObjeto(map, obj) {
       'text-transform': 'uppercase',
       'text-letter-spacing': 0.08,
       'text-anchor': 'center',
+      'text-allow-overlap': false,
     },
     paint: {
       'text-color': LINEA_ACTIVA,
