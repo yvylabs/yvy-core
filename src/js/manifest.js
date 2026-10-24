@@ -89,6 +89,12 @@ export function getPadre(objeto) {
   return getObjeto(objeto.parent_yvy_id);
 }
 
+/** Meta de la carga (fecha del manifest, tamaño del catálogo). Para UI honesta. */
+export function getInfoCarga() {
+  if (!datos) return null;
+  return { generado: datos.generado, nObjetos: datos.objetos.size, datasets: datos.datasets };
+}
+
 /** Relaciones donde el objeto es origen (chips de la ficha). */
 export function getRelaciones(yvyId) {
   const id = Number(yvyId);

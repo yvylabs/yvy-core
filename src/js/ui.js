@@ -1,7 +1,9 @@
 // ==============================================================
 // ui.js
 // Gestiona la apertura/cierre de los paneles flotantes
-// (Explorador, Objeto, Medición) desde el toolbar izquierdo.
+// (Explorador, Objeto, Medición) desde el toolbar izquierdo,
+// y sincroniza el layout: el DOCK (panel protagonista) ocupa la
+// izquierda y el mapa cede su espacio (map.resize(), no superposición).
 // ==============================================================
 
 const PANEL_DEFS = [
@@ -9,6 +11,30 @@ const PANEL_DEFS = [
 ];
 
 let abiertoActual = null;
+
+/**
+ * Sincroniza el estado del dock con el DOM: welcome visible → 'welcome',
+ * dossier visible → 'dossier', nada → 'oculto' (mapa a pantalla completa).
+ * Luego redimensiona el mapa dos veces (inmediato + post-transición).
+ */
+export function sincronizarLayout() {
+  const w = document.getElementById('welcome');
+  const p = document.getElementById('panel-explorador');
+  const dock = document.getElementById('dock');
+  if (!dock) return;
+  const welcomeVisible = !!(w && !w.hasAttribute('hidden'));
+  const panelVisible = !!(p && !p.hidden);
+  const vista = welcomeVisible ? 'welcome' : (panelVisible ? 'dossier' : 'oculto');
+  document.documentElement.setAttribute('data-dock', vista);
+  dock.setAttribute('data-vista', vista);
+  dock.classList.toggle('dock--oculto', vista === 'oculto');
+  const map = window.yvyMap;
+  if (!map || !map.resize) return;
+  const resize = () => { try { map.resize(); } catch { /* mapa sin canvas */ } };
+  resize();
+  setTimeout(resize, 120); // mid transición
+  setTimeout(resize, 320); // post transición
+}
 
 function setPanelAbierto(panelId, btnId) {
   // Cerrar todo y re-abrir el pedido (toggle si ya estaba abierto)
@@ -24,6 +50,7 @@ function setPanelAbierto(panelId, btnId) {
 
   if (yaAbierto) {
     abiertoActual = null;
+    sincronizarLayout();
     return;
   }
 
@@ -35,6 +62,7 @@ function setPanelAbierto(panelId, btnId) {
   }
   if (pEl) pEl.hidden = false;
   abiertoActual = panelId;
+  sincronizarLayout();
 }
 
 /**
@@ -94,4 +122,5 @@ export function abrirPanelObjeto() {
     bEl.classList.add('is-active');
   }
   abiertoActual = 'panel-explorador';
+  sincronizarLayout();
 }

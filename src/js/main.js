@@ -17,10 +17,16 @@ import { inicializarUIPaneles } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
-import { inicializarBienvenida, cerrarBienvenida } from './welcome.js';
+import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
+
+/** Ancho actual del dock (clamp CSS): el mapa cede exactamente ese espacio. */
+function anchoDock() {
+  const d = document.getElementById('dock');
+  return d && d.offsetWidth > 40 ? d.offsetWidth : 440;
+}
 // Atribución del basemap (la pone MapLibre desde el style): OpenFreeMap © OpenMapTiles © OpenStreetMap.
 
 /** Basemap vectorial oscuro (fork OpenFreeMap, etiquetas en español). Con fallback a fondo plano. */
@@ -222,7 +228,7 @@ async function irAYvyId(yvyId) {
   if (obj.nivel === 'pais') {
     map.flyTo({ center: [-64, -50], zoom: 2.3, duration: 1400 });
     map.once('moveend', () => {
-      map.setPadding({ top: 40, right: 40, bottom: 40, left: 440 });
+      map.setPadding({ top: 40, right: 40, bottom: 40, left: anchoDock() });
     });
     mostrarObjeto(yvyId);
     return;
@@ -231,7 +237,7 @@ async function irAYvyId(yvyId) {
   // Vuelo normal para provincias, departamentos y municipios
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
-  const padIzq = Math.max(document.getElementById('panel-explorador')?.offsetWidth ?? 380, 380) + 100;
+  const padIzq = Math.max(anchoDock(), 380) + 100;
   try {
     if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
       const b = obj.bounds_objeto;
@@ -253,14 +259,14 @@ async function irAYvyId(yvyId) {
   // no tapar el panel fijo. Solo se desplaza más si el objeto queda muy a
   // la izquierda (objetos pequeños en zoom alto).
   map.once('moveend', () => {
-    map.setPadding({ top: 40, right: 40, bottom: 40, left: 440 });
+    map.setPadding({ top: 40, right: 40, bottom: 40, left: anchoDock() });
     if (!obj || !Array.isArray(obj.centro)) return;
     if (obj.nivel === 'pais' || obj.nivel === 'provincia') return;
     const b = Array.isArray(obj.bounds_objeto) ? obj.bounds_objeto : null;
     if (b && Math.abs(b[2] - b[0]) > 1.5) return;
     try {
       const pt = map.project(obj.centro);
-      const panelLimit = 440;
+      const panelLimit = anchoDock();
       if (pt.x < panelLimit) {
         const nc = map.unproject([pt.x + panelLimit - pt.x, pt.y]);
         map.easeTo({ center: [nc.lng, nc.lat], duration: 700 });
@@ -298,6 +304,8 @@ function volverAlInicio() {
   aplicarBandaVisible(null);
   map.stop();
   map.flyTo({ ...VISTA_INICIAL, duration: 2600 });
+  // El dock vuelve al start screen (el limpiarFicha ya lo pasa a bienvenida).
+  mostrarBienvenida();
 }
 
 const brandEl = document.querySelector('.topbar__brand');

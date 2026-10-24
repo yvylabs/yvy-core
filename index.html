@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-dock="welcome">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -62,36 +62,52 @@
   </header>
 
   <!-- ============================================================ -->
-  <!-- MAPA (controles nativos de MapLibre se inyectan en top-right) -->
+  <!-- DOCK: PANEL PROTAGONISTA (el mapa cede el espacio; nunca tapa) -->
+  <!-- Dos vistas del mismo panel: bienvenida (start screen) y dossier -->
   <!-- ============================================================ -->
   <main id="map" class="map">
   </main>
 
-  <!-- ============================================================ -->
-  <!-- BIENVENIDA / COMMAND (panel flotante, no tapa el globo) -->
-  <!-- ============================================================ -->
-  <section class="welcome" id="welcome" aria-label="Consulta territorial">
-    <div class="welcome__panel">
-      <header class="welcome__head">
-        <span class="welcome__eyebrow">CONSULTA TERRITORIAL</span>
-        <h1 class="welcome__title">¿Qué lugar querés consultar?</h1>
-      </header>
+  <aside class="dock" id="dock" data-vista="inicio">
+    <!-- Vista BIENVENIDA / COMMAND (start screen: buscar + accesos reales) -->
+    <section class="welcome" id="welcome" aria-label="Consulta territorial">
+      <div class="welcome__panel">
+        <header class="welcome__head">
+          <span class="welcome__eyebrow">CONSULTA TERRITORIAL</span>
+          <h1 class="welcome__title">¿Qué lugar querés consultar?</h1>
+        </header>
 
-      <div class="welcome__search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar un lugar…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar" />
-        <span class="welcome__hint" id="welcome-hint"></span>
+        <div class="welcome__search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+          <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar un lugar…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar" />
+          <span class="welcome__hint" id="welcome-hint"></span>
+        </div>
+
+        <div class="welcome__results" id="welcome-results"></div>
+
+        <footer class="welcome__foot">
+          <span class="welcome__foot-label">ACCESOS</span>
+          <div class="welcome__suggestions" id="welcome-suggestions"></div>
+          <span class="welcome__kbd">Ctrl+K para buscar · Esc para ocultar el panel</span>
+          <span class="welcome__meta" id="welcome-meta"></span>
+        </footer>
       </div>
+    </section>
 
-      <div class="welcome__results" id="welcome-results"></div>
-
-      <footer class="welcome__foot">
-        <span class="welcome__foot-label">SUGERENCIAS</span>
-        <div class="welcome__suggestions" id="welcome-suggestions"></div>
-        <span class="welcome__kbd">Ctrl+K para buscar · Esc para cerrar</span>
-      </footer>
-    </div>
-  </section>
+    <!-- Vista DOSSIER (jurisdicción elegida) -->
+    <section class="floating-panel" id="panel-explorador" hidden aria-label="Dossier de la jurisdicción">
+      <header class="floating-panel__head" id="explorer-head-inspect">
+        <div class="explorer-inspect-title">
+          <span class="explorer-inspect-title__label">Dossier</span>
+          <span class="explorer-inspect-title__id" id="explorer-inspect-id">—</span>
+        </div>
+        <button class="floating-panel__close" data-close aria-label="Cerrar, volver al inicio">✕</button>
+      </header>
+      <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
+        <div id="objeto-info"></div>
+      </div>
+    </section>
+  </aside>
 
   <!-- ============================================================ -->
   <!-- TOOLBAR IZQUIERDO (Buscar + Ficha + Compartir) -->
@@ -115,24 +131,6 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
     </button>
   </nav>
-
-  <!-- ============================================================ -->
-  <!-- PANELES FLOTANTES -->
-  <!-- ============================================================ -->
-
-  <!-- Panel DOSSIER (jurisdicción elegida) -->
-  <section class="floating-panel" id="panel-explorador" hidden aria-label="Dossier de la jurisdicción">
-    <header class="floating-panel__head" id="explorer-head-inspect">
-      <div class="explorer-inspect-title">
-        <span class="explorer-inspect-title__label">Dossier</span>
-        <span class="explorer-inspect-title__id" id="explorer-inspect-id">—</span>
-      </div>
-      <button class="floating-panel__close" data-close aria-label="Cerrar">✕</button>
-    </header>
-    <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
-      <div id="objeto-info"></div>
-    </div>
-  </section>
 
   <!-- ============================================================ -->
   <!-- BARRA DE PRODUCTO (objeto activo) -->

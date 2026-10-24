@@ -17,8 +17,17 @@ import {
   etiquetaNivel,
   navegarA,
 } from './manifest.js';
-import { abrirPanelObjeto } from './ui.js';
+import { abrirPanelObjeto, sincronizarLayout } from './ui.js';
 import { track } from './telemetry.js';
+
+// Foco pos-navegación del start screen ("Minería en Salta"): el tipo
+// pedirá abrirse y resaltarse en la próxima ficha renderizada.
+let focoDatasetPendiente = null;
+
+/** Marca un dataset para abrirse y resaltarse en la próxima ficha. */
+export function enfocarDataset(tipo) {
+  focoDatasetPendiente = tipo;
+}
 
 const fmtInt = new Intl.NumberFormat('es-AR');
 const fmt1dec = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -115,14 +124,17 @@ export function mostrarEstadoFalta() {
 
 export function limpiarFicha() {
   const detalle = document.getElementById('explorer-detalle');
-  if (detalle) detalle.hidden = true;
+  if (detalle) detalle.hidden = false; // próxima renderFicha arranca limpio
   setTituloPanel('—');
+  const pEl = document.getElementById('panel-explorador');
+  if (pEl) pEl.hidden = true; // el dock vuelve al start screen (nunca vacío)
   const contenedor = document.getElementById('objeto-info');
   if (!contenedor) return;
   contenedor.innerHTML = `
     <div class="objeto-empty-state">
       <p>Sin objeto seleccionado.</p>
     </div>`;
+  sincronizarLayout();
 }
 
 export function mostrarObjeto(yvyId) {
@@ -616,6 +628,7 @@ function seccionDataset(ds, ag) {
   const f = fuenteHumana(ag && ag.fuente ? ag.fuente : ds.fuente);
   // dct:source visible en el header (nunca solo en el cuerpo).
   const { wrap, body } = crearSeccion(titulo, null, false);
+  wrap.dataset.tipo = ds.tipo; // acceso directo start screen (enfocarDataset)
   const headT = wrap.querySelector('.dossier-acc__titulo');
   headT.textContent = `${titulo} · ${f.corto}`;
 
@@ -675,10 +688,10 @@ function agregarFuentePie(foot, f) {
 }
 
 // --------------------------------------------------------------
-// JSON-LD — el nodo como pieza del grafo con ontología
-// Claves del @context real (./data/context.jsonld); las aristas usan
-// el namespace de la ontología del proyecto (yvyont:), resolvible por
-// el prefijo ya declarado en el contexto.
+// Grafo de relaciones (EL nodo como pieza del grafo, estilo Obsidian)
+// Vista visual: nodo central + padre + hijos + vecinos con d3-force.
+// Clic en un nodo → navegar. El JSON-LD crudo queda detrás del botón
+// secundario (el grafo es para usuarios; el código, para la ficha).
 // --------------------------------------------------------------
 const TIPO_NIVEL = {
   pais: 'Pais',
@@ -739,19 +752,55 @@ function bloqueJSONLD(obj, ags) {
   wrap.className = 'dossier-json-bloque';
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'dossier-copy';
-  btn.textContent = 'Mostrar Ficha Técnica (Ontología)';
+  btn.className = 'dossier-copy dossier-copy--sec';
+  btn.textContent = 'Ver código fuente (JSON-LD)';
   const pre = document.createElement('pre');
   pre.className = 'dossier-json';
-  pre.hidden = true; // la ficha técnica arranca cerrada
+  pre.hidden = true; // el código arranca cerrado: el grafo es la superficie
   const nodo = nodoJsonLd(obj, ags);
   pre.textContent = JSON.stringify(nodo, null, 2);
   btn.addEventListener('click', async () => {
     pre.hidden = !pre.hidden;
-    btn.textContent = pre.hidden ? 'Mostrar Ficha Técnica (Ontología)' : 'Ocultar Ficha Técnica (Ontología)';
+    btn.textContent = pre.hidden ? 'Ver código fuente (JSON-LD)' : 'Ocultar código fuente (JSON-LD)';
   });
   wrap.appendChild(btn);
   wrap.appendChild(pre);
+  return wrap;
+}
+
+/**
+ * Bloque principal del grafo: "Ver Grafo de Relaciones".
+ * Abre/cierra la vista visual; el SVG se monta LA PRIMERA vez que se
+ * abre (lazy) con el estado del nodo vigente en ese momento.
+ */
+function bloqueGrafo(obj, navegar) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dossier-json-bloque';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'dossier-copy dossier-copy--grafo';
+  btn.textContent = 'Ver Grafo de Relaciones';
+  const cont = document.createElement('div');
+  cont.className = 'dossier-grafo';
+  cont.hidden = true;
+  let montado = false;
+  btn.addEventListener('click', () => {
+    cont.hidden = !cont.hidden;
+    btn.textContent = cont.hidden ? 'Ver Grafo de Relaciones' : 'Ocultar Grafo de Relaciones';
+    if (!cont.hidden && !montado && navegar) {
+      montado = true;
+      import('./grafo.js')
+        .then((m) => m.crearGrafoRelaciones(obj, { navegar }))
+        .then((svg) => { cont.hidden = true; cont.appendChild(svg); cont.hidden = false; })
+        .catch((e) => {
+          montado = false;
+          cont.hidden = true;
+          console.warn('[yvy] grafo no montado:', e?.message);
+        });
+    }
+  });
+  wrap.appendChild(btn);
+  wrap.appendChild(cont);
   return wrap;
 }
 
@@ -857,9 +906,25 @@ export async function renderFicha(obj) {
     }
   }
 
-  // ---- JSON-LD (el nodo como pieza del grafo) ----
+  // ---- Grafo de relaciones (visual) + JSON-LD crudo (secundario) ----
+  contenedor.appendChild(bloqueGrafo(obj, navegarA));
   contenedor.appendChild(bloqueJSONLD(obj, ags));
 
   contenedor.appendChild(bloqueReferencias(extras.refs));
   contenedor.appendChild(bloqueCopiar(obj, m, extras));
+
+  // Foco pos-navegación del start screen ("Minería en Salta"): el
+  // pendiente lo pone enfocarDataset() ANTES de navegar; si la sección
+  // existe (depto/provincia con rollup), se abre y se resalta.
+  const foco = focoDatasetPendiente;
+  focoDatasetPendiente = null;
+  if (foco) {
+    const s = contenedor.querySelector(`.dossier-acc[data-tipo="${foco}"]`);
+    if (s) {
+      const head = s.querySelector('.dossier-acc__head');
+      if (head) head.click();
+      s.classList.add('dossier-acc--foco');
+      s.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }
 }

@@ -4,8 +4,9 @@
 // Tras elegir, cierra el overlay, navega y abre el árbol.
 // ==============================================================
 
-import { getObjetos } from './manifest.js';
-import { abrirPanelObjeto } from './ui.js';
+import { getObjetos, getInfoCarga } from './manifest.js';
+import { abrirPanelObjeto, sincronizarLayout } from './ui.js';
+import { enfocarDataset } from './objeto.js';
 import { track } from './telemetry.js';
 
 let navegarHandler = null;
@@ -79,8 +80,10 @@ export function inicializarBienvenida(fnNavegar) {
 
   if (!overlay || !input || !results || !hint) return;
 
-  // Provincias sugeridas (ejemplos)
-  const sugerencias = ['Salta', 'Jujuy', 'Buenos Aires'];
+  // Start screen: accesos a cosas REALES del manifest (nada inventado).
+  // Salta/Jujuy = nodos del grafo; "Minería en Salta" = dataset miners
+  // real (focus post-navegación); "Última actualización" = fecha honesta.
+  const sugerencias = ['Salta', 'Jujuy'];
   const objetos = getObjetos();
   const sugeridos = sugerencias
     .map((n) => objetos.find((o) => normalizar(o.nombre_oficial) === normalizar(n)))
@@ -91,9 +94,29 @@ export function inicializarBienvenida(fnNavegar) {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'welcome-chip';
-    chip.textContent = s.nombre_oficial;
+    chip.textContent = `Explorar ${s.nombre_oficial}`;
     chip.addEventListener('click', () => pick(s.yvy_id));
     suggestions.appendChild(chip);
+  }
+  const salta = objetos.find((o) => normalizar(o.nombre_oficial) === 'salta');
+  if (salta) {
+    const chipM = document.createElement('button');
+    chipM.type = 'button';
+    chipM.className = 'welcome-chip welcome-chip--dato';
+    chipM.textContent = 'Minería en Salta';
+    chipM.addEventListener('click', () => {
+      track('pick', { yvy_id: salta.yvy_id, dataset: 'mineria' });
+      enfocarDataset('mineria');
+      cerrar();
+      if (navegarHandler) navegarHandler(salta.yvy_id);
+    });
+    suggestions.appendChild(chipM);
+  }
+  const info = getInfoCarga();
+  const meta = document.getElementById('welcome-meta');
+  if (meta && info && info.generado) {
+    const d = new Date(info.generado);
+    meta.textContent = `Última actualización: ${d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })} · ${info.nObjetos} nodos`;
   }
 
   function pick(yvyId) {
@@ -112,7 +135,9 @@ export function inicializarBienvenida(fnNavegar) {
     setTimeout(() => {
       overlay.setAttribute('hidden', '');
       if (devolverFicha) abrirPanelObjeto();
+      else sincronizarLayout(); // sin ficha: el dock se oculta (mapa completo)
     }, 220);
+    sincronizarLayout();
   }
 
   function abrir() {
@@ -132,6 +157,7 @@ export function inicializarBienvenida(fnNavegar) {
     overlay.classList.remove('welcome--hide');
     input.focus();
     render(input.value.trim());
+    sincronizarLayout();
   }
 
   function render(q) {
@@ -185,4 +211,13 @@ export function cerrarBienvenida() {
   if (!overlay || overlay.hasAttribute('hidden')) return;
   overlay.classList.add('welcome--hide');
   setTimeout(() => overlay.setAttribute('hidden', ''), 220);
+}
+
+/** Reabre el start screen (logo/brand: volver al globo + panel inicial). */
+export function mostrarBienvenida() {
+  if (!overlay) return;
+  overlay.classList.remove('welcome--hide');
+  overlay.removeAttribute('hidden');
+  overlay.classList.remove('welcome--hide');
+  sincronizarLayout();
 }
