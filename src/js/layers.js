@@ -191,12 +191,15 @@ export function agregarCapaObjeto(map, obj) {
   // (el bug de las múltiples "ARGENTINA"). Sale de un source GeoJSON de
   // UN solo punto (el `centro` del manifest, el mismo del flyTo):
   // una etiqueta por nodo, garantizado, 2D y globo.
+  // El label sale SIEMPRE de un punto interior: centro_etiqueta es el
+  // polylabel del build; sin él cae al centro normal (fallback).
+  const punto = Array.isArray(obj.centro_etiqueta) ? obj.centro_etiqueta : obj.centro;
   map.addSource(`punto-` + id, {
     type: 'geojson',
     data: {
       type: 'Feature',
       properties: { yvy_id: obj.yvy_id },
-      geometry: { type: 'Point', coordinates: obj.centro },
+      geometry: { type: 'Point', coordinates: punto },
     },
   });
   map.addLayer({

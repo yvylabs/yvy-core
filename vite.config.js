@@ -34,6 +34,9 @@ function importarDecodificadorMVT() {
 // se calcula el centroide real de cada feature (id del archivo vs
 // yvy_id del parquet). Resultado cacheado en <nivel>_centros.json, que se
 // regenera solo si cambia el archivo de geometría.
+// Etiqueta: además se calcula el polylabel (polo de inaccesibilidad
+// sobre ráster de la unión del segmento principal) como centro_etiqueta:
+// punto INTERIOR del polígono para el label del mapa (cero mar).
 //
 // El build emite:
 //   public/data/manifest.json   — catálogo completo
@@ -260,6 +263,109 @@ function anilloCentroide(pts) {
   return { x: cx / (6 * a), y: cy / (6 * a), w: Math.abs(a) };
 }
 
+// --------------------------------------------------------------
+// Polylabel (polo de inaccesibilidad) para la ETIQUETA del mapa.
+// El centroide cae fuera del polígono en formas cóncavas (Salta):
+// aquí rellenamos en ráster la unión del segmento principal y
+// buscamos el punto interior más alejado del borde. Garantía:
+// la etiqueta sale SIEMPRE adentro del polígono (cero riesgo de mar).
+// Grilla de ~160 cells sobre el bbox; chamfer de 2 pasadas para la
+// distancia. Determinista y cacheado como el centro del flyTo.
+// --------------------------------------------------------------
+const CELLS_POLE = 160;
+
+/** Relleno del anillo (scanline por fila de grilla) sobre la máscara. */
+function rellenarAnilloEnGrilla(ring, minLon, minLat, paso, w, h, mask) {
+  for (let gy = 0; gy < h; gy++) {
+    const y = minLat + (gy + 0.5) * paso;
+    const xs = [];
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const yi = ring[i][1];
+      const yj = ring[j][1];
+      if ((yi > y) !== (yj > y)) {
+        xs.push(((ring[j][0] - ring[i][0]) * (y - yi)) / (yj - yi) + ring[i][0]);
+      }
+    }
+    if (xs.length < 2) continue;
+    xs.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const gx0 = Math.max(0, Math.ceil((xs[k] - minLon) / paso - 0.5));
+      const gx1 = Math.min(w - 1, Math.floor((xs[k + 1] - minLon) / paso - 0.5));
+      for (let gx = gx0; gx <= gx1; gx++) mask[gy * w + gx] = 1;
+    }
+  }
+}
+
+/**
+ * Polo de la unión de anillos (grados). Devuelve [lng, lat] del centro
+ * de la celda interior con mayor distancia al borde, o null si degenera.
+ */
+function poloEtiqueta(ringsDeg) {
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const r of ringsDeg) {
+    for (const p of r) {
+      if (p[0] < minLon) minLon = p[0];
+      if (p[0] > maxLon) maxLon = p[0];
+      if (p[1] < minLat) minLat = p[1];
+      if (p[1] > maxLat) maxLat = p[1];
+    }
+  }
+  if (!isFinite(minLon)) return null;
+  const dx = maxLon - minLon;
+  const dy = maxLat - minLat;
+  if (dx <= 0 && dy <= 0) return null;
+  const paso = Math.max(Math.max(dx, dy) / CELLS_POLE, 1e-4);
+  const w = Math.max(1, Math.min(CELLS_POLE + 1, Math.floor(dx / paso) + 1));
+  const h = Math.max(1, Math.min(CELLS_POLE + 1, Math.floor(dy / paso) + 1));
+  const mask = new Uint8Array(w * h);
+  for (const ring of ringsDeg) rellenarAnilloEnGrilla(ring, minLon, minLat, paso, w, h, mask);
+
+  // Distancia chamfer (8-conectada): exterior = 0, interior = acumulada.
+  const INF = 1e9;
+  const dist = new Float32Array(w * h);
+  for (let i = 0; i < mask.length; i++) dist[i] = mask[i] ? INF : 0;
+  for (let gy = 0; gy < h; gy++) {
+    for (let gx = 0; gx < w; gx++) {
+      const i = gy * w + gx;
+      if (dist[i] === 0) continue;
+      let m = dist[i];
+      if (gx > 0) m = Math.min(m, dist[i - 1] + 1);
+      if (gy > 0) m = Math.min(m, dist[i - w] + 1);
+      if (gx > 0 && gy > 0) m = Math.min(m, dist[i - w - 1] + 1.41);
+      if (gx < w - 1 && gy > 0) m = Math.min(m, dist[i - w + 1] + 1.41);
+      dist[i] = m;
+    }
+  }
+  for (let gy = h - 1; gy >= 0; gy--) {
+    for (let gx = w - 1; gx >= 0; gx--) {
+      const i = gy * w + gx;
+      if (dist[i] === 0) continue;
+      let m = dist[i];
+      if (gx < w - 1) m = Math.min(m, dist[i + 1] + 1);
+      if (gy < h - 1) m = Math.min(m, dist[i + w] + 1);
+      if (gx < w - 1 && gy < h - 1) m = Math.min(m, dist[i + w + 1] + 1.41);
+      if (gx > 0 && gy < h - 1) m = Math.min(m, dist[i + w - 1] + 1.41);
+      dist[i] = m;
+    }
+  }
+  let mejor = -1;
+  let mejorI = -1;
+  for (let i = 0; i < dist.length; i++) {
+    if (dist[i] < INF && dist[i] > mejor) {
+      mejor = dist[i];
+      mejorI = i;
+    }
+  }
+  if (mejorI < 0) return null;
+  return [
+    minLon + ((mejorI % w) + 0.5) * paso,
+    minLat + (Math.floor(mejorI / w) + 0.5) * paso,
+  ];
+}
+
 /**
  * Centros reales por id para un nivel (una vez por archivo, con caché).
  * @returns {{archivo: string, size: number, mtimeMs: number, porId: Record<string, [lng, lat]>}}
@@ -272,7 +378,7 @@ async function leerCentrosNivel(nivel, metaNivel) {
   try {
     cache = JSON.parse(await fs.readFile(cachePath, 'utf8'));
   } catch {}
-  if (cache && cache.v === 5 && cache.archivo === metaNivel.rel && cache.size === st.size && cache.mtimeMs === st.mtimeMs && cache.porId) {
+  if (cache && cache.v === 6 && cache.archivo === metaNivel.rel && cache.size === st.size && cache.mtimeMs === st.mtimeMs && cache.porId) {
     return cache;
   }
   if (!importarDecodificadorMVT()) {
@@ -334,15 +440,17 @@ async function leerCentrosNivel(nivel, metaNivel) {
               let maxLon = -Infinity;
               let minLat = Infinity;
               let maxLat = -Infinity;
+              const ptsDeg = [];
               for (const p of ring) {
                 const pl = lngDeTile(x + p.x / extent, z);
                 const pa = latDeTile(y + p.y / extent, z);
+                ptsDeg.push([pl, pa]);
                 if (pl < minLon) minLon = pl;
                 if (pl > maxLon) maxLon = pl;
                 if (pa < minLat) minLat = pa;
                 if (pa > maxLat) maxLat = pa;
               }
-              (detalle[id] ??= []).push({ lng, lat, w: isAntarctic ? 0 : c.w, minLon, maxLon, minLat, maxLat });
+              (detalle[id] ??= []).push({ lng, lat, w: isAntarctic ? 0 : c.w, pts: ptsDeg, minLon, maxLon, minLat, maxLat });
             }
           }
         }
@@ -380,6 +488,11 @@ async function leerCentrosNivel(nivel, metaNivel) {
       st += a.lat * a.w;
       sw += a.w;
     }
+    // Etiqueta: polylabel del segmento principal (punto interior que
+    // sobrevive a las concavidades). El centro sigue siendo el
+    // centroide ponderado (cámara del flyTo). Sin pole válido queda null
+    // y el runtime cae al centro normal.
+    const pole = poloEtiqueta(principal.map((a) => a.pts));
     // Bounds: unión de TODOS los segmentos (incluye islas alejadas)
     // Centro: solo del segmento principal (evita que islas tiren el centro lejos)
     let minLon = Infinity;
@@ -392,9 +505,9 @@ async function leerCentrosNivel(nivel, metaNivel) {
       if (a.minLat < minLat) minLat = a.minLat;
       if (a.maxLat > maxLat) maxLat = a.maxLat;
     }
-    if (sw > 0 && isFinite(sl / sw) && isFinite(st / sw)) porId[id] = { c: [sl / sw, st / sw], b: [minLon, minLat, maxLon, maxLat] };
+    if (sw > 0 && isFinite(sl / sw) && isFinite(st / sw)) porId[id] = { c: [sl / sw, st / sw], e: pole, b: [minLon, minLat, maxLon, maxLat] };
   }
-  const out = { v: 5, archivo: metaNivel.rel, size: st.size, mtimeMs: st.mtimeMs, porId, observados: [...idsObservados] };
+  const out = { v: 6, archivo: metaNivel.rel, size: st.size, mtimeMs: st.mtimeMs, porId, observados: [...idsObservados] };
   await fs.writeFile(cachePath, JSON.stringify(out), 'utf8');
   console.log(`[yvy-manifest] centros reales de ${metaNivel.rel} calculados: ${Object.keys(porId).length} features con id.`);
   return out;
@@ -622,6 +735,7 @@ async function construirManifest() {
             obj.centro = [cr.c[0], cr.c[1]];
             centrosReales++;
           }
+          if (Array.isArray(cr.e)) obj.centro_etiqueta = [cr.e[0], cr.e[1]];
           if (Array.isArray(cr.b)) obj.bounds_objeto = cr.b;
         }
       }
@@ -685,6 +799,7 @@ async function construirManifest() {
         if (!p) continue;
         let tomo = false;
         if (!Array.isArray(o.centro) && Array.isArray(p.centro)) { o.centro = p.centro; tomo = true; }
+        if (!Array.isArray(o.centro_etiqueta) && Array.isArray(p.centro_etiqueta)) { o.centro_etiqueta = p.centro_etiqueta; tomo = true; }
         if (o.zoom == null && p.zoom != null) { o.zoom = p.zoom; tomo = true; }
         if (!Array.isArray(o.bounds) && Array.isArray(p.bounds)) { o.bounds = p.bounds; tomo = true; }
         if (!Array.isArray(o.bounds_objeto) && Array.isArray(p.bounds_objeto)) { o.bounds_objeto = p.bounds_objeto; tomo = true; }
