@@ -19,6 +19,7 @@ import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
 import { inicializarSintetico } from './sintetico.js';
+import { inicializarTema } from './tema.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -294,6 +295,9 @@ if (brandEl) {
 // Evento load del mapa
 // --------------------------------------------------------------
 inicializarUIPaneles();
+
+// Tema claro/oscuro (persistente; el globo permanece widget dark)
+inicializarTema();
 
 map.on('load', async () => {
   map.resize();

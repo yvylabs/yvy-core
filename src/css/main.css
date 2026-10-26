@@ -14,14 +14,25 @@
 
 :root {
   --bg: #0B0E14;
+  --canvas: #0B0E14; /* interiores: métricas, tooltips, accordeones, grafo */
   --surface: #12151D;
   --surface-hover: #161B22; /* hover enterprise de acordeones */
   --surface-translucent: #12151D;
   --skeleton: #17202E;
+  --dock-bg: #0D1117; /* columna del dossier (dock) */
   --border: rgba(148, 163, 184, 0.14);
+  --border-strong: #1E293B; /* líneas estructurales sólidas */
+  --border-soft: #141821; /* separadores internos sutiles */
+  --map-widget-bg: #12151D; /* chip de controles flotando sobre el mapa (SIEMPRE dark: el globo es widget) */
+  --map-widget-border: #1E293B;
   --text: #E2E8F0;
   --text-dim: #94A3B8;
+  --text-muted: #475569;
+  --text-bright: #F1F5F9; /* texto sobre acento (aplicado al fondo del mapa) */
+  --tooltip-bg: #0B0E14; /* tooltips SIEMPRE dark (flotan sobre el globo) */
+  --tooltip-text: #e0e0e0;
   --accent: #10b981;
+  --accent-bright: #34d399;
   --accent-dim: rgba(16, 185, 129, 0.14);
   --accent-glow: rgba(16, 185, 129, 0.07);
   --danger: #e8554e;
@@ -35,6 +46,36 @@
   --radius-sm: 4px;
   --transition: 150ms ease;
 }
+
+/* ==============================================================
+   TEMA CLARO — html[data-theme="light"] (toggle sol/luna en topbar).
+   La UI pasa a clara; el GLOBO permanece oscuro (widget de datos),
+   y con él la toolbar y los controles de mapa (--map-widget-*).
+   El grafo sintético del welcome vive sobre el globo: sigue dark.
+   ============================================================== */
+html[data-theme="light"] {
+  --bg: #F3F4F6;
+  --canvas: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-hover: #EAEFF4;
+  --surface-translucent: #FFFFFF;
+  --skeleton: #E4E9F0;
+  --dock-bg: #FFFFFF;
+  --border: rgba(15, 23, 42, 0.14);
+  --border-strong: #D5DCE6;
+  --border-soft: #E4E9F0;
+  --text: #111827;
+  --text-dim: #4B5563;
+  --text-muted: #6B7280;
+  --accent: #059669;
+  --accent-bright: #10B981;
+  --accent-dim: rgba(5, 150, 105, 0.12);
+  --accent-glow: rgba(5, 150, 105, 0.06);
+  --danger: #d43b34;
+  color-scheme: light;
+}
+/* La selección en claro: verde translúcido sobre papel con texto oscuro */
+html[data-theme="light"] ::selection { background: rgba(5, 150, 105, 0.18); color: #0B0E14; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -70,8 +111,8 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: #0B0E14;
-  border-bottom: 1px solid #1E293B;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--border-strong);
   z-index: 100;
 }
 
@@ -217,8 +258,8 @@ button.topbar__crumb:hover {
 .maplibregl-ctrl-attrib a { color: var(--text-dim) !important; }
 
 .maplibregl-ctrl-group {
-  background: #12151D !important;
-  border: 1px solid #1E293B !important;
+  background: var(--map-widget-bg) !important;
+  border: 1px solid var(--map-widget-border) !important;
   border-radius: var(--radius) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
   overflow: hidden;
@@ -236,9 +277,9 @@ button.topbar__crumb:hover {
 
 /* Escala */
 .maplibregl-ctrl-scale {
-  background: #12151D !important;
+  background: var(--map-widget-bg) !important;
   color: var(--text-dim) !important;
-  border: 1px solid #1E293B !important;
+  border: 1px solid var(--map-widget-border) !important;
   border-top: none !important;
   border-radius: 0 0 var(--radius-sm) var(--radius-sm) !important;
   font-family: var(--font-mono) !important;
@@ -280,8 +321,8 @@ button.topbar__crumb:hover {
   flex-direction: column;
   gap: 6px;
   padding: 6px;
-  background: #12151D;
-  border: 1px solid #1E293B;
+  background: var(--map-widget-bg); /* widget del mapa: dark en ambos temas */
+  border: 1px solid var(--map-widget-border);
   border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
@@ -291,6 +332,20 @@ button.topbar__crumb:hover {
   position: absolute;
   top: 14px;
   left: 14px;
+}
+
+/* El mapa es un widget dark en ambos temas: sus controles fijan los
+   tokens oscuros a nivel local (la UI clara no se filtra al globo). */
+.toolbar,
+.maplibregl-ctrl-group,
+.maplibregl-ctrl-scale,
+.maplibregl-ctrl-attrib {
+  --text: #E2E8F0;
+  --text-dim: #94A3B8;
+  --accent: #10b981;
+  --accent-bright: #34d399;
+  --accent-dim: rgba(16, 185, 129, 0.14);
+  --accent-glow: rgba(16, 185, 129, 0.07);
 }
 
 .toolbar-btn {
@@ -330,8 +385,8 @@ button.topbar__crumb:hover {
 .floating-panel {
   position: fixed;
   z-index: 80;
-  background: #12151D;
-  border: 1px solid #1E293B;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
   width: 360px;
@@ -426,8 +481,8 @@ button.topbar__crumb:hover {
   align-items: center;
   gap: 10px;
   padding: 0 14px;
-  background: #0B0E14;
-  border-top: 1px solid #1E293B;
+  background: var(--canvas);
+  border-top: 1px solid var(--border-strong);
   z-index: 90;
   font-family: var(--font-mono);
   font-size: 10px;
@@ -470,10 +525,10 @@ button.topbar__crumb:hover {
   left: 110%;
   top: 50%;
   transform: translateY(-50%);
-  background: #0B0E14;
+  background: var(--tooltip-bg);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--tooltip-text);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.02em;
@@ -506,7 +561,7 @@ button.topbar__crumb:hover {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: #0B0E14;
+  background: var(--tooltip-bg);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-left: 2px solid var(--accent);
   border-radius: 4px;
@@ -588,8 +643,8 @@ button.topbar__crumb:hover {
   max-height: min(70vh, 560px);
   display: flex;
   flex-direction: column;
-  background: #12151D;
-  border: 1px solid #1E293B;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
   overflow: hidden;
@@ -623,8 +678,8 @@ button.topbar__crumb:hover {
   gap: 10px;
   margin: 8px 22px 0;
   padding: 11px 14px;
-  background: #0B0E14;
-  border: 1px solid #1E293B;
+  background: var(--canvas);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   transition: border-color 150ms ease;
 }
@@ -688,7 +743,7 @@ button.topbar__crumb:hover {
   color: var(--text-dim);
 }
 .welcome-empty { padding: 16px; font-size: 12px; color: var(--text-dim); text-align: center; }
-.welcome__foot { padding: 10px 22px 16px; border-top: 1px solid #1E293B; }
+.welcome__foot { padding: 10px 22px 16px; border-top: 1px solid var(--border-strong); }
 .welcome__foot-label {
   font-family: var(--font-mono);
   font-size: 9px;
@@ -700,8 +755,8 @@ button.topbar__crumb:hover {
 .welcome__suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
 .welcome-chip {
   padding: 6px 10px;
-  background: #0B0E14;
-  border: 1px solid #1E293B;
+  background: var(--canvas);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   color: var(--text);
   font-family: var(--font-mono);
@@ -728,7 +783,7 @@ button.topbar__crumb:hover {
 /* ==============================================================
    ACABADO SOFISTICADO — micro-interacciones y detalle
    ============================================================== */
-::selection { background: rgba(16, 185, 129, 0.32); color: #f1f5f9; }
+::selection { background: rgba(16, 185, 129, 0.32); color: var(--text-bright); }
 
 /* Entrada de paneles: fade + rise sutil (respeta reduced-motion global) */
 @keyframes panelIn {
@@ -799,8 +854,8 @@ button.topbar__crumb:hover {
   border-left: none;
   border-bottom: none;
   box-shadow: none;
-  border-right: 1px solid #1E293B;
-  background: #12151D;
+  border-right: 1px solid var(--border-strong);
+  background: var(--surface);
   /* El scroll vive en el cuerpo (.explorer-detalle), no en el panel:
    la clase .floating-panel ya deja overflow:hidden y flex column. */
 }
@@ -810,7 +865,7 @@ button.topbar__crumb:hover {
   flex-shrink: 0;
   position: sticky;
   top: 0;
-  background: #12151D;
+  background: var(--surface);
   z-index: 2;
 }
 
@@ -825,6 +880,45 @@ button.topbar__crumb:hover {
   transition: color var(--transition);
 }
 .topbar__labs:hover { color: var(--accent); }
+/* Labs está en acceso anticipado: badge Beta naranja (único matiz fuera del esmeralda) */
+.topbar__labs-beta {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #F59E0B;
+  color: #0B0E14;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  vertical-align: 1px;
+}
+
+/* Toggle de tema (sol/luna) junto a Labs. El globo permanece dark en
+   ambos: el icono indica el tema de la UI, no del mapa. */
+.topbar__tema {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.topbar__tema:hover,
+.topbar__tema:focus-visible {
+  color: var(--accent);
+  border-color: var(--border-strong);
+  background: var(--accent-glow);
+}
+.topbar__tema svg { width: 17px; height: 17px; }
+.tema-ico--luna { display: none; }
+html[data-theme="light"] .tema-ico--sol { display: none; }
+html[data-theme="light"] .tema-ico--luna { display: block; }
 .status-bar__link {
   color: var(--text-dim);
   text-decoration: none;
@@ -853,7 +947,7 @@ button.topbar__crumb:hover {
     width: auto;
     max-height: 46dvh;
     border-right: none;
-    border-top: 1px solid #1E293B;
+    border-top: 1px solid var(--border-strong);
   }
 }
 
@@ -865,7 +959,7 @@ button.topbar__crumb:hover {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid #1E293B;
+  border-bottom: 1px solid var(--border-strong);
 }
 
 #panel-explorador .dossier-chip {
@@ -929,8 +1023,8 @@ button.topbar__crumb:hover {
 }
 
 .dossier-metrica {
-  background: #0B0E14;
-  border: 1px solid #1E293B;
+  background: var(--canvas);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   padding: 10px 12px;
   display: flex;
@@ -942,7 +1036,7 @@ button.topbar__crumb:hover {
   font-family: var(--font-mono);
   font-size: 16px;
   font-weight: 600;
-  color: #F1F5F9;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -960,8 +1054,8 @@ button.topbar__crumb:hover {
 .dossier-briefing {
   margin: 12px 16px;
   padding: 12px;
-  background: #0B0E14;
-  border: 1px solid #1E293B;
+  background: var(--canvas);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
 }
 
@@ -1061,9 +1155,9 @@ button.topbar__crumb:hover {
 /* Acordeón base */
 .dossier-acc {
   margin: 10px 16px 0;
-  border: 1px solid #1E293B;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: #0B0E14;
+  background: var(--canvas);
   overflow: hidden;
 }
 
@@ -1179,11 +1273,11 @@ button.topbar__crumb:hover {
   transition: stroke var(--transition);
 }
 .sintetico__nucleo {
-  fill: #10b981;
+  fill: var(--accent);
   r: var(--sint-radio, 4.5);
   transition: fill var(--transition);
 }
-.sintetico__nodo:hover .sintetico__nucleo { fill: #34d399; }
+.sintetico__nodo:hover .sintetico__nucleo { fill: var(--accent-bright); }
 .sintetico__nodo:hover .sintetico__halo { stroke: rgba(52, 211, 153, 0.5); }
 
 .sintetico__etiqueta {
@@ -1221,7 +1315,7 @@ button.topbar__crumb:hover {
   padding: 7px 10px;
   background: none;
   border: 0;
-  border-top: 1px solid #141821;
+  border-top: 1px solid var(--border-soft);
   cursor: pointer;
   color: var(--text);
   font-size: 12px;
@@ -1255,7 +1349,7 @@ button.topbar__crumb:hover {
   padding: 8px 10px;
   background: none;
   border: 0;
-  border-top: 1px solid #141821;
+  border-top: 1px solid var(--border-soft);
   cursor: pointer;
   text-align: left;
   font-family: var(--font-mono);
@@ -1307,8 +1401,8 @@ button.topbar__crumb:hover {
     flex: 0 0 auto;
     width: var(--dock-ancho);
     position: relative;
-    background: #0D1117;
-    border-right: 1px solid #1E293B;
+    background: var(--dock-bg);
+    border-right: 1px solid var(--border-strong);
     overflow: hidden;
     /* Sin transición de width: colapso instantáneo determinista. El
        ResizeObserver del mapa dispara resize() al nuevo ancho al toque;
@@ -1338,7 +1432,7 @@ button.topbar__crumb:hover {
     width: 100%;
     height: 100%;
     max-height: none;
-    background: #0D1117;
+    background: var(--dock-bg);
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -1354,7 +1448,7 @@ button.topbar__crumb:hover {
     max-width: none;
     max-height: none;
     height: 100%;
-    background: #0D1117;
+    background: var(--dock-bg);
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -1395,7 +1489,7 @@ button.topbar__crumb:hover {
    ============================================================== */
 .dossier-grafo {
   margin-top: 8px;
-  border: 1px solid #1E293B;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: #07090D;
   overflow: hidden;
@@ -1435,7 +1529,7 @@ button.topbar__crumb:hover {
   gap: 14px;
   flex-wrap: wrap;
   padding: 8px 10px;
-  border-top: 1px solid #1E293B;
+  border-top: 1px solid var(--border-strong);
   font-family: var(--font-mono);
   font-size: 8.5px;
   color: var(--text-dim);
