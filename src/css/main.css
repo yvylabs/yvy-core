@@ -985,10 +985,10 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   margin-top: 4px;
 }
 
-/* Hero de población */
+/* Hero de población (compacto: el número manda, el aire sobra) */
 .dossier-hero {
-  margin: 12px 0 12px;
-  padding: 12px 16px 10px;
+  margin: 12px 0 10px;
+  padding: 10px 16px 8px;
   background: var(--accent-glow);
   border: 1px solid rgba(16, 185, 129, 0.22);
   border-radius: var(--radius);
@@ -996,7 +996,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 
 .dossier-hero-num {
   font-family: var(--font-mono);
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -1116,6 +1116,33 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   color: var(--accent);
 }
 
+/* Pie del dossier: Copiar dossier (primaria) + Fuentes ↗ (secundaria) */
+.dossier-footer {
+  margin: 12px 16px;
+  display: flex;
+  gap: 8px;
+}
+.dossier-footer .dossier-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  width: auto;
+}
+.dossier-copy--fuentes {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+.dossier-copy--fuentes:hover {
+  color: var(--accent);
+}
+
+/* Flash de la línea de referencias (clic en "Fuentes ↗") */
+.dossier-ref--foco {
+  outline: 1px solid rgba(16, 185, 129, 0.55);
+  border-radius: 3px;
+  color: var(--text);
+}
+
 /* ==============================================================
    EL GRAFO en el dossier: breadcrumb de padres + acordeones
    (Contiene / Limita con / cerca de / datasets) + nodo JSON-LD
@@ -1193,6 +1220,27 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   color: var(--text-dim);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+/* Micro-copy "CONTIENE · 2 municipios": el conteo textual lleva
+   separador propio (el head sin conteo no pinta nada). */
+.dossier-acc__conteo:not(:empty)::before {
+  content: '·';
+  margin-right: 6px;
+  opacity: 0.45;
+}
+
+/* Badge [Oficial]: fuente del catálogo, verifiable. Pequeño, no grita. */
+.dossier-acc__badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 3px;
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .dossier-acc__chevron::before {
@@ -1378,8 +1426,8 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 .dossier-fuente a { color: var(--text-dim); text-decoration: underline; }
 .dossier-fuente a:hover { color: var(--accent); }
 
-/* Nodo del grafo de relaciones (título del bloque) */
-.dossier-json-bloque { margin: 12px 16px 0; }
+/* (bloque del grafo: .dossier-grafo-bloque en la sección GRAFO) */
+
 
 /* Scroll: nada de desplazamiento horizontal en el panel */
 .floating-panel__body {
@@ -1485,7 +1533,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 
 /* ==============================================================
-   GRAFO DE RELACIONES (dentro del dossier, estilo Obsidian)
+   GRAFO DE RELACIONES (SIEMPRE visible, bloque compacto 220px)
    ============================================================== */
 .dossier-grafo {
   margin-top: 8px;
@@ -1493,24 +1541,48 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   border-radius: var(--radius);
   background: #07090D;
   overflow: hidden;
-  min-height: 450px; /* constelación con aire, nunca colapsada */
-  transition: min-height 200ms ease;
+  height: 200px; /* fijo: el dossier no genera scroll por el grafo */
+  display: flex;
+  flex-direction: column;
+  /* El grafo es un widget dark (como el mapa): fija sus tokens a nivel
+     local; el tema claro de la UI no se filtra al lienzo. */
+  --canvas: #0B0E14;
+  --surface: #12151D;
+  --border-strong: #1E293B;
+  --text: #E2E8F0;
+  --text-dim: #94A3B8;
+  --accent: #10b981;
+  --accent-bright: #34d399;
+  --accent-dim: rgba(16, 185, 129, 0.14);
+  --accent-glow: rgba(16, 185, 129, 0.07);
 }
-.grafo-wrap { width: 100%; }
-.grafo-svg { display: block; width: 100%; height: auto; }
-.grafo-enlace { stroke: #475569; stroke-width: 1.2; fill: none; opacity: 0.9; }
-.grafo-enlace--contiene { stroke: #10B981; opacity: 0.75; }
-.grafo-enlace--broader { stroke: #94A3B8; opacity: 0.55; }
-.grafo-enlace--lindero { stroke: #475569; stroke-dasharray: 4 3; }
-.grafo-circulo { fill: #0D1117; stroke: #8B98AF; stroke-width: 1.4; }
-.grafo-circulo--central { fill: #10B981; stroke: #34D399; }
-.grafo-circulo--padre { fill: #12151D; stroke: #94A3B8; }
+.dossier-grafo-bloque { margin: 12px 16px 0; }
+.grafo-wrap { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.grafo-svg { display: block; width: 100%; height: 100%; flex: 1; }
+.grafo-vacio {
+  margin: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+.grafo-enlace { stroke: var(--text-muted); stroke-width: 1.1; fill: none; opacity: 0.9; }
+.grafo-enlace--contiene { stroke: var(--accent); opacity: 0.75; }
+.grafo-enlace--broader { stroke: var(--text-dim); opacity: 0.55; }
+.grafo-enlace--lindero { stroke: var(--text-muted); stroke-dasharray: 4 3; }
+.grafo-circulo { fill: var(--canvas); stroke: #8B98AF; stroke-width: 1.4; }
+.grafo-circulo--central { fill: var(--accent); stroke: var(--accent-bright); }
+.grafo-circulo--padre { fill: var(--surface); stroke: var(--text-dim); }
 .grafo-circulo--vecino { stroke: #64748B; }
+.grafo-circulo--grupo { stroke-dasharray: 2.5 2.5; stroke: var(--text-dim); }
 .grafo-nodo--link { cursor: pointer; }
-.grafo-nodo--link:hover .grafo-circulo { stroke: #10B981; stroke-width: 2; }
-.grafo-nodo--link:hover .grafo-texto { fill: var(--text); }
+.grafo-nodo--grupo { cursor: pointer; }
+.grafo-nodo--link:hover .grafo-circulo,
+.grafo-nodo--grupo:hover .grafo-circulo { stroke: var(--accent); stroke-width: 2; }
+.grafo-nodo--link:hover .grafo-texto,
+.grafo-nodo--grupo:hover .grafo-texto { fill: var(--text); }
 .grafo-texto {
-  fill: #94A3B8;
+  fill: var(--text-dim);
   font-family: var(--font-mono);
   font-size: 8.5px;
   paint-order: stroke;
@@ -1518,17 +1590,18 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   stroke-width: 2.5px;
   pointer-events: none;
 }
-.grafo-texto--central { fill: #10B981; font-size: 10px; font-weight: 600; }
-/* Modo denso (>30 hijos): etiquetas periféricas solo en hover (el
-   <title> da el nombre completo); central, padre y vecinos siempre. */
-.grafo--denso .grafo-texto--hijo { opacity: 0; transition: opacity 150ms; }
-.grafo--denso .grafo-nodo--link:hover .grafo-texto--hijo,
-.grafo--denso .grafo-nodo--link:focus .grafo-texto--hijo { opacity: 1; }
+.grafo-texto--tipo {
+  font-size: 7px;
+  fill: #64748B; /* badge de tipo: legible en ambos temas sobre el lienzo */
+  letter-spacing: 0.05em;
+}
+.grafo-texto--central { fill: var(--accent); font-size: 10px; font-weight: 600; }
+.grafo-texto--grupo { fill: var(--text-dim); font-style: italic; }
 .grafo-leyenda {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-top: 1px solid var(--border-strong);
   font-family: var(--font-mono);
   font-size: 8.5px;
@@ -1541,12 +1614,12 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   display: inline-block;
   width: 18px;
   height: 0;
-  border-top: 2px solid #475569;
+  border-top: 2px solid var(--text-muted);
   margin-right: 5px;
   vertical-align: middle;
 }
-.grafo-leyenda__trazo--contiene { border-color: #10B981; }
-.grafo-leyenda__trazo--broader { border-color: #94A3B8; }
+.grafo-leyenda__trazo--contiene { border-color: var(--accent); }
+.grafo-leyenda__trazo--broader { border-color: var(--text-dim); }
 .grafo-leyenda__trazo--lindero { border-top-style: dashed; }
 
 /* Foco del dataset desde el start screen */

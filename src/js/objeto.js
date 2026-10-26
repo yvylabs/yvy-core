@@ -409,8 +409,30 @@ function ExtrasRuta(obj) {
   return ruta;
 }
 
-function bloqueCopiar(obj, estadoAg, extras) {
-  const b = document.createElement('button');
+/**
+ * Pie del dossier: "Copiar dossier" (primaria) + "Fuentes ↗" (secundaria).
+ * Fuentes scrollea la línea de Referencias con un flash breve: invita,
+ * no obliga (acordeones y contenido son los protagonistas).
+ */
+function bloqueCopiarFooter(refsEl, obj, estadoAg, extras) {
+  const row = document.createElement('div');
+  row.className = 'dossier-footer';
+  row.appendChild(bloqueCopiar(obj, estadoAg, extras));
+  const fn = document.createElement('button');
+  fn.type = 'button';
+  fn.className = 'dossier-copy dossier-copy--fuentes';
+  fn.textContent = 'Fuentes ↗';
+  fn.title = 'Ver las referencias del dossier';
+  fn.addEventListener('click', () => {
+    refsEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    refsEl.classList.add('dossier-ref--foco');
+    setTimeout(() => refsEl.classList.remove('dossier-ref--foco'), 1600);
+  });
+  row.appendChild(fn);
+  return row;
+}
+
+function bloqueCopiar(obj, estadoAg, extras) {  const b = document.createElement('button');
   b.type = 'button';
   b.className = 'dossier-copy';
   b.textContent = 'Copiar dossier';
@@ -604,7 +626,13 @@ function seccionContiene(obj) {
   }
   const total = grupos.reduce((a, g) => a + g.items.length, 0)
     + extras.reduce((a, g) => a + g.items.length, 0);
-  const { wrap, body } = crearSeccion('Contiene', total, true);
+  // Micro-copy humana: "23 departamentos" / "23 departamentos · 64 municipios".
+  const partes = [];
+  for (const g of grupos) partes.push(`${g.items.length} ${ETIQUETA_HIJO[g.nivel][1]}`);
+  for (const g of extras) partes.push(`${g.items.length} ${ETIQUETA_HIJO[g.nivel][1]}`);
+  const conteoTexto = partes.join(' · ');
+  const { wrap, body } = crearSeccion('Contiene', conteoTexto, false); // cerrado: la invitación silenciosa
+  wrap.dataset.grupo = 'contiene'; // destino del clic en nodo grupo "+ N más"
   for (const g of grupos) grupoHijosEnBody(body, g.nivel, g.items);
   for (const g of extras) grupoHijosEnBody(body, g.nivel, g.items, g.titulo);
   return wrap;
@@ -629,7 +657,14 @@ function seccionesVecinos(obj) {
     }
     if (vecinos.length === 0) continue;
     const titulo = tipo === 'lindero' ? 'Limita con' : 'Cerca de';
-    const { wrap, body } = crearSeccion(titulo, vecinos.length, false); // plegado
+    // Micro-copy humana: "6 provincias" / "1 provincia · 2 departamentos".
+    const porNivel = new Map();
+    for (const v of vecinos) porNivel.set(v.nivel, (porNivel.get(v.nivel) || 0) + 1);
+    const conteo = [...porNivel.entries()]
+      .map(([n, c]) => `${c} ${(ETIQUETA_HIJO[n] || [null, `${n}s`])[1]}`)
+      .join(' · ');
+    const { wrap, body } = crearSeccion(titulo, conteo, false); // plegado
+    wrap.dataset.grupo = tipo === 'lindero' ? 'limita' : 'cerca'; // destino del nodo grupo
     vecinos.forEach((v) => body.appendChild(itemNavegable(v)));
     secciones.push(wrap);
   }
@@ -680,15 +715,28 @@ function bloqueHeroSkeleton() {
   return hero;
 }
 
+// Badge [Oficial]: la fuente viene del catálogo (verificable). La
+// fecha SOLO se muestra si el manifest la declara (fecha_vigencia);
+// sin fecha, el badge queda corto y no se inventa "Actualizado".
+function badgeOficial(dsMeta) {
+  const b = document.createElement('span');
+  b.className = 'dossier-acc__badge';
+  const fecha = dsMeta && dsMeta.fecha_vigencia ? String(dsMeta.fecha_vigencia).trim() : null;
+  b.textContent = fecha ? `Oficial · ${fecha}` : 'Oficial';
+  b.title = fecha ? 'Fuente oficial · vigencia declarada en el catálogo' : 'Fuente oficial (sin fecha declarada en el catálogo)';
+  return b;
+}
+
 // Acordeón de dataset en carga: se pinta al toque con pulso, se llena
 // cuando responde (o se elimina en 404 = sin datos, nunca se grita).
 function seccionDatasetSkeleton(ds) {
   const titulo = TITULO_DATASET[ds.tipo] || ds.tipo;
   const f = fuenteHumana(ds.fuente);
-  const { wrap, body } = crearSeccion(titulo, null, false);
+  const { wrap, body, head } = crearSeccion(titulo, null, false);
   wrap.dataset.tipo = ds.tipo; // acceso directo start screen (enfocarDataset)
   const headT = wrap.querySelector('.dossier-acc__titulo');
   if (headT) headT.textContent = `${titulo} · ${f.corto}`;
+  head.appendChild(badgeOficial(ds));
   body.appendChild(bloqueSkeleton(3));
   return wrap;
 }
@@ -698,10 +746,11 @@ function seccionDataset(ds, ag) {
   const titulo = TITULO_DATASET[ds.tipo] || ds.tipo;
   const f = fuenteHumana(ag && ag.fuente ? ag.fuente : ds.fuente);
   // dct:source visible en el header (nunca solo en el cuerpo).
-  const { wrap, body } = crearSeccion(titulo, null, false);
+  const { wrap, body, head } = crearSeccion(titulo, null, false);
   wrap.dataset.tipo = ds.tipo; // acceso directo start screen (enfocarDataset)
   const headT = wrap.querySelector('.dossier-acc__titulo');
   headT.textContent = `${titulo} · ${f.corto}`;
+  head.appendChild(badgeOficial(ds));
 
   if (!ag || !ag.metricas) {
     const p = document.createElement('p');
@@ -768,47 +817,48 @@ function agregarFuentePie(foot, f) {
 // --------------------------------------------------------------
 
 /**
- * Bloque principal del grafo: "Ver Grafo de Relaciones".
- * Acordeón persistente: abierto para todo el dossier (el flag global
- * sobrevive re-renders al navegar); el SVG se monta (lazy) la primera
- * vez y de ahí en adelante vive dentro del panel, junto a "Contiene".
+ * Bloque del grafo: SIEMPRE visible (bloque compacto de 220px, sin
+ * acordeón). Se re-monta en cada render (el nodo central es nuevo) con
+ * selección humanizada: central + padre + primeros 6 relacionados +
+ * grupo "+ N más" cuyo clic abre el acordeón correspondiente.
  */
-let grafoAbierto = false;
-
 function bloqueGrafo(obj, navegar) {
   const wrap = document.createElement('div');
-  wrap.className = 'dossier-json-bloque';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'dossier-copy dossier-copy--grafo';
-  btn.textContent = 'Ver Grafo de Relaciones';
+  wrap.className = 'dossier-grafo-bloque';
   const cont = document.createElement('div');
   cont.className = 'dossier-grafo';
-  cont.hidden = !grafoAbierto; // acordeón: recuerda el estado al navegar
-  let montado = false;
   const montar = () => {
-    if (montado) return;
-    montado = true;
     const ancho = Math.max(360, cont.clientWidth || 460);
     import('./grafo.js')
-      .then((m) => m.crearGrafoRelaciones(obj, { navegar, ancho }))
+      .then((m) => m.crearGrafoRelaciones(obj, { navegar, abreGrupo: abrirGrupoAcordeon, ancho }))
       .then((el) => { cont.appendChild(el); })
       .catch((e) => {
-        montado = false;
         cont.hidden = true;
         console.warn('[yvy] grafo no montado:', e?.message);
       });
   };
-  btn.addEventListener('click', () => {
-    grafoAbierto = cont.hidden;
-    cont.hidden = !cont.hidden;
-    btn.textContent = cont.hidden ? 'Ver Grafo de Relaciones' : 'Ocultar Grafo de Relaciones';
-    if (!cont.hidden) montar();
-  });
-  if (!cont.hidden) montar(); // persistencia: re-render con el acordeón abierto
-  wrap.appendChild(btn);
+  // Monta al toque con ancho estimado; el ResizeObserver del SVG corrige
+  // el viewBox con el ancho real del panel (clamp 500–650px).
+  montar();
   wrap.appendChild(cont);
   return wrap;
+}
+
+/**
+ * Clic en nodo grupo ("+ N más" / "+ M vecinos"): abre el acordeón
+ * correspondiente y lo resalta + scrollea (misma mecánica que el foco
+ * del start screen, determinista).
+ */
+function abrirGrupoAcordeon(grupo) {
+  const cont = contenedorFicha();
+  if (!cont) return;
+  const sec = cont.querySelector(`.dossier-acc[data-grupo="${grupo}"]`)
+    || (grupo === 'limita' ? cont.querySelector('.dossier-acc[data-grupo="cerca"]') : null);
+  if (!sec) return;
+  const head = sec.querySelector('.dossier-acc__head');
+  if (head && head.getAttribute('aria-expanded') !== 'true') head.click();
+  sec.classList.add('dossier-acc--foco');
+  head.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 // --------------------------------------------------------------
@@ -921,7 +971,8 @@ export async function renderFicha(obj) {
 
   const refsEl = bloqueReferencias(extras.refs);
   contenedor.appendChild(refsEl);
-  contenedor.appendChild(bloqueCopiar(obj, estadoAg, extras));
+  // Pie: acción primaria (copiar) + invitación silenciosa a las fuentes.
+  contenedor.appendChild(bloqueCopiarFooter(refsEl, obj, estadoAg, extras));
 
   // ---- Resolución async por agregado (token guarda contra cambio de activo) ----
 

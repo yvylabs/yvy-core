@@ -1,16 +1,12 @@
 // ==============================================================
-// grafo.js — Grafo de relaciones estilo Obsidian, dentro del Dossier
-// Nodo central + padre (skos:broader) + hijos (yvyont:contiene) +
-// vecinos (lindero / cerca_de), todo desde el manifest (0 inventado).
-// Layout: d3-force VIVO (simulación con su propio timer, alphaDecay
-// natural ⇒ se asienta sola en ~4s y deja de consumir CPU). Nada de
-// pre-ticks síncronos que congelaran la física en un rombo colapsado.
-// Estabilización: charge(-200) para que los nodos se repelan y
-// ocupen TODO el lienzo, collision(radio + padding de etiqueta) para
-// que no se pisen, forceX/forceY suaves + clamp al bbox (constelación
-// acotada, no mar abierta). ResizeObserver: si el contenedor cambia de
-// ancho (panel clamp 500–650px), recalcula el viewBox y reinicia la sim.
-// Clic en nodo → navegar (vuelo + ficha).
+// grafo.js — Grafo de relaciones, SIEMPRE visible en el dossier
+// (bloque compacto de 220px, sin acordeón ni scroll). Selección
+// humanizada: nodo central + padre ("Pertenece a") + primeros 6
+// relacionados (hijos alfabéticos, luego vecinos) + nodos grupo
+// "+ N más" / "+ M vecinos" que abren el acordeón correspondiente.
+// Leyenda en texto humano (skos:/yvyont: quedan solo como data-).
+// Layout: d3-force VIVO con distancias ajustadas al lienzo chico;
+// clamp al bbox; nada colapsado. Clic en nodo nombre → navegar.
 // ==============================================================
 
 import {
@@ -24,15 +20,23 @@ import {
 import { getHijos, getObjeto, getPadre, getRelaciones } from './manifest.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const RADIO = { central: 14, padre: 10, hijo: 6.5, vecino: 8 };
-const DIST = { broader: 116, contiene: 80, lindero: 134, cerca_de: 134 };
-const TRUNC = 16;
+const ALTO = 200; // compacto: el dossier no genera scroll por el grafo
+const MAX_RELACIONADOS = 6; // el resto se agrupa en "+ N más" / "+ M vecinos"
+const RADIO = { central: 10, padre: 8, hijo: 5.5, vecino: 6.5, grupo: 7 };
+const DIST = { broader: 64, contiene: 52, lindero: 80, cerca_de: 80 };
 // Padding de colisión: radio + holgura para que la ETIQUETA no pise.
-const HOLGURA = { central: 22, padre: 18, hijo: 13, vecino: 15 };
-const MARGEN = 30;
+const HOLGURA = { central: 19, padre: 17, hijo: 16, vecino: 16, grupo: 15 };
+const MARGEN = 26;
+const NIVEL_HUMANO = {
+  pais: 'País',
+  provincia: 'Provincia',
+  depto: 'Departamento',
+  municipio: 'Municipio',
+  barrio: 'Barrio',
+};
 
-function truncar(s) {
-  return s.length > TRUNC ? `${s.slice(0, TRUNC - 1)}…` : s;
+function truncar(s, max = 12) {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 function el(tag, attrs, texto) {
@@ -45,16 +49,17 @@ function el(tag, attrs, texto) {
 /**
  * Construye y devuelve el elemento con el grafo de la ficha.
  * @param {object} obj - nodo activo (manifest)
- * @param {{navegar: Function, ancho?: number}} opts - navegar(yvy_id), ancho real del contenedor
+ * @param {{navegar: Function, abreGrupo?: Function, ancho?: number}} opts
+ *   navegar(yvy_id) para nodos rol nombre; abreGrupo('contiene'|'limita')
+ *   para nodos grupo (+ N más / + M vecinos).
  * @returns {HTMLElement} contenedor del SVG del grafo
  */
-export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {}) {
-  let ancho = Math.max(360, anchoIni);
-  // El alto acompaña el volumen, piso 450 (constelación con aire).
+export function crearGrafoRelaciones(obj, { navegar, abreGrupo, ancho: anchoIni = 460 } = {}) {
+  let ancho = Math.max(360, Math.round(anchoIni));
+  const alto = ALTO;
   const hijos = getHijos(obj.yvy_id);
-  let alto = hijos.length > 50 ? 640 : hijos.length > 24 ? 530 : 450;
 
-  // --- datos del grafo ---
+  // --- datos del grafo: selección humanizada (cero constelación) ---
   const dicente = { id: String(obj.yvy_id), nombre: obj.nombre_oficial, nivel: obj.nivel, rol: 'central' };
   const nodos = [dicente];
   const enlaces = [];
@@ -68,27 +73,59 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
     return n;
   };
 
+  // Pertenece a: 1 ranura fija (no compite con los 6 relacionados).
   const padre = getPadre(obj);
   const np = padre ? agregar(padre, 'padre') : null;
   if (np) enlaces.push({ source: dicente, target: np, tipo: 'broader' });
-  for (const h of hijos) {
+
+  // Hijos alfabéticos primero; vecinos llenan ranuras libres.
+  const hijosOrdenados = [...hijos].sort((a, b) => a.nombre_oficial.localeCompare(b.nombre_oficial, 'es'));
+  const hijosVisibles = hijosOrdenados.slice(0, MAX_RELACIONADOS);
+  for (const h of hijosVisibles) {
     const n = agregar(h, 'hijo');
     if (n) enlaces.push({ source: dicente, target: n, tipo: 'contiene' });
   }
-  for (const r of getRelaciones(obj.yvy_id)) {
-    const o = getObjeto(r.destino_yvy_id);
-    if (!o) continue;
+  const hijosOcultos = hijosOrdenados.length - hijosVisibles.length;
+  const slotsVecinos = MAX_RELACIONADOS - hijosVisibles.length;
+  const vecinosOrdenados = getRelaciones(obj.yvy_id)
+    .filter((r) => r.tipo === 'lindero' || r.tipo === 'cerca_de')
+    .map((r) => getObjeto(r.destino_yvy_id))
+    .filter(Boolean)
+    .sort((a, b) => a.nombre_oficial.localeCompare(b.nombre_oficial, 'es'));
+  const vecinosVisibles = vecinosOrdenados.slice(0, slotsVecinos);
+  for (const o of vecinosVisibles) {
     const n = agregar(o, 'vecino');
-    if (n) enlaces.push({ source: dicente, target: n, tipo: r.tipo === 'cerca_de' ? 'cerca_de' : 'lindero' });
+    if (n) enlaces.push({ source: dicente, target: n, tipo: 'lindero' });
   }
+  const vecinosOcultos = vecinosOrdenados.length - vecinosVisibles.length;
+
+  // Nodos grupo: el acordeón detallado es el destino del clic.
+  if (hijosOcultos > 0) {
+    nodos.push({ id: 'grupo-contiene', nombre: `+ ${hijosOcultos} más`, rol: 'grupo', grupo: 'contiene' });
+  }
+  if (vecinosOcultos > 0) {
+    nodos.push({ id: 'grupo-vecinos', nombre: `+ ${vecinosOcultos} vecinos`, rol: 'grupo', grupo: 'limita' });
+  }
+
+  // Aislar (sin relaciones de ningún tipo): honesto, sin constelación de uno.
+  const sinRelaciones = nodos.length === 1 && vecinosOcultos === 0 && hijosOcultos === 0;
 
   // --- SVG ---
   const svg = el('svg', {
     viewBox: `0 0 ${ancho} ${alto}`,
-    class: `grafo-svg${hijos.length > 30 ? ' grafo--denso' : ''}`,
+    class: 'grafo-svg',
     role: 'img',
     'aria-label': `Grafo de relaciones de ${obj.nombre_oficial}`,
   });
+  if (sinRelaciones) {
+    const wrap = document.createElement('div');
+    wrap.className = 'grafo-wrap';
+    const vacio = document.createElement('p');
+    vacio.className = 'grafo-vacio';
+    vacio.textContent = 'Sin relaciones registradas todavía.';
+    wrap.appendChild(vacio);
+    return wrap;
+  }
   const gEnlaces = el('g');
   const lineEls = [];
   for (const e of enlaces) {
@@ -103,6 +140,23 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
   const nodoEls = [];
   for (const n of nodos) {
     const g = el('g');
+    if (n.rol === 'grupo') {
+      // Nodo grupo: abre el acordeón correspondiente (Contiene / Limita con).
+      g.classList.add('grafo-nodo--grupo');
+      g.addEventListener('click', () => {
+        if (abreGrupo) abreGrupo(n.grupo);
+      });
+      g.appendChild(el('circle', { r: RADIO.grupo, class: 'grafo-circulo grafo-circulo--grupo' }));
+      g.appendChild(el('text', {
+        y: RADIO.grupo + 10,
+        class: 'grafo-texto grafo-texto--grupo',
+        'text-anchor': 'middle',
+      }, n.nombre));
+      g.appendChild(el('title', {}, `${n.nombre} — abrir la sección correspondiente`));
+      gNodos.appendChild(g);
+      nodoEls.push(g);
+      continue;
+    }
     if (n.rol !== 'central') {
       g.classList.add('grafo-nodo--link');
       g.addEventListener('click', () => {
@@ -113,19 +167,27 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
       r: RADIO[n.rol],
       class: `grafo-circulo grafo-circulo--${n.rol}`,
     }));
-    g.appendChild(el('text', {
-      y: RADIO[n.rol] + 10,
+    const t = el('text', {
+      y: RADIO[n.rol] + 9,
       class: `grafo-texto grafo-texto--${n.rol}`,
       'text-anchor': 'middle',
-    }, truncar(n.nombre)));
-    const tipoHumano = { broader: 'padre' }[n.rol] || n.nivel;
+    });
+    t.appendChild(document.createTextNode(truncar(n.nombre, n.rol === 'central' ? 18 : 12)));
+    if (n.rol !== 'central') {
+      // Etiqueta de tipo junto al nombre (decisión humanizada).
+      const tipoN = NIVEL_HUMANO[n.nivel] || n.nivel;
+      const b = el('tspan', { class: 'grafo-texto--tipo', dx: '2' }, `· ${tipoN}`);
+      t.appendChild(b);
+    }
+    const tipoHumano = NIVEL_HUMANO[n.nivel] || n.nivel;
+    g.appendChild(t);
     g.appendChild(el('title', {}, `${n.nombre} · ${tipoHumano}${n.rol !== 'central' ? ' — clic para navegar' : ' (nodo actual)'}`));
     gNodos.appendChild(g);
     nodoEls.push(g);
   }
   svg.appendChild(gNodos);
 
-  // --- simulación VIVA: arranca dispersa (ángulo áureo) y se asienta sola ---
+  // --- simulación VIVA ajustada al lienzo compacto ---
   const GOLDEN = 2.39996;
   nodos.forEach((n, i) => {
     if (n.rol === 'central') {
@@ -133,7 +195,7 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
       n.y = alto / 2;
       return;
     }
-    const r = 100 + (i % 4) * 30;
+    const r = 55 + (i % 4) * 18;
     n.x = ancho / 2 + Math.cos(i * GOLDEN) * r;
     n.y = alto / 2 + Math.sin(i * GOLDEN) * r;
   });
@@ -162,8 +224,8 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
   const fx = forceX(ancho / 2);
   const fy = forceY(alto / 2);
   const sim = forceSimulation(nodos)
-    .force('link', forceLink(enlaces).id((d) => d.id).distance((d) => DIST[d.tipo] || 90).strength(0.55))
-    .force('charge', forceManyBody().strength(-200)) // repelen y ocupan todo el lienzo
+    .force('link', forceLink(enlaces).id((d) => d.id).distance((d) => DIST[d.tipo] || 55).strength(0.55))
+    .force('charge', forceManyBody().strength(-110)) // repelen con aire, roles compactos
     .force('collide', forceCollide().radius((d) => RADIO[d.rol] + HOLGURA[d.rol]))
     .force('x', fx.strength(0.04))
     .force('y', fy.strength(0.05))
@@ -192,7 +254,7 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
     ro.observe(svg);
   }
 
-  // --- contenedor con leyenda (los 3 tipos de arista del vocabulario) ---
+  // --- contenedor con leyenda humana (texto claro, sin vocabulario RDF) ---
   const wrap = document.createElement('div');
   wrap.className = 'grafo-wrap';
   // Si el wrap sale del DOM (navegación dentro del dossier → re-render),
@@ -204,9 +266,9 @@ export function crearGrafoRelaciones(obj, { navegar, ancho: anchoIni = 460 } = {
   const leyenda = document.createElement('div');
   leyenda.className = 'grafo-leyenda';
   const legendItems = [
-    ['grafo-leyenda__trazo--broader', 'skos:broader — padre'],
-    ['grafo-leyenda__trazo--contiene', 'yvyont:contiene — hijos'],
-    ['grafo-leyenda__trazo--lindero', 'yvyont:lindero — vecinos'],
+    ['grafo-leyenda__trazo--broader', 'Pertenece a'],
+    ['grafo-leyenda__trazo--contiene', 'Contiene'],
+    ['grafo-leyenda__trazo--lindero', 'Limita con'],
   ];
   for (const [c, txt] of legendItems) {
     const i = document.createElement('span');

@@ -270,7 +270,7 @@ async function garantizarDatos() {
 // --------------------------------------------------------------
 // Volver al globo: el logo/brand restablece la vista inicial
 // --------------------------------------------------------------
-const VISTA_INICIAL = { center: [-60, -24], zoom: 2.2, pitch: 0, bearing: 0 };
+const VISTA_INICIAL = { center: [-60, -24], zoom: 3.1, pitch: 0, bearing: 0 };
 
 function volverAlInicio() {
   setObjetoActual(null);

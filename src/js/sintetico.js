@@ -5,8 +5,12 @@
 // Argentina sobre la Tierra. PURAMENTE VISUAL: nodo + nombre, sin
 // números ni métricas (el inicio no es un dashboard; el dato se
 // descubre al buscar o hacer clic, SPEC §4 determinismo).
-// d3-force solo RELAJA etiquetas colisionadas al descansar el
-// vuelo; la posición geográfica manda (candidate: no constelación).
+// d3-force solo RELAJA etiquetas colisionadas con cadencia (~2s
+// durante la rotación del globo). El mapa está BLOQUEADO mientras
+// el welcome es protagonista (la red es el héroe, no el panzoom):
+// drag/zoom/teclado deshabilitados en mostrar() y rehabilitados en
+// ocultar(). Auto-rotación lenta del globo (se frena al salir y
+// con prefers-reduced-motion).
 // ==============================================================
 
 import { getObjetos, getRelaciones, navegarA } from './manifest.js';
@@ -27,6 +31,49 @@ let sim = null;
 let relajadoTimer = null;
 let activo = false;
 let pinturaOceanoOriginal = null;
+let rafRotacion = null;
+let rotando = false;
+let relajoCadencia = null;
+const CADENCIA_RELAJO = 2000; // ms entre relajaciones durante la rotación
+
+/** Bloqueo del mapa mientras el welcome es el héroe (una sola vía). */
+function bloquearMapa(bloquear) {
+  if (!mapa) return;
+  const handlers = ['dragPan', 'scrollZoom', 'doubleClickZoom', 'touchZoomRotate', 'dragRotate', 'boxZoom', 'keyboard'];
+  for (const h of handlers) {
+    try {
+      if (mapa[h]) bloquear ? mapa[h].disable() : mapa[h].enable();
+    } catch { /* handler ausente en esta versión: no rompe */ }
+  }
+}
+
+/** Auto-rotación lenta del globo: gira al oeste, paso fijo por frame. */
+function pasoRotacion() {
+  rafRotacion = null;
+  if (!activo || !mapa) return;
+  const c = mapa.getCenter();
+  let lng = c.lng - 0.02; // ~1.2°/s @60fps: 1 giro completo en 5 min
+  if (lng < -180) lng += 360;
+  mapa.jumpTo({ center: [lng, c.lat] });
+  rafRotacion = requestAnimationFrame(pasoRotacion);
+}
+
+function iniciarRotacion() {
+  if (!mapa || rotando) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  rotando = true;
+  rafRotacion = requestAnimationFrame(pasoRotacion);
+  // Sin moveend fiable durante rotación continua: la relajación sigue
+  // su propia cadencia fija (etiquetas se aflojan, el anchor manda).
+  if (relajoCadencia) clearInterval(relajoCadencia);
+  relajoCadencia = setInterval(() => { if (activo) relajarAhora(); }, CADENCIA_RELAJO);
+}
+
+function detenerRotacion() {
+  rotando = false;
+  if (rafRotacion != null) { cancelAnimationFrame(rafRotacion); rafRotacion = null; }
+  if (relajoCadencia) { clearInterval(relajoCadencia); relajoCadencia = null; }
+}
 
 /** Construye nodos (24 provincias) y aristas (linderos reales, pares únicos). */
 function construirRed() {
@@ -168,11 +215,16 @@ function radioCol(d) {
 }
 
 /**
- * Relajación d3-force al descansar el vuelo: afloja etiquetas colisionadas
- * con anclas fuertes hacia la posición proyectada (poca deriva, sin
- * constelación). En cada 'move' se re-ensambla a geografía pura.
+ * Relajación d3-force al descansar el vuelo; durante la rotación corre
+ * por cadencia (la llama iniciarRotacion cada ~2s). Con rotación activa
+ * el 'moveend' constante NO la re-dispara (así el timer respira).
  */
 function relajar() {
+  if (rotando) return; // la cadencia manda mientras se gira
+  relajarAhora();
+}
+
+function relajarAhora() {
   if (!activo || !svg) return;
   if (relajadoTimer) clearTimeout(relajadoTimer);
   relajadoTimer = setTimeout(() => {
@@ -232,11 +284,13 @@ function mostrar() {
   activo = true;
   svg.classList.remove('sintetico-red--off');
   pintarOceano(true);
+  bloquearMapa(true); // la red es el héroe: sin pan/zoom detrás
   mapa.on('move', ensamblar);
   mapa.on('moveend', relajar);
   mapa.on('resize', ensamblar);
   ensamblar();
   relajar();
+  iniciarRotacion();
 }
 
 function ocultar() {
@@ -245,7 +299,9 @@ function ocultar() {
   svg.classList.add('sintetico-red--off');
   if (sim) sim.stop();
   if (relajadoTimer) clearTimeout(relajadoTimer);
+  detenerRotacion();
   if (mapa) {
+    bloquearMapa(false); // dossier a la vista: el mapa vuelve a responder
     mapa.off('move', ensamblar);
     mapa.off('moveend', relajar);
     mapa.off('resize', ensamblar);
