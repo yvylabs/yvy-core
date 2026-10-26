@@ -1,9 +1,10 @@
 // ==============================================================
 // objeto.js — Dossier del nodo (grafo de jurisdicciones)
 // Un nodo = identidad + métricas + su lugar en el grafo:
-// breadcrumb de padres, Contiene (hijos), Limita con / cerca de
-// (relaciones laterales), agregados con fuente y JSON-LD.
+// grafo de relaciones, breadcrumb de padres, Contiene (hijos),
+// Limita con / cerca de (relaciones laterales), agregados con fuente.
 // Sin vigencia en la UI (decisión de producto): el valor + la fuente.
+// Sin JSON-LD en la UI: el dato crudo vive en data/manifest.jsonld.
 // ==============================================================
 
 import {
@@ -690,89 +691,19 @@ function agregarFuentePie(foot, f) {
 // --------------------------------------------------------------
 // Grafo de relaciones (EL nodo como pieza del grafo, estilo Obsidian)
 // Vista visual: nodo central + padre + hijos + vecinos con d3-force.
-// Clic en un nodo → navegar. El JSON-LD crudo queda detrás del botón
-// secundario (el grafo es para usuarios; el código, para la ficha).
+// Clic en un nodo → navegar. Sin JSON-LD en la UI (decisión producto:
+// el dato crudo vive en data/manifest.jsonld + context.jsonld, servido
+// para consumo programático, no para personas).
 // --------------------------------------------------------------
-const TIPO_NIVEL = {
-  pais: 'Pais',
-  provincia: 'Provincia',
-  depto: 'Departamento',
-  municipio: 'Municipio',
-  barrio: 'Barrio',
-};
-
-function nodoJsonLd(obj, ags) {
-  const base = import.meta.env.BASE_URL || './';
-  const tipo = `yvyont:${TIPO_NIVEL[obj.nivel] || obj.nivel}`;
-  const nodo = {
-    '@id': `yvy:${obj.yvy_id}`,
-    '@type': tipo,
-    yvy_id: Number(obj.yvy_id),
-    nombre_oficial: obj.nombre_oficial,
-    nivel: tipo,
-  };
-  const padre = getPadre(obj);
-  if (padre) nodo.parent_yvy_id = { '@id': `yvy:${padre.yvy_id}` };
-  const hijos = getHijos(obj.yvy_id);
-  if (hijos.length > 0) {
-    nodo['yvyont:contiene'] = hijos.map((h) => ({ '@id': `yvy:${h.yvy_id}` }));
-  }
-  const rels = getRelaciones(obj.yvy_id);
-  for (const tipoRel of ['lindero', 'cerca_de']) {
-    const dest = [...new Set(rels.filter((r) => r.tipo === tipoRel).map((r) => r.destino_yvy_id))];
-    if (dest.length > 0) {
-      nodo[`yvyont:${tipoRel}`] = dest.map((id) => ({ '@id': `yvy:${id}` }));
-    }
-  }
-  if (obj.sup_oficial_km2 != null) nodo.sup_oficial_km2 = Number(obj.sup_oficial_km2);
-  if (obj.sup_fuente) nodo.sup_fuente = obj.sup_fuente;
-  if (obj.sup_fuente_corta) nodo.sup_fuente_corta = obj.sup_fuente_corta;
-  if (obj.centro && Array.isArray(obj.centro)) {
-    nodo.centro = `POINT(${obj.centro[0]} ${obj.centro[1]})`;
-  } else if (typeof obj.centro === 'string') {
-    nodo.centro = obj.centro;
-  }
-  if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
-    const b = obj.bounds_objeto;
-    nodo.bounds_objeto = `BOX(${b[0]} ${b[1]} ${b[2]} ${b[3]})`;
-  }
-  if (obj.pmtiles) nodo.pmtiles = obj.pmtiles;
-  nodo.tiene_geometria = obj.pmtiles != null;
-  // dct:source del nodo: fuentes reales de los agregados resueltos.
-  const sources = [];
-  for (const ag of Object.values(ags)) {
-    if (ag && ag.fuente && !sources.includes(ag.fuente)) sources.push(ag.fuente);
-  }
-  if (sources.length > 0) nodo['dct:source'] = sources;
-  return { '@context': new URL(`${base}data/context.jsonld`, location.href).toString(), ...nodo };
-}
-
-function bloqueJSONLD(obj, ags) {
-  const wrap = document.createElement('div');
-  wrap.className = 'dossier-json-bloque';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'dossier-copy dossier-copy--sec';
-  btn.textContent = 'Ver código fuente (JSON-LD)';
-  const pre = document.createElement('pre');
-  pre.className = 'dossier-json';
-  pre.hidden = true; // el código arranca cerrado: el grafo es la superficie
-  const nodo = nodoJsonLd(obj, ags);
-  pre.textContent = JSON.stringify(nodo, null, 2);
-  btn.addEventListener('click', async () => {
-    pre.hidden = !pre.hidden;
-    btn.textContent = pre.hidden ? 'Ver código fuente (JSON-LD)' : 'Ocultar código fuente (JSON-LD)';
-  });
-  wrap.appendChild(btn);
-  wrap.appendChild(pre);
-  return wrap;
-}
 
 /**
  * Bloque principal del grafo: "Ver Grafo de Relaciones".
- * Abre/cierra la vista visual; el SVG se monta LA PRIMERA vez que se
- * abre (lazy) con el estado del nodo vigente en ese momento.
+ * Acordeón persistente: abierto para todo el dossier (el flag global
+ * sobrevive re-renders al navegar); el SVG se monta (lazy) la primera
+ * vez y de ahí en adelante vive dentro del panel, junto a "Contiene".
  */
+let grafoAbierto = false;
+
 function bloqueGrafo(obj, navegar) {
   const wrap = document.createElement('div');
   wrap.className = 'dossier-json-bloque';
@@ -782,23 +713,28 @@ function bloqueGrafo(obj, navegar) {
   btn.textContent = 'Ver Grafo de Relaciones';
   const cont = document.createElement('div');
   cont.className = 'dossier-grafo';
-  cont.hidden = true;
+  cont.hidden = !grafoAbierto; // acordeón: recuerda el estado al navegar
   let montado = false;
+  const montar = () => {
+    if (montado) return;
+    montado = true;
+    const ancho = Math.max(360, cont.clientWidth || 460);
+    import('./grafo.js')
+      .then((m) => m.crearGrafoRelaciones(obj, { navegar, ancho }))
+      .then((el) => { cont.appendChild(el); })
+      .catch((e) => {
+        montado = false;
+        cont.hidden = true;
+        console.warn('[yvy] grafo no montado:', e?.message);
+      });
+  };
   btn.addEventListener('click', () => {
+    grafoAbierto = cont.hidden;
     cont.hidden = !cont.hidden;
     btn.textContent = cont.hidden ? 'Ver Grafo de Relaciones' : 'Ocultar Grafo de Relaciones';
-    if (!cont.hidden && !montado && navegar) {
-      montado = true;
-      import('./grafo.js')
-        .then((m) => m.crearGrafoRelaciones(obj, { navegar }))
-        .then((svg) => { cont.hidden = true; cont.appendChild(svg); cont.hidden = false; })
-        .catch((e) => {
-          montado = false;
-          cont.hidden = true;
-          console.warn('[yvy] grafo no montado:', e?.message);
-        });
-    }
+    if (!cont.hidden) montar();
   });
+  if (!cont.hidden) montar(); // persistencia: re-render con el acordeón abierto
   wrap.appendChild(btn);
   wrap.appendChild(cont);
   return wrap;
@@ -849,6 +785,9 @@ export async function renderFicha(obj) {
   // La síntesis ya no depende del censo: habla del lugar del nodo en
   // el grafo (padre, contiene, vecinos) aunque falte el dato demográfico.
   contenedor.appendChild(bloqueSintesis(obj, m, limita));
+
+  // ---- Grafo de relaciones: acordeón de relaciones, junto a "Contiene" ----
+  contenedor.appendChild(bloqueGrafo(obj, navegarA));
 
   // ---- Contiene ----
   const cont = seccionContiene(obj);
@@ -905,10 +844,6 @@ export async function renderFicha(obj) {
       }
     }
   }
-
-  // ---- Grafo de relaciones (visual) + JSON-LD crudo (secundario) ----
-  contenedor.appendChild(bloqueGrafo(obj, navegarA));
-  contenedor.appendChild(bloqueJSONLD(obj, ags));
 
   contenedor.appendChild(bloqueReferencias(extras.refs));
   contenedor.appendChild(bloqueCopiar(obj, m, extras));

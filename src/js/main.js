@@ -18,6 +18,7 @@ import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
+import { onLayoutChange } from './ui.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -27,6 +28,28 @@ function anchoDock() {
   const d = document.getElementById('dock');
   return d && d.offsetWidth > 40 ? d.offsetWidth : 440;
 }
+
+// Objeto activo (para re-centrar tras transiciones de layout del dock).
+let objetoActivoMapa = null;
+
+/**
+ * Re-centra el objeto activo tras un cambio de ancho/estado del panel.
+ * map.resize() conserva el centro geográfico, no el encuadre visual:
+ * sin este hook, el objeto queda corrido cuando el dock roba espacio.
+ */
+function recentrarMapa() {
+  if (!map || map.isMoving()) return; // nunca interrumpe un vuelo en curso
+  const obj = objetoActivoMapa;
+  const c = obj && (Array.isArray(obj.centro_etiqueta) ? obj.centro_etiqueta : obj.centro);
+  if (!c || !Array.isArray(c) || !isFinite(c[0])) return;
+  const estado = document.documentElement.getAttribute('data-dock');
+  const padIzq = estado === 'oculto' ? 40 : anchoDock();
+  try {
+    map.easeTo({ center: [c[0], c[1]], duration: 400, padding: { top: 40, right: 40, bottom: 40, left: padIzq } });
+  } catch { /* cámara no lista */ }
+}
+
+onLayoutChange(() => recentrarMapa());
 // Atribución del basemap (la pone MapLibre desde el style): OpenFreeMap © OpenMapTiles © OpenStreetMap.
 
 /** Basemap vectorial oscuro (fork OpenFreeMap, etiquetas en español). Con fallback a fondo plano. */
@@ -210,6 +233,7 @@ async function irAYvyId(yvyId) {
   if (yvyId == null) {
     // Deseleccionar: ocultar todo el contexto y limpiar la UI
     setObjetoActual(null);
+    objetoActivoMapa = null;
     aplicarBandaVisible(null);
     setObjetoBarra(null);
     limpiarFicha();
@@ -217,6 +241,7 @@ async function irAYvyId(yvyId) {
   }
   const obj = getObjeto(yvyId);
   if (!obj) return;
+  objetoActivoMapa = obj;
   setObjetoActivo(obj);
   setObjetoActual(yvyId);
   cerrarBienvenida();
@@ -299,6 +324,7 @@ const VISTA_INICIAL = { center: [-60, -24], zoom: 2.2, pitch: 0, bearing: 0 };
 
 function volverAlInicio() {
   setObjetoActual(null);
+  objetoActivoMapa = null;
   setObjetoBarra(null);
   limpiarFicha();
   aplicarBandaVisible(null);
@@ -355,4 +381,5 @@ map.on('load', async () => {
 
 window.addEventListener('resize', () => {
   map.resize();
+  recentrarMapa();
 });

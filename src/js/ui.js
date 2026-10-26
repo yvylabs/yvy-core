@@ -12,6 +12,14 @@ const PANEL_DEFS = [
 
 let abiertoActual = null;
 
+// Listener del cambio de layout (lo registra main.js para re-centrar el mapa).
+let layoutListener = null;
+
+/** Registra el callback que corre en cada transición de estado del dock. */
+export function onLayoutChange(fn) {
+  layoutListener = fn;
+}
+
 /**
  * Sincroniza el estado del dock con el DOM: welcome visible → 'welcome',
  * dossier visible → 'dossier', nada → 'oculto' (mapa a pantalla completa).
@@ -29,11 +37,17 @@ export function sincronizarLayout() {
   dock.setAttribute('data-vista', vista);
   dock.classList.toggle('dock--oculto', vista === 'oculto');
   const map = window.yvyMap;
-  if (!map || !map.resize) return;
-  const resize = () => { try { map.resize(); } catch { /* mapa sin canvas */ } };
-  resize();
-  setTimeout(resize, 120); // mid transición
-  setTimeout(resize, 320); // post transición
+  if (map && map.resize) {
+    const resize = () => { try { map.resize(); } catch { /* mapa sin canvas */ } };
+    resize();
+    setTimeout(resize, 120); // mid transición
+    setTimeout(resize, 320); // post transición
+  }
+  // Avisar el re-centrado: inmediato y post-transición (el easeTo alcanza
+  // el encuadre final en ambos casos).
+  const avisar = () => { try { if (layoutListener) layoutListener(vista); } catch { /* hook roto no bloquea */ } };
+  avisar();
+  setTimeout(avisar, 330);
 }
 
 function setPanelAbierto(panelId, btnId) {

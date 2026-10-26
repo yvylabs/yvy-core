@@ -1170,32 +1170,14 @@ button.topbar__crumb:hover {
 .dossier-fuente a { color: var(--text-dim); text-decoration: underline; }
 .dossier-fuente a:hover { color: var(--accent); }
 
-/* Nodo JSON-LD */
+/* Nodo del grafo de relaciones (título del bloque) */
 .dossier-json-bloque { margin: 12px 16px 0; }
 
-/* Scroll: nada de desplazamiento horizontal en el panel ni en el JSON */
+/* Scroll: nada de desplazamiento horizontal en el panel */
 .floating-panel__body {
   overflow-x: hidden;
   overflow-wrap: anywhere;
 }
-
-.dossier-json {
-  margin: 8px 0 0;
-  max-height: 300px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 12px;
-  background: #07090D;
-  border: 1px solid #1E293B;
-  border-radius: var(--radius);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.5;
-  color: #7EE2A8;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.dossier-json[hidden] { display: none; }
 
 /* ==============================================================
    FASE 2 — DOCK: PANEL PROTAGONISTA
@@ -1308,7 +1290,10 @@ button.topbar__crumb:hover {
   border-radius: var(--radius);
   background: #07090D;
   overflow: hidden;
+  min-height: 450px; /* constelación con aire, nunca colapsada */
+  transition: min-height 200ms ease;
 }
+.grafo-wrap { width: 100%; }
 .grafo-svg { display: block; width: 100%; height: auto; }
 .grafo-enlace { stroke: #475569; stroke-width: 1.2; fill: none; opacity: 0.9; }
 .grafo-enlace--contiene { stroke: #10B981; opacity: 0.75; }
@@ -1331,6 +1316,11 @@ button.topbar__crumb:hover {
   pointer-events: none;
 }
 .grafo-texto--central { fill: #10B981; font-size: 10px; font-weight: 600; }
+/* Modo denso (>30 hijos): etiquetas periféricas solo en hover (el
+   <title> da el nombre completo); central, padre y vecinos siempre. */
+.grafo--denso .grafo-texto--hijo { opacity: 0; transition: opacity 150ms; }
+.grafo--denso .grafo-nodo--link:hover .grafo-texto--hijo,
+.grafo--denso .grafo-nodo--link:focus .grafo-texto--hijo { opacity: 1; }
 .grafo-leyenda {
   display: flex;
   gap: 14px;
@@ -1356,11 +1346,5 @@ button.topbar__crumb:hover {
 .grafo-leyenda__trazo--broader { border-color: #94A3B8; }
 .grafo-leyenda__trazo--lindero { border-top-style: dashed; }
 
-/* Boton secundario del JSON-LD y foco del dataset desde el start screen */
-.dossier-copy--sec {
-  color: var(--text-dim);
-  border-color: #1E293B;
-  font-size: 11px;
-}
-.dossier-copy--sec:hover { color: var(--text); }
+/* Foco del dataset desde el start screen */
 .dossier-acc--foco { outline: 1px solid rgba(16, 185, 129, 0.55); border-radius: var(--radius); }
