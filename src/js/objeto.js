@@ -304,6 +304,26 @@ function fraseLimita(obj) {
   return `Limita con ${tope.join(', ')}${resto > 0 ? ` y ${resto} más` : ''}.`;
 }
 
+// Tooltip enterprise: "Fuente oficial: [Nombre] — [Año]".
+function titleFuente(f) {
+  const anio = (String(f && f.nombre || '').match(/\d{4}/) || [])[0];
+  return `Fuente oficial: ${f ? f.nombre : '—'}${anio ? ` — ${anio}` : ''}`;
+}
+
+// Un ítem de referencia, con tooltip de fuente oficial.
+function refItem(ref) {
+  const node = document.createElement(ref && ref.url ? 'a' : 'span');
+  if (ref && ref.url) {
+    node.href = ref.url;
+    node.target = '_blank';
+    node.rel = 'noopener noreferrer';
+  }
+  node.textContent = ref ? ref.nombre : 'Sin fuentes registradas';
+  node.className = 'dossier-ref__item';
+  if (ref && ref.nombre) node.title = titleFuente(ref);
+  return node;
+}
+
 function bloqueReferencias(refs) {
   const cont = document.createElement('div');
   cont.className = 'dossier-ref';
@@ -311,27 +331,33 @@ function bloqueReferencias(refs) {
   label.className = 'dossier-ref__label';
   label.textContent = 'Referencias:';
   cont.appendChild(label);
-  const items = refs.map((r) => r.nombre);
-  if (items.length === 0) items.push('Sin fuentes registradas');
-  items.forEach((txt, i) => {
-    const ref = refs[i];
-    if (i > 0) cont.appendChild(document.createTextNode(' · '));
-    if (ref && ref.url) {
-      const a = document.createElement('a');
-      a.href = ref.url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = txt;
-      a.className = 'dossier-ref__item';
-      cont.appendChild(a);
-    } else {
-      const s = document.createElement('span');
-      s.className = 'dossier-ref__item';
-      s.textContent = txt;
-      cont.appendChild(s);
-    }
-  });
+  if (!refs || refs.length === 0) cont.appendChild(refItem(null));
+  else refs.forEach((ref) => cont.appendChild(refItem(ref)));
   return cont;
+}
+
+// Quita el placeholder "Sin fuentes registradas" si algo resuelve tarde.
+function limpiarRefsVacias(refsEl) {
+  const vacio = refsEl.querySelector('.dossier-ref__item');
+  if (vacio && vacio.textContent === 'Sin fuentes registradas') vacio.remove();
+}
+
+// Referencia resuelta tarde (demografía) al frente, con separador.
+function insertarRefItem(refsEl, ref) {
+  limpiarRefsVacias(refsEl);
+  const item = refItem(ref);
+  const label = refsEl.querySelector('.dossier-ref__label');
+  refsEl.insertBefore(item, label ? label.nextSibling : null);
+  refsEl.insertBefore(document.createTextNode(' · '), item.nextSibling);
+}
+
+// Referencia de dataset resuelto tarde, al final.
+function agregarRefItem(refsEl, ref) {
+  limpiarRefsVacias(refsEl);
+  if (refsEl.querySelector('.dossier-ref__item')) {
+    refsEl.appendChild(document.createTextNode(' · '));
+  }
+  refsEl.appendChild(refItem(ref));
 }
 
 // Texto del portapapeles: dossier accionable, sin párrafos.
@@ -383,13 +409,15 @@ function ExtrasRuta(obj) {
   return ruta;
 }
 
-function bloqueCopiar(obj, m, extras) {
+function bloqueCopiar(obj, estadoAg, extras) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'dossier-copy';
   b.textContent = 'Copiar dossier';
   b.addEventListener('click', async () => {
-    const txt = textoDossier(obj, m, extras);
+    // Lee el estado AL CLICKEAR: refleja lo visible (los agregados
+    // async llenan el estado cuando resuelven, nunca después del clic).
+    const txt = textoDossier(obj, estadoAg && estadoAg.m, extras);
     try {
       await navigator.clipboard.writeText(txt);
       b.textContent = 'Copiado';
@@ -623,6 +651,48 @@ function parseMapaJson(s) {
   }
 }
 
+// --------------------------------------------------------------
+// SKELETON — pulso mientras getAgregado resuelve (fetch lazy).
+// -----------------------
+function bloquePulso(claseExtra) {
+  const b = document.createElement('div');
+  b.className = `skeleton-bloque${claseExtra ? ` ${claseExtra}` : ''}`;
+  return b;
+}
+
+/** N bloques grises que pulsan (el reemplazo del panel vacío). */
+function bloqueSkeleton(n) {
+  const g = document.createElement('div');
+  g.className = 'dossier-grupo-skeleton';
+  for (let i = 0; i < n; i++) g.appendChild(bloquePulso());
+  return g;
+}
+
+/** Hero en esqueleto: pulso donde va el número; etiqueta fija y honesta. */
+function bloqueHeroSkeleton() {
+  const hero = document.createElement('div');
+  hero.className = 'dossier-hero dossier-hero--cargando';
+  hero.appendChild(bloquePulso('skeleton-bloque--num'));
+  const lab = document.createElement('div');
+  lab.className = 'dossier-hero-label';
+  lab.textContent = 'Habitantes';
+  hero.appendChild(lab);
+  return hero;
+}
+
+// Acordeón de dataset en carga: se pinta al toque con pulso, se llena
+// cuando responde (o se elimina en 404 = sin datos, nunca se grita).
+function seccionDatasetSkeleton(ds) {
+  const titulo = TITULO_DATASET[ds.tipo] || ds.tipo;
+  const f = fuenteHumana(ds.fuente);
+  const { wrap, body } = crearSeccion(titulo, null, false);
+  wrap.dataset.tipo = ds.tipo; // acceso directo start screen (enfocarDataset)
+  const headT = wrap.querySelector('.dossier-acc__titulo');
+  if (headT) headT.textContent = `${titulo} · ${f.corto}`;
+  body.appendChild(bloqueSkeleton(3));
+  return wrap;
+}
+
 // Acordeón de un dataset con su agregado ya resuelto (o null si 404).
 function seccionDataset(ds, ag) {
   const titulo = TITULO_DATASET[ds.tipo] || ds.tipo;
@@ -677,6 +747,7 @@ function seccionDataset(ds, ag) {
 function agregarFuentePie(foot, f) {
   const fl = document.createElement('span');
   fl.textContent = `Fuente: ${f.nombre}`;
+  fl.title = titleFuente(f);
   foot.appendChild(fl);
   if (f.url) {
     const a = document.createElement('a');
@@ -762,29 +833,27 @@ export async function renderFicha(obj) {
   if (bc) contenedor.appendChild(bc); // el país no lleva breadcrumb
   contenedor.appendChild(bloqueHeader(obj));
 
-  // Agregados aplicables: demografía siempre; catastro/minería según nivel
-  // declarado (depto) o rollup existente (provincia). 404 = no se muestra.
-  const tipos = ['demografia'];
-  if (obj.nivel === 'depto' || obj.nivel === 'provincia') tipos.push('catastro', 'mineria');
-  const ags = {};
-  await Promise.all(tipos.map(async (t) => { ags[t] = await getAgregado(t, obj.yvy_id); }));
-  if (token !== renderToken) return; // llegó tarde: el objeto activo ya cambió
-
+  // Pinta YA lo estructural con skeleton donde hay datos lazy y, al
+  // resolver cada agregado, llena su lugar: tiempo percibido mínimo,
+  // y el token descarta respuestas de un objeto que ya no está activo.
   const ds = Object.fromEntries(getDatasets().map((d) => [d.tipo, d]));
-  const m = ags.demografia && ags.demografia.metricas ? ags.demografia.metricas : null;
-  const d = m ? densidad(obj, Number(m.poblacion)) : null;
   const limita = fraseLimita(obj);
 
-  // Extras para síntesis, copia y referencias (nada inventado).
+  // Estado mutable que lee "Copiar dossier" AL CLICKEAR (refleja lo
+  // visible) y extras para síntesis, copia y referencias (nada inventado).
+  const estadoAg = { m: null };
   const extras = { contiene: null, limita: limita, limitaNombres: null, refs: [], datasetLineas: [] };
-  if (m && m.fuente) extras.refs.push(fuenteHumana(m.fuente));
   if (obj.sup_oficial_km2 != null) extras.refs.push({ nombre: obj.sup_fuente ? `Superficie (${obj.sup_fuente})` : 'Superficie' });
 
-  contenedor.appendChild(bloqueHero(m, d));
-  contenedor.appendChild(bloqueGrid(obj, m));
+  // Hero + grid: pulso mientras responde el censo (fetch lazy).
+  const heroEl = bloqueHeroSkeleton();
+  const gridSkeleton = bloqueSkeleton(3);
+  contenedor.appendChild(heroEl);
+  contenedor.appendChild(gridSkeleton);
+
   // La síntesis ya no depende del censo: habla del lugar del nodo en
   // el grafo (padre, contiene, vecinos) aunque falte el dato demográfico.
-  contenedor.appendChild(bloqueSintesis(obj, m, limita));
+  contenedor.appendChild(bloqueSintesis(obj, null, limita));
 
   // ---- Grafo de relaciones: acordeón de relaciones, junto a "Contiene" ----
   contenedor.appendChild(bloqueGrafo(obj, navegarA));
@@ -821,20 +890,75 @@ export async function renderFicha(obj) {
     extras.limitaNombres = nombres.join(', ');
   }
 
-  // ---- Agregados (catastro / minería) ----
+  // ---- Agregados (catastro / minería): skeleton al toque, fill async ----
   // En provincia solo si existe agregado rollup; en depto según catálogo.
+  // provincia: el rollup puede existir aunque el nivel no lo declare.
+  let focoHecho = false;
+  const foco = focoDatasetPendiente;
+  focoDatasetPendiente = null;
+
+  // Foco pos-navegación del start screen ("Minería en Salta"): se aplica
+  // solo cuando el acordeón tiene datos reales (nunca sobre el skeleton,
+  // que se rebota al llenarse). Si 404 lo eliminó, no hay foco (como hoy).
+  const aplicarFoco = () => {
+    if (!foco || focoHecho) return;
+    const s = contenedor.querySelector(`.dossier-acc[data-tipo="${foco}"]`);
+    if (!s || s.querySelector('.skeleton-bloque')) return;
+    const head = s.querySelector('.dossier-acc__head');
+    if (head) head.click();
+    s.classList.add('dossier-acc--foco');
+    s.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    focoHecho = true;
+  };
+
   for (const tipoD of ['catastro', 'mineria']) {
     const dsMeta = ds[tipoD];
     if (!dsMeta) continue;
     const aplicableNivel = (dsMeta.niveles || []).includes(obj.nivel);
-    const ag = ags[tipoD];
-    if (!aplicableNivel && !(obj.nivel === 'provincia' && ag)) continue;
-    if (!ag) continue; // 404: sin datos, no se muestra (no se grita)
-    const wrap = seccionDataset(dsMeta, ag);
-    if (wrap) {
-      contenedor.appendChild(wrap);
+    if (!aplicableNivel && obj.nivel !== 'provincia') continue;
+    contenedor.appendChild(seccionDatasetSkeleton(dsMeta));
+  }
+
+  const refsEl = bloqueReferencias(extras.refs);
+  contenedor.appendChild(refsEl);
+  contenedor.appendChild(bloqueCopiar(obj, estadoAg, extras));
+
+  // ---- Resolución async por agregado (token guarda contra cambio de activo) ----
+
+  // Demografía → hero y grid reales + primera referencia (al frente).
+  getAgregado('demografia', obj.yvy_id).then((ag) => {
+    if (token !== renderToken) return;
+    if (ag && ag.metricas) {
+      estadoAg.m = ag.metricas;
+      const m = ag.metricas;
+      heroEl.replaceWith(bloqueHero(m, densidad(obj, Number(m.poblacion))));
+      gridSkeleton.replaceWith(bloqueGrid(obj, m));
+      if (ag.fuente) insertarRefItem(refsEl, fuenteHumana(ag.fuente));
+    } else {
+      // Censo sin datos: el pulso sale y la huella honesta queda.
+      heroEl.replaceWith(bloqueHero(null, null));
+      gridSkeleton.replaceWith(bloqueGrid(obj, null));
+    }
+  });
+
+  // Datasets → el skeleton se llena con el acordeón real (o se elimina).
+  for (const tipoD of ['catastro', 'mineria']) {
+    const dsMeta = ds[tipoD];
+    if (!dsMeta) continue;
+    const aplicableNivel = (dsMeta.niveles || []).includes(obj.nivel);
+    if (!aplicableNivel && obj.nivel !== 'provincia') continue;
+    getAgregado(tipoD, obj.yvy_id).then((ag) => {
+      if (token !== renderToken) return;
+      const sk = contenedor.querySelector(`.dossier-acc[data-tipo="${tipoD}"]`);
+      if (!ag) {
+        if (sk) sk.remove(); // 404: sin datos, no se muestra (no se grita)
+        return;
+      }
+      const real = seccionDataset(dsMeta, ag);
+      if (sk && real) sk.replaceWith(real);
+      else if (real) contenedor.appendChild(real);
       const f = fuenteHumana(ag.fuente || dsMeta.fuente);
-      extras.refs.push({ nombre: `${TITULO_DATASET[tipoD]}: ${f.nombre}` });
+      agregarRefItem(refsEl, { nombre: `${TITULO_DATASET[tipoD]}: ${f.nombre}` });
       const mA = ag.metricas || {};
       if (tipoD === 'catastro' && Number(mA.total_parcelas)) {
         extras.datasetLineas.push(`CATASTRO: ${fmtInt.format(Number(mA.total_parcelas))} parcelas${fmtHa(mA.area_total_ha) ? ` (${fmtHa(mA.area_total_ha)})` : ''}`);
@@ -842,24 +966,7 @@ export async function renderFicha(obj) {
       if (tipoD === 'mineria' && Number(mA.total_concesiones)) {
         extras.datasetLineas.push(`MINERÍA: ${fmtInt.format(Number(mA.total_concesiones))} concesiones${fmtHa(mA.area_total_ha) ? ` (${fmtHa(mA.area_total_ha)})` : ''}`);
       }
-    }
-  }
-
-  contenedor.appendChild(bloqueReferencias(extras.refs));
-  contenedor.appendChild(bloqueCopiar(obj, m, extras));
-
-  // Foco pos-navegación del start screen ("Minería en Salta"): el
-  // pendiente lo pone enfocarDataset() ANTES de navegar; si la sección
-  // existe (depto/provincia con rollup), se abre y se resalta.
-  const foco = focoDatasetPendiente;
-  focoDatasetPendiente = null;
-  if (foco) {
-    const s = contenedor.querySelector(`.dossier-acc[data-tipo="${foco}"]`);
-    if (s) {
-      const head = s.querySelector('.dossier-acc__head');
-      if (head) head.click();
-      s.classList.add('dossier-acc--foco');
-      s.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    }
+      aplicarFoco();
+    });
   }
 }

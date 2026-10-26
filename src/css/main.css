@@ -15,7 +15,9 @@
 :root {
   --bg: #0B0E14;
   --surface: #12151D;
+  --surface-hover: #161B22; /* hover enterprise de acordeones */
   --surface-translucent: #12151D;
+  --skeleton: #17202E;
   --border: rgba(148, 163, 184, 0.14);
   --text: #E2E8F0;
   --text-dim: #94A3B8;
@@ -1081,13 +1083,22 @@ button.topbar__crumb:hover {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text);
-  transition: color var(--transition);
+  transition: color var(--transition), background var(--transition);
 }
-.dossier-acc__head:hover { color: var(--accent); }
+/* Hover enterprise: superficie elevada + flecha corriendo 2px */
+.dossier-acc__head:hover,
+.dossier-acc__head:focus-visible {
+  color: var(--accent);
+  background: var(--surface-hover);
+}
+.dossier-acc__head:hover .dossier-acc__chevron::before {
+  transform: translateX(2px);
+}
 
 .dossier-acc__conteo {
   color: var(--text-dim);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .dossier-acc__chevron::before {
@@ -1100,6 +1111,10 @@ button.topbar__crumb:hover {
   transform: rotate(90deg);
   color: var(--accent);
 }
+/* Flecha abierta: el hover corre 2px en su dirección (hacia abajo) */
+.dossier-acc__head[aria-expanded='true']:hover .dossier-acc__chevron::before {
+  transform: rotate(90deg) translateX(2px);
+}
 
 .dossier-acc__body { padding: 4px 6px 8px; }
 .dossier-acc__body[hidden] { display: none; }
@@ -1107,6 +1122,30 @@ button.topbar__crumb:hover {
 /* El grid de métricas vive anidado en el cuerpo del acordeón:
    sin los márgenes horizontales de la versión top-level. */
 .dossier-acc .dossier-grid { margin: 6px 4px 0; }
+
+/* Skeleton: pulso mientras getAgregado resuelve (fetch lazy) */
+.skeleton-bloque {
+  height: 14px;
+  border-radius: 4px;
+  background: var(--skeleton);
+  animation: skeleton-pulso 1.4s ease-in-out infinite;
+}
+.skeleton-bloque--num { height: 30px; width: 150px; }
+.skeleton-bloque:nth-child(2) { width: 78%; animation-delay: 0.15s; }
+.skeleton-bloque:nth-child(3) { width: 56%; animation-delay: 0.3s; }
+
+.dossier-grupo-skeleton {
+  margin: 12px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dossier-acc .dossier-grupo-skeleton { margin: 6px 4px 0; }
+
+@keyframes skeleton-pulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.42; }
+}
 
 .dossier-acc__grupo {
   padding: 8px 10px 4px;
