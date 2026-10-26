@@ -177,13 +177,31 @@ button.topbar__crumb:hover {
 /* ==============================================================
    MAPA
    ============================================================== */
-.map {
+/* ==============================================================
+   LAYOUT FLEX: columna dock + columna mapa (contenedor REAL)
+   ============================================================== */
+.layout {
   position: absolute;
   top: var(--topbar-height);
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px)); /* status-bar */
   left: 0;
+  right: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.mapa-col {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.map {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: calc(100vh - var(--topbar-height) - 28px); /* menos status-bar */
-  height: calc(100dvh - var(--topbar-height) - 28px - env(safe-area-inset-bottom, 0px));
+  height: 100%;
   background: var(--bg);
 }
 
@@ -266,8 +284,10 @@ button.topbar__crumb:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
+/* Toolbar DENTRO de la columna del mapa: se corre solo al cambiar el ancho */
 .toolbar--left {
-  top: calc(var(--topbar-height) + 14px);
+  position: absolute;
+  top: 14px;
   left: 14px;
 }
 
@@ -690,7 +710,7 @@ button.topbar__crumb:hover {
 .welcome-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
 /* Print: el dossier es la única salida de papel */
-@media print{.topbar,.toolbar,#map,.welcome,.status-bar{display:none!important} body{overflow:visible;background:#fff;color:#000} .floating-panel{position:static;box-shadow:none}}
+@media print{.topbar,.toolbar,.mapa-col,.status-bar,.dock .welcome{display:none!important} body{overflow:visible;background:#fff;color:#000} .layout{position:static;display:block} .dock{width:100%!important;border:0;background:#fff} .dock .floating-panel{position:static;box-shadow:none;background:#fff}}
 
 /* UI v2 responsive: bottom-sheet movil + touch 44px */
 @media (max-width: 480px) {
@@ -1180,43 +1200,36 @@ button.topbar__crumb:hover {
 }
 
 /* ==============================================================
-   FASE 2 — DOCK: PANEL PROTAGONISTA
-   El dossier nace a la izquierda con fondo solido; el mapa cede
-   su espacio (no se superpone) y se redimensiona con map.resize.
-   Solo desktop: en <=768px el dock desaparece como contenedor y
-   los paneles vuelven a su comportamiento overlay / bottom-sheet.
+   FASE 2B — LAYOUT FLEX: el dock es la COLUMNA IZQUIERDA del flex
+   y el mapa es un contenedor real (mapa-col). Sin enmascarados ni
+   padding de MapLibre: resize() del ResizeObserver alcanza.
+   Solo desktop: en <=768px la columna es muda y los paneles vuelven
+   a su comportamiento overlay / bottom-sheet.
    ============================================================== */
 :root { --dock-ancho: clamp(500px, 40vw, 650px); }
 
 @media (min-width: 769px) {
   .dock {
-    position: fixed;
-    top: var(--topbar-height);
-    bottom: 28px; /* status-bar */
-    left: 0;
+    flex: 0 0 auto;
     width: var(--dock-ancho);
-    z-index: 900;
+    position: relative;
     background: #0D1117;
     border-right: 1px solid #1E293B;
     overflow: hidden;
-    transition: opacity 200ms ease, transform 240ms ease;
+    /* Sin transición de width: colapso instantáneo determinista. El
+       ResizeObserver del mapa dispara resize() al nuevo ancho al toque;
+       el fade de contenido es el único cosmético. */
   }
-  .dock--oculto { opacity: 0; transform: translateX(-24px); pointer-events: none; }
 
-  /* Mapa: anclado a la derecha del dock (nunca tapado) */
-  html[data-dock="welcome"] .map,
-  html[data-dock="dossier"] .map {
-    left: var(--dock-ancho);
-    width: auto;
-  }
-  /* Start screen: el globo queda sutil, la atencion en el panel */
+  /* Estado oculto: la columna colapsa y el mapa ocupa todo (RO redimensiona) */
+  html[data-dock="oculto"] .dock { width: 0; border-right-color: transparent; }
+  html[data-dock="oculto"] .dock > section { opacity: 0; }
+  .dock > section { transition: opacity 180ms ease; }
+
+  /* Start screen: el globo queda sutil, la atención en el panel */
   html[data-dock="welcome"] .map { filter: brightness(0.62) saturate(0.8); }
 
-  /* Toolbar sobre el mapa, no encima del dock */
-  html[data-dock="welcome"] .toolbar--left,
-  html[data-dock="dossier"] .toolbar--left { left: calc(var(--dock-ancho) + 14px); }
-
-  /* Welcome = start screen del dock (rellena el panel, fondo solido) */
+  /* Welcome = start screen de la columna (rellena el panel, fondo sólido) */
   .dock .welcome {
     position: absolute;
     inset: 0;
@@ -1237,7 +1250,7 @@ button.topbar__crumb:hover {
     box-shadow: none;
   }
 
-  /* Dossier: anclado dentro del dock, ancho clamp y scroll interno propio */
+  /* Dossier: anclado dentro de la columna, scroll interno propio */
   .dock .floating-panel,
   .dock #panel-explorador {
     position: absolute;
@@ -1255,7 +1268,9 @@ button.topbar__crumb:hover {
 }
 
 @media (max-width: 768px) {
-  /* El dock es un contenedor mudo: los hijos quedan fixed (legacy) */
+  /* La columna es un contenedor mudo: los hijos quedan fixed (bottom-sheet) */
+  .layout { display: block; }
+  .mapa-col { position: absolute; inset: 0; }
   .dock {
     position: static;
     width: 0;

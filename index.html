@@ -62,75 +62,77 @@
   </header>
 
   <!-- ============================================================ -->
-  <!-- DOCK: PANEL PROTAGONISTA (el mapa cede el espacio; nunca tapa) -->
-  <!-- Dos vistas del mismo panel: bienvenida (start screen) y dossier -->
+  <!-- LAYOUT FLEX: columna izquierda (dock) + columna del mapa       -->
+  <!-- El mapa es un contenedor REAL: no se superpone ni se enmascara -->
   <!-- ============================================================ -->
-  <main id="map" class="map">
-  </main>
+  <div class="layout">
+    <aside class="dock" id="dock" data-vista="inicio">
+      <!-- Vista BIENVENIDA / COMMAND (start screen: buscar + accesos reales) -->
+      <section class="welcome" id="welcome" aria-label="Consulta territorial">
+        <div class="welcome__panel">
+          <header class="welcome__head">
+            <span class="welcome__eyebrow">CONSULTA TERRITORIAL</span>
+            <h1 class="welcome__title">¿Qué lugar querés consultar?</h1>
+          </header>
 
-  <aside class="dock" id="dock" data-vista="inicio">
-    <!-- Vista BIENVENIDA / COMMAND (start screen: buscar + accesos reales) -->
-    <section class="welcome" id="welcome" aria-label="Consulta territorial">
-      <div class="welcome__panel">
-        <header class="welcome__head">
-          <span class="welcome__eyebrow">CONSULTA TERRITORIAL</span>
-          <h1 class="welcome__title">¿Qué lugar querés consultar?</h1>
+          <div class="welcome__search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+            <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar un lugar…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar" />
+            <span class="welcome__hint" id="welcome-hint"></span>
+          </div>
+
+          <div class="welcome__results" id="welcome-results"></div>
+
+          <footer class="welcome__foot">
+            <span class="welcome__foot-label">ACCESOS</span>
+            <div class="welcome__suggestions" id="welcome-suggestions"></div>
+            <span class="welcome__kbd">Ctrl+K para buscar · Esc para ocultar el panel</span>
+            <span class="welcome__meta" id="welcome-meta"></span>
+          </footer>
+        </div>
+      </section>
+
+      <!-- Vista DOSSIER (jurisdicción elegida) -->
+      <section class="floating-panel" id="panel-explorador" hidden aria-label="Dossier de la jurisdicción">
+        <header class="floating-panel__head" id="explorer-head-inspect">
+          <div class="explorer-inspect-title">
+            <span class="explorer-inspect-title__label">Dossier</span>
+            <span class="explorer-inspect-title__id" id="explorer-inspect-id">—</span>
+          </div>
+          <button class="floating-panel__close" data-close aria-label="Cerrar, volver al inicio">✕</button>
         </header>
-
-        <div class="welcome__search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-          <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar un lugar…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar" />
-          <span class="welcome__hint" id="welcome-hint"></span>
+        <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
+          <div id="objeto-info"></div>
         </div>
+      </section>
+    </aside>
 
-        <div class="welcome__results" id="welcome-results"></div>
+    <!-- Columna del MAPA: ocupa TODO el espacio restante (flex: 1) -->
+    <main class="mapa-col" id="mapa-col">
+      <div id="map" class="map"></div>
 
-        <footer class="welcome__foot">
-          <span class="welcome__foot-label">ACCESOS</span>
-          <div class="welcome__suggestions" id="welcome-suggestions"></div>
-          <span class="welcome__kbd">Ctrl+K para buscar · Esc para ocultar el panel</span>
-          <span class="welcome__meta" id="welcome-meta"></span>
-        </footer>
-      </div>
-    </section>
+      <!-- TOOLBAR (vive DENTRO de la columna del mapa: se corre solo) -->
+      <nav class="toolbar toolbar--left" id="toolbar-left" aria-label="Barra de navegación">
+        <button class="toolbar-btn" id="btn-buscar" aria-expanded="false" aria-label="Buscar jurisdicción" data-tooltip="Buscar jurisdicción">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+        </button>
 
-    <!-- Vista DOSSIER (jurisdicción elegida) -->
-    <section class="floating-panel" id="panel-explorador" hidden aria-label="Dossier de la jurisdicción">
-      <header class="floating-panel__head" id="explorer-head-inspect">
-        <div class="explorer-inspect-title">
-          <span class="explorer-inspect-title__label">Dossier</span>
-          <span class="explorer-inspect-title__id" id="explorer-inspect-id">—</span>
-        </div>
-        <button class="floating-panel__close" data-close aria-label="Cerrar, volver al inicio">✕</button>
-      </header>
-      <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
-        <div id="objeto-info"></div>
-      </div>
-    </section>
-  </aside>
+        <button class="toolbar-btn" id="btn-ficha" aria-expanded="false" aria-label="Dossier de la jurisdicción" data-tooltip="Dossier del objeto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></svg>
+        </button>
 
-  <!-- ============================================================ -->
-  <!-- TOOLBAR IZQUIERDO (Buscar + Ficha + Compartir) -->
-  <!-- ============================================================ -->
-  <nav class="toolbar toolbar--left" id="toolbar-left" aria-label="Barra de navegación">
-    <button class="toolbar-btn" id="btn-buscar" aria-expanded="false" aria-label="Buscar jurisdicción" data-tooltip="Buscar jurisdicción">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-    </button>
-
-    <button class="toolbar-btn" id="btn-ficha" aria-expanded="false" aria-label="Dossier de la jurisdicción" data-tooltip="Dossier del objeto">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></svg>
-    </button>
-
-    <button class="toolbar-btn" id="btn-zoom-in" aria-label="Acercar" data-tooltip="Acercar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-    <button class="toolbar-btn" id="btn-zoom-out" aria-label="Alejar" data-tooltip="Alejar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-    <button class="toolbar-btn" id="btn-location" aria-label="Mi ubicación" data-tooltip="Mi ubicación">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-    </button>
-  </nav>
+        <button class="toolbar-btn" id="btn-zoom-in" aria-label="Acercar" data-tooltip="Acercar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="toolbar-btn" id="btn-zoom-out" aria-label="Alejar" data-tooltip="Alejar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="toolbar-btn" id="btn-location" aria-label="Mi ubicación" data-tooltip="Mi ubicación">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        </button>
+      </nav>
+    </main>
+  </div>
 
   <!-- ============================================================ -->
   <!-- BARRA DE PRODUCTO (objeto activo) -->

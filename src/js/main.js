@@ -18,38 +18,9 @@ import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
-import { onLayoutChange } from './ui.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
-
-/** Ancho actual del dock (clamp CSS): el mapa cede exactamente ese espacio. */
-function anchoDock() {
-  const d = document.getElementById('dock');
-  return d && d.offsetWidth > 40 ? d.offsetWidth : 440;
-}
-
-// Objeto activo (para re-centrar tras transiciones de layout del dock).
-let objetoActivoMapa = null;
-
-/**
- * Re-centra el objeto activo tras un cambio de ancho/estado del panel.
- * map.resize() conserva el centro geográfico, no el encuadre visual:
- * sin este hook, el objeto queda corrido cuando el dock roba espacio.
- */
-function recentrarMapa() {
-  if (!map || map.isMoving()) return; // nunca interrumpe un vuelo en curso
-  const obj = objetoActivoMapa;
-  const c = obj && (Array.isArray(obj.centro_etiqueta) ? obj.centro_etiqueta : obj.centro);
-  if (!c || !Array.isArray(c) || !isFinite(c[0])) return;
-  const estado = document.documentElement.getAttribute('data-dock');
-  const padIzq = estado === 'oculto' ? 40 : anchoDock();
-  try {
-    map.easeTo({ center: [c[0], c[1]], duration: 400, padding: { top: 40, right: 40, bottom: 40, left: padIzq } });
-  } catch { /* cámara no lista */ }
-}
-
-onLayoutChange(() => recentrarMapa());
 // Atribución del basemap (la pone MapLibre desde el style): OpenFreeMap © OpenMapTiles © OpenStreetMap.
 
 /** Basemap vectorial oscuro (fork OpenFreeMap, etiquetas en español). Con fallback a fondo plano. */
@@ -233,7 +204,6 @@ async function irAYvyId(yvyId) {
   if (yvyId == null) {
     // Deseleccionar: ocultar todo el contexto y limpiar la UI
     setObjetoActual(null);
-    objetoActivoMapa = null;
     aplicarBandaVisible(null);
     setObjetoBarra(null);
     limpiarFicha();
@@ -241,7 +211,6 @@ async function irAYvyId(yvyId) {
   }
   const obj = getObjeto(yvyId);
   if (!obj) return;
-  objetoActivoMapa = obj;
   setObjetoActivo(obj);
   setObjetoActual(yvyId);
   cerrarBienvenida();
@@ -252,23 +221,21 @@ async function irAYvyId(yvyId) {
   // Vuelo inicial para país: globo centrado en Argentina
   if (obj.nivel === 'pais') {
     map.flyTo({ center: [-64, -50], zoom: 2.3, duration: 1400 });
-    map.once('moveend', () => {
-      map.setPadding({ top: 40, right: 40, bottom: 40, left: anchoDock() });
-    });
     mostrarObjeto(yvyId);
     return;
   }
 
-  // Vuelo normal para provincias, departamentos y municipios
+  // Vuelo normal para provincias, departamentos y municipios.
+  // Sin padding de MapLibre: el contenedor del mapa ES el área visible
+  // (flex), el centro del canvas es el centro de lo que se ve.
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
-  const padIzq = Math.max(anchoDock(), 380) + 100;
   try {
     if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
       const b = obj.bounds_objeto;
       const cam = map.cameraForBounds(
         [[b[0], b[1]], [b[2], b[3]]],
-        { padding: { top: 80, bottom: 80, right: 80, left: padIzq }, maxZoom: (obj.maxzoom ?? 22) + 3, minZoom: Math.min(obj.minzoom ?? 0, 6) }
+        { padding: { top: 80, bottom: 80, right: 80, left: 80 }, maxZoom: (obj.maxzoom ?? 22) + 3, minZoom: Math.min(obj.minzoom ?? 0, 6) }
       );
       if (cam) {
         centro = cam.center;
@@ -279,25 +246,6 @@ async function irAYvyId(yvyId) {
     // bounds degenerados: se vuela a centro/zoom fijos
   }
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
-
-  // Siempre que hay un objeto activo, el mapa se corre a la derecha para
-  // no tapar el panel fijo. Solo se desplaza más si el objeto queda muy a
-  // la izquierda (objetos pequeños en zoom alto).
-  map.once('moveend', () => {
-    map.setPadding({ top: 40, right: 40, bottom: 40, left: anchoDock() });
-    if (!obj || !Array.isArray(obj.centro)) return;
-    if (obj.nivel === 'pais' || obj.nivel === 'provincia') return;
-    const b = Array.isArray(obj.bounds_objeto) ? obj.bounds_objeto : null;
-    if (b && Math.abs(b[2] - b[0]) > 1.5) return;
-    try {
-      const pt = map.project(obj.centro);
-      const panelLimit = anchoDock();
-      if (pt.x < panelLimit) {
-        const nc = map.unproject([pt.x + panelLimit - pt.x, pt.y]);
-        map.easeTo({ center: [nc.lng, nc.lat], duration: 700 });
-      }
-    } catch { /* no desplaza si falla la proyección */ }
-  });
 
   mostrarObjeto(yvyId);
 }
@@ -324,7 +272,6 @@ const VISTA_INICIAL = { center: [-60, -24], zoom: 2.2, pitch: 0, bearing: 0 };
 
 function volverAlInicio() {
   setObjetoActual(null);
-  objetoActivoMapa = null;
   setObjetoBarra(null);
   limpiarFicha();
   aplicarBandaVisible(null);
@@ -381,5 +328,12 @@ map.on('load', async () => {
 
 window.addEventListener('resize', () => {
   map.resize();
-  recentrarMapa();
 });
+
+// ResizeObserver sobre el contenedor REAL del mapa: cualquier cambio
+// de ancho de la columna (dock abre/cierra colapsando, viewport, etc.)
+// dispara resize() solo — sin timers adivinando el layout.
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => { try { map.resize(); } catch { /* mapa sin canvas */ } })
+    .observe(document.getElementById('map'));
+}
