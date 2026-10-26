@@ -18,6 +18,7 @@ import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
+import { inicializarSintetico } from './sintetico.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -314,6 +315,10 @@ map.on('load', async () => {
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
   inicializarBienvenida(irAYvyId);
+
+  // Red sintética del welcome: 24 provincias sobre el globo (solo render).
+  // Necesita el manifest ya cargado (depende de garantizarDatos arriba).
+  inicializarSintetico();
 
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);

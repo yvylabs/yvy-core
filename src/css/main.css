@@ -1147,6 +1147,61 @@ button.topbar__crumb:hover {
   50% { opacity: 0.42; }
 }
 
+/* ==============================================================
+   RED SINTÉTICA DEL WELCOME — provincias proyectadas sobre el
+   globo (solo render: nombre + punto, sin datos numéricos).
+   La red de linderos dibuja la silueta de Argentina girando con
+   la Tierra. Océano azul-noche es render del estado (sintetico.js).
+   ============================================================== */
+.sintetico-red {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5; /* sobre el canvas, bajo el toolbar y el dock */
+  pointer-events: none;
+  overflow: hidden;
+  transition: opacity 320ms ease;
+}
+.sintetico-red--off { opacity: 0; }
+
+.sintetico__enlace {
+  stroke: rgba(16, 185, 129, 0.32);
+  stroke-width: var(--sint-enlace, 1);
+  fill: none;
+}
+
+.sintetico__nodo { pointer-events: auto; cursor: pointer; }
+.sintetico__halo {
+  fill: none;
+  stroke: rgba(16, 185, 129, 0.16);
+  r: calc(var(--sint-radio, 4.5) * 2.4);
+  transition: stroke var(--transition);
+}
+.sintetico__nucleo {
+  fill: #10b981;
+  r: var(--sint-radio, 4.5);
+  transition: fill var(--transition);
+}
+.sintetico__nodo:hover .sintetico__nucleo { fill: #34d399; }
+.sintetico__nodo:hover .sintetico__halo { stroke: rgba(52, 211, 153, 0.5); }
+
+.sintetico__etiqueta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  fill: #E2E8F0;
+  opacity: 0.92;
+  paint-order: stroke;
+  stroke: rgba(7, 9, 13, 0.8);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+/* Aleja el globo: solo silueta de nodos y enlaces; nombres al acercar */
+.sintetico-red--lejos .sintetico__etiqueta { opacity: 0; }
+
 .dossier-acc__grupo {
   padding: 8px 10px 4px;
   font-family: var(--font-mono);
@@ -1265,8 +1320,8 @@ button.topbar__crumb:hover {
   html[data-dock="oculto"] .dock > section { opacity: 0; }
   .dock > section { transition: opacity 180ms ease; }
 
-  /* Start screen: el globo queda sutil, la atención en el panel */
-  html[data-dock="welcome"] .map { filter: brightness(0.62) saturate(0.8); }
+  /* Start screen: el globo con textura legible bajo la red de provincias */
+  html[data-dock="welcome"] .map { filter: brightness(0.7) contrast(1.1); }
 
   /* Welcome = start screen de la columna (rellena el panel, fondo sólido) */
   .dock .welcome {

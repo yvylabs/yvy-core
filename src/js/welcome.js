@@ -210,7 +210,12 @@ export function inicializarBienvenida(fnNavegar) {
 export function cerrarBienvenida() {
   if (!overlay || overlay.hasAttribute('hidden')) return;
   overlay.classList.add('welcome--hide');
-  setTimeout(() => overlay.setAttribute('hidden', ''), 220);
+  setTimeout(() => {
+    overlay.setAttribute('hidden', '');
+    // El dock re-evalúa al ocultarse el overlay: dossier abierto → 'dossier',
+    // sin ficha → 'oculto' (nunca queda clavado en el valor transitorio).
+    sincronizarLayout();
+  }, 220);
 }
 
 /** Reabre el start screen (logo/brand: volver al globo + panel inicial). */
