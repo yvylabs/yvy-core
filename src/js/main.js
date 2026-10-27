@@ -12,7 +12,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 
 import { cargarDatos, getObjeto, getPadre, getObjetoActivo, setObjetoActivo, setNavegador } from './manifest.js';
-import { agregarCapaObjeto, silenciarTextosBase, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
+import { agregarCapaObjeto, silenciarTextosBase, setEtiquetasBase, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
 import { inicializarUIPaneles, inicializarTabsMobile } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
@@ -191,10 +191,15 @@ function inicializarModoMapa() {
     document.documentElement.toggleAttribute('data-mapa-full', full);
     btnFull.setAttribute('aria-expanded', String(full));
     if (btnCerrar) btnCerrar.hidden = !full;
-    // Encuadre por estado (R5): mapa lleno = bicontinental; al volver a la
-    // tira, re-ajusta al objeto activo (si lo hay).
-    if (full) encuadrarLleno();
-    else encuadrarDossier();
+    // Encuadre por estado (R5-c/R5-d): mapa lleno = bicontinental sin
+    // etiquetas de basemap; tira = fit del objeto activo + etiquetas ON.
+    if (full) {
+      encuadrarLleno();
+      setEtiquetasBase(map, false);
+    } else {
+      encuadrarDossier();
+      setEtiquetasBase(map, true);
+    }
   }
 
   btnFull.addEventListener('click', () => {
@@ -393,12 +398,15 @@ if (brandEl) {
 }
 
 // Encuadre por estado (R5): cada cambio de vista del dock releva la cámara.
-// oculto (mapa lleno) → bicontinental; dossier → fit del objeto activo;
-// welcome → no toca la cámara (arranque ya está en VISTA_INICIAL).
+// dossier (tira) → fit del objeto activo + etiquetas del basemap ON;
+// oculto (mapa lleno) → bicontinental + etiquetas OFF (el único texto
+// del globo es el de la ontología). welcome → no toca la cámara.
 document.addEventListener('yvy:dock', (e) => {
   const vista = e.detail?.vista;
+  const lleno = document.documentElement.hasAttribute('data-mapa-full') || vista !== 'dossier';
   if (vista === 'oculto') encuadrarLleno();
-  else if (vista === 'dossier') encuadrarDossier();
+  else if (vista === 'dossier' && !document.documentElement.hasAttribute('data-mapa-full')) encuadrarDossier();
+  setEtiquetasBase(map, !lleno);
 });
 
 // --------------------------------------------------------------
@@ -443,10 +451,17 @@ map.on('load', async () => {
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
 
-  // R5: sin boot demo. Sin permalink el arranque ES el Welcome (abierto
-  // por inicializarBienvenida) sobre el mapa bicontinental; el grafo
-  // muestra la red completa de provincias. Con permalink, share.js
-  // navega (irAYvyId cierra el Welcome y ajusta la ficha).
+  // BOOT demo (R5-c: revert al estado imagen 2): sin permalink arranca
+  // con Salta cargada (tira encuadrada + dossier + grafo con halo). El
+  // Welcome queda como panel secundario: Ctrl+K o botón buscar. Con el
+  // encuadre por estado la tira hace fit a Salta (nunca "mapa cortado").
+  if (!location.hash) {
+    try {
+      await irAYvyId(1066); // Salta provincia (yvy:1066, parent 0)
+    } catch (err) {
+      console.warn('[yvy] boot demo Salta falló:', err?.message || err);
+    }
+  }
 
   // Barra de producto
   inicializarBarraTecnica(map);

@@ -1387,7 +1387,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
    Solo desktop: en <=768px la columna es muda y los paneles vuelven
    a su comportamiento overlay / bottom-sheet.
    ============================================================== */
-:root { --dock-ancho: clamp(600px, 55vw, 800px); --mapa-alto: 192px; }
+:root { --dock-ancho: clamp(600px, 55vw, 800px); --mapa-alto: 240px; }
 
 @media (min-width: 769px) {
   .dock {
@@ -1403,7 +1403,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   }
 
   /* MAPA INCRUSTADO: tira superior del dossier.
-     Altura por inset-par (top 0 / bottom calc(100% - 192px)): el motor
+     Altura por inset-par (top 0 / bottom calc(100% - 240px)): el motor
      de test computa alturas absolutas por insets (height literal se lo
      saltea); en Chrome real el resultado es idéntico.
      Sin ficha (oculto): la tira baja al 100% de la columna. */
@@ -1412,56 +1412,36 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     top: 0;
     left: 0;
     right: 0;
-    bottom: calc(100% - 192px);
+    bottom: calc(100% - 240px);
     z-index: 1;
   }
   /* Clase companion (JS en ui.js): el motor de test matchea
      atributos por presencia — la clase es determinista en ambos. */
   .mapa-col--lleno { bottom: 0; }
 
-  /* Tira mínima (R5): sin toolbar flotante — SOLO ⤢ en la esquina
-     superior derecha (widget plano, sin caja flotante). Pan sí,
-     controles no: buscar vía Ctrl+K/welcome; zoom/ubicación/ficha
-     solo en mapa lleno (oculto o fullscreen). */
+  /* Tira (R5-c: revert a imagen 2): toolbar COMPLETA compacta en fila
+     (buscar, ficha, zoom, ubicación, ⤢). En mapa lleno/fullscreen la
+     toolbar vuelve a su tamaño normal por las reglas de abajo. */
   .mapa-col--incrustado .toolbar--left {
+    flex-direction: row;
     top: 8px;
-    left: auto;
-    right: 8px;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    padding: 0;
-    gap: 0;
+    left: 8px;
   }
-  .mapa-col--incrustado .toolbar-btn { display: none; }
-  .mapa-col--incrustado .toolbar-btn:last-child {
-    display: flex;
-    width: 30px;
-    height: 30px;
-    background: var(--map-widget-bg);
-    border: 1px solid var(--map-widget-border);
-    border-radius: var(--radius-sm);
-  }
-  .mapa-col--incrustado .toolbar-btn:last-child svg { width: 16px; height: 16px; }
+  .mapa-col--incrustado .toolbar-btn { width: 30px; height: 30px; }
+  .mapa-col--incrustado .toolbar-btn svg { width: 16px; height: 16px; }
 
   /* Mapa lleno (sin ficha): toolbar COMPLETA (R5) — igual que fullscreen. */
   .mapa-col--lleno .toolbar--left {
     top: 14px;
     left: 14px;
     right: auto;
-    background: var(--map-widget-bg);
-    border: 1px solid var(--map-widget-border);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    flex-direction: column;
     padding: 6px;
     gap: 6px;
   }
   .mapa-col--lleno .toolbar-btn {
-    display: flex;
     width: 40px;
     height: 40px;
-    background: transparent;
-    border: 0;
-    border-radius: var(--radius-sm);
   }
 
   /* ⤢ Expandir mapa: la MISMA columna pasa a overlay fija (fullscreen).
@@ -1544,11 +1524,11 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     box-shadow: none;
   }
 
-  /* Dossier: anclado debajo de la tira del mapa (192px literal), scroll interno */
+  /* Dossier: anclado debajo de la tira del mapa (240px literal), scroll interno */
   .dock .floating-panel,
   .dock #panel-explorador {
     position: absolute;
-    top: 192px;
+    top: 240px;
     right: 0;
     bottom: 0;
     left: 0;

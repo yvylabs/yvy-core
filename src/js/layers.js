@@ -23,23 +23,49 @@ const BORDE_PX = 1.2;
 // La geometría es solo render (SPEC §1): el relleno no dice nada.
 // La capa fill queda (in) porque sostiene el clic por objeto.
 const SIN_RELLENO = 0;
-// Texto del basemap: OCULTO por completo (feedback fase 1). El único
-// texto visible en el mapa es el de la ontología (los nodos del grafo).
+// Texto del basemap: OCULTO en el globo lleno (feedback fase 1 — el único
+// texto visible allí es el de la ontología, los nodos del grafo); en la
+// TIRA del dossier se re-enciende para orientar (setEtiquetasBase).
 const OPACIDAD_VECINOS = 0.3;
 
 /**
  * Ocultar todas las capas de texto del basemap: lugar, agua, rutas,
  * POI, escudos ("5", "43" incluidos). Si es symbol y lleva text-field,
  * la capa se apaga. Los iconos sin texto no se tocan.
+ * R5-d: guardo los ids para que setEtiquetasBase() pueda re-encender
+ * SOLO la tira (dossier): en el globo lleno el único texto visible es
+ * el de la ontología (SPEC §4).
  */
-export function silenciarTextosBase(map) {
-  const capas = (map.getStyle() && map.getStyle().layers) || [];
-  for (const l of capas) {
-    if (l.type !== 'symbol' || !l.layout || !('text-field' in l.layout)) continue;
+let etiquetasOn = false;
+
+function aplicarEtiquetasBase(map, visible) {
+  for (const id of map.__yvyTextosBase || []) {
     try {
-      if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', 'none');
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
     } catch { /* capa no consultable: ignorar */ }
   }
+}
+
+export function silenciarTextosBase(map) {
+  const capas = (map.getStyle() && map.getStyle().layers) || [];
+  const ids = [];
+  for (const l of capas) {
+    if (l.type !== 'symbol' || !l.layout || !('text-field' in l.layout)) continue;
+    ids.push(l.id);
+  }
+  map.__yvyTextosBase = ids;
+  aplicarEtiquetasBase(map, etiquetasOn);
+}
+
+/**
+ * Etiquetas del basemap: visibles SOLO en la tira del dossier (el
+ * mini-mapa orientación con nombres reales); ocultas en mapa lleno.
+ * Puede llamarse antes de que el estilo cargue: el flag persiste y
+ * silenciarTextosBase lo aplica al llegar el styledata.
+ */
+export function setEtiquetasBase(map, visible) {
+  etiquetasOn = !!visible;
+  if (map && map.__yvyTextosBase) aplicarEtiquetasBase(map, etiquetasOn);
 }
 
 // Geometría por nivel (SPEC §6: liviano en el deploy, pesado en R2):

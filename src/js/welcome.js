@@ -199,11 +199,10 @@ export function inicializarBienvenida(fnNavegar) {
     }
   });
 
-  // R5: el boot ES el Welcome (buscador + grafo limpio). Sin objeto
-  // activo no hay ficha que devolver; un permalink (share.js) lo cierra
-  // vía cerrarBienvenida() dentro de irAYvyId(). Sigue abrible por
-  // Ctrl+K, botón buscar o mostrarBienvenida().
-  abrir();
+  render('');
+  // R5-c (revert): el Welcome NO abre al arrancar — el boot es Salta
+  // cargada (tira + dossier + grafo). Se abre por Ctrl+K, botón buscar
+  // o mostrarBienvenida().
 }
 
 /**
