@@ -394,6 +394,7 @@ if (brandEl) {
   brandEl.addEventListener('click', (e) => {
     e.preventDefault();
     volverAlInicio();
+    mostrarBienvenida(); // portada: el globo + la tarjeta de consulta
   });
 }
 
@@ -451,17 +452,11 @@ map.on('load', async () => {
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
 
-  // BOOT demo (R5-c: revert al estado imagen 2): sin permalink arranca
-  // con Salta cargada (tira encuadrada + dossier + grafo con halo). El
-  // Welcome queda como panel secundario: Ctrl+K o botón buscar. Con el
-  // encuadre por estado la tira hace fit a Salta (nunca "mapa cortado").
-  if (!location.hash) {
-    try {
-      await irAYvyId(1066); // Salta provincia (yvy:1066, parent 0)
-    } catch (err) {
-      console.warn('[yvy] boot demo Salta falló:', err?.message || err);
-    }
-  }
+  // PORTADA (R6): sin boot demo — el arranque es el globo bicontinental
+  // (Sudamérica + Antártida, límites de países) + la tarjeta de consulta
+  // flotando sobre el mapa + el grafo protagonista. El dossier NO existe
+  // hasta que el cliente elige (cero espacio vacío). Con permalink,
+  // share.js navega directo (irAYvyId cierra la tarjeta).
 
   // Barra de producto
   inicializarBarraTecnica(map);

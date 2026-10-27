@@ -1389,10 +1389,21 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
    ============================================================== */
 :root { --dock-ancho: clamp(600px, 55vw, 800px); --mapa-alto: 240px; }
 
+/* R6 PORTADA: sin ficha el dock se angosta → el grafo crece (~60%) y
+   el globo es la portada. La pill swap y el dossier siguen la var.
+   El ancho también va directo en .dock (regla específica): la var
+   alimenta la pill y el flip; la regla directa asegura el re-layout. */
+@media (min-width: 769px) {
+  :root.layout--portada { --dock-ancho: clamp(420px, 40vw, 620px); }
+  :root.layout--portada .dock { width: clamp(420px, 40vw, 620px); }
+}
+
 @media (min-width: 769px) {
   .dock {
     flex: 0 0 auto;
     width: var(--dock-ancho);
+    transition: width 240ms ease; /* portada ⇄ trabajo: el mapa ya se
+      re-dimensiona solo por el ResizeObserver de main.js */
     position: relative;
     background: var(--dock-bg);
     border-right: 1px solid var(--border-strong);
@@ -1415,9 +1426,11 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     bottom: calc(100% - 240px);
     z-index: 1;
   }
-  /* Clase companion (JS en ui.js): el motor de test matchea
-     atributos por presencia — la clase es determinista en ambos. */
-  .mapa-col--lleno { bottom: 0; }
+  /* Clase companion (JS en ui.js): el motor de test matchea atributos
+     por presencia — la clase es determinista en ambos. Doble clase
+     (mayor especificidad) para que el override gane siempre, incluso
+     con reglas empatadas re-evaluadas al togglear. */
+  .mapa-col--lleno.mapa-col--incrustado { bottom: 0; }
 
   /* Tira (R5-c: revert a imagen 2): toolbar COMPLETA compacta en fila
      (buscar, ficha, zoom, ubicación, ⤢). En mapa lleno/fullscreen la
@@ -1500,28 +1513,40 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   /* Fichas overlay dentro de la columna (debajo de la tira del mapa) */
   .dock > section { transition: opacity 180ms ease; }
 
-  /* Welcome = start screen de la columna: el globo con textura legible */
-  html[data-dock="welcome"] .map { filter: brightness(0.7) contrast(1.1); }
+  /* Entrada del dossier (R6): fade + rise suave cada vez que se abre */
+  .dock .floating-panel:not([hidden]) { animation: yvyEntrar 240ms ease; }
+  @keyframes yvyEntrar {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dock .floating-panel:not([hidden]) { animation: none; }
+  }
 
-  /* Welcome: cubre TODO el dock (incluye la tira del mapa) */
+  /* TARJETA DE CONSULTA (R6 portada): flota abajo-izquierda SOBRE el
+     globo — es la invitación, no un formulario que tape la portada.
+     Vidrio: blur + borde hairline; el globo queda legible detrás. */
   .dock .welcome {
     position: absolute;
-    inset: 0;
-    width: 100%;
+    top: auto;
+    left: 16px;
+    right: auto;
+    bottom: 16px;
+    width: min(380px, calc(100% - 32px));
     max-width: none;
     z-index: 1100;
     pointer-events: none;
-    padding: 16px 16px 0;
   }
   .dock .welcome .welcome__panel {
     pointer-events: auto;
     width: 100%;
-    height: 100%;
-    max-height: none;
-    background: var(--dock-bg);
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+    max-height: min(64vh, 560px);
+    background: rgba(10, 14, 20, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
   }
 
   /* Dossier: anclado debajo de la tira del mapa (240px literal), scroll interno */

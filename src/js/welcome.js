@@ -199,10 +199,10 @@ export function inicializarBienvenida(fnNavegar) {
     }
   });
 
-  render('');
-  // R5-c (revert): el Welcome NO abre al arrancar — el boot es Salta
-  // cargada (tira + dossier + grafo). Se abre por Ctrl+K, botón buscar
-  // o mostrarBienvenida().
+  // PORTADA (R6): la tarjeta de consulta abre al arranque — es la
+  // invitación a elegir sobre el globo (sin demo ni ficha). Al elegir,
+  // pick() la cierra; Ctrl+K / btn-buscar / brand la reabren.
+  abrir();
 }
 
 /**

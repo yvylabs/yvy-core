@@ -41,13 +41,19 @@ export function sincronizarLayout() {
   document.documentElement.setAttribute('data-dock', vista);
   dock.setAttribute('data-vista', vista);
   dock.classList.toggle('dock--oculto', vista === 'oculto');
+  // R6 PORTADA: sin ficha → el mapa llena la columna y el grafo crece
+  // (layout--portada re-ancla --dock-ancho en CSS). Con ficha abierta
+  // (aunque la tarjeta de consulta esté encima por Ctrl+K) se conserva
+  // el layout de trabajo.
+  const sinFicha = !panelVisible;
+  document.documentElement.classList.toggle('layout--portada', sinFicha);
   // R5: main.js releva la cámara por estado (tira = fit del objeto
   // activo; mapa lleno = bicontinental) escuchando este evento.
   document.dispatchEvent(new CustomEvent('yvy:dock', { detail: { vista } }));
-  // Tira del mapa llena (oculto) o compacta (dossier/welcome) — clase
-  // companion porque el motor de test matchea atributos por presencia.
+  // Tira del mapa llena (sin ficha) o compacta — clase companion
+  // porque el motor de test matchea atributos por presencia.
   const mapaCol = document.getElementById('mapa-col');
-  if (mapaCol) mapaCol.classList.toggle('mapa-col--lleno', vista === 'oculto');
+  if (mapaCol) mapaCol.classList.toggle('mapa-col--lleno', sinFicha);
   const map = window.yvyMap;
   if (!map || !map.resize) return;
   // El contenedor del mapa es real (flex): el ResizeObserver de main.js
