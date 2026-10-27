@@ -18,6 +18,7 @@ import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
+import { inicializarPanelGrafo } from './grafo-panel.js';
 import { inicializarTema } from './tema.js';
 import { track } from './telemetry.js';
 
@@ -372,6 +373,9 @@ map.on('load', async () => {
   // Mapa incrustado (tira del dossier, ⤢ expandible) + swap de lados
   inicializarModoMapa();
   inicializarSwap();
+
+  // PANEL GRAFO (R2): la lente por defecto (24 capitales + drill).
+  inicializarPanelGrafo();
 
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
