@@ -17,6 +17,19 @@ let abiertoActual = null;
  * dossier visible → 'dossier', nada → 'oculto' (mapa a pantalla completa).
  * Luego redimensiona el mapa dos veces (inmediato + post-transición).
  */
+export function inicializarTabsMobile() {
+  const bar = document.getElementById('dossier-tabs');
+  if (!bar) return;
+  const set = (tab) => {
+    document.documentElement.setAttribute('data-tab', tab);
+    for (const b of bar.querySelectorAll('button')) {
+      b.setAttribute('aria-pressed', String(b.dataset.tab === tab));
+    }
+  };
+  for (const b of bar.querySelectorAll('button')) b.addEventListener('click', () => set(b.dataset.tab));
+  set('dossier'); // default móvil: dossier (con su mapa incrustado)
+}
+
 export function sincronizarLayout() {
   const w = document.getElementById('welcome');
   const p = document.getElementById('panel-explorador');

@@ -1726,11 +1726,52 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 
 @media (max-width: 768px) {
-  /* La columna es un contenedor mudo: los hijos quedan fixed (bottom-sheet).
-     R4 reemplaza esto por tabs [Grafo | Dossier]. */
+  /* R4 — TABS [Dossier | Grafo] bajo la topbar.
+     Tab dossier: mapa incrustado + fichas (comportamiento R1 guard).
+     Tab grafo: el panel Grafo a pantalla del layout, mapa oculto. */
   .layout { display: block; }
+  .dossier-tabs {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    z-index: 30;
+    background: var(--dock-bg);
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .dossier-tabs button {
+    flex: 1 1 50%;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 10px 8px 9px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+  }
+  .dossier-tabs button[aria-pressed="true"] {
+    color: var(--accent-bright);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Tab padrón (dossier): mapa fullscreen + fichas sheet (R1 guard) */
+  .mapa-col { position: absolute; top: 38px; right: 0; bottom: 0; left: 0; }
+  :root[data-tab="grafo"] .mapa-col,
+  :root[data-tab="grafo"] .dossier-tabs ~ .dock { display: none; }
+  :root[data-tab="grafo"] .panel-grafo {
+    display: flex;
+    position: absolute;
+    top: 38px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    border-left: 0;
+  }
+
   .panel-grafo { display: none; }
-  .mapa-col { position: absolute; inset: 0; }
   .dock {
     position: static;
     width: 0;
@@ -1742,6 +1783,9 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   }
   .dock--oculto { transform: none; opacity: 1; }
 }
+
+/* TABS MOBILE: ocultos en desktop (solo <=768px los muestra) */
+.dossier-tabs { display: none; }
 
 /* Chips del start screen */
 .welcome-chip--dato { border-style: dashed; }

@@ -13,7 +13,7 @@ import * as pmtiles from 'pmtiles';
 
 import { cargarDatos, getObjeto, getPadre, setObjetoActivo, setNavegador } from './manifest.js';
 import { agregarCapaObjeto, silenciarTextosBase, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
-import { inicializarUIPaneles } from './ui.js';
+import { inicializarUIPaneles, inicializarTabsMobile } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
@@ -376,6 +376,9 @@ map.on('load', async () => {
 
   // PANEL GRAFO (R2): la lente por defecto (24 capitales + drill).
   inicializarPanelGrafo();
+
+  // TABS MOBILE (R4): [Dossier | Grafo] en <=768px.
+  inicializarTabsMobile();
 
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
