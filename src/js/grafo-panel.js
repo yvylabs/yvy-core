@@ -1,14 +1,19 @@
 // ==============================================================
-// grafo-panel.js — PANEL GRAFO (R2): la lente por defecto.
+// grafo-panel.js — PANEL GRAFO (R2 + R6-b "segundo cerebro").
 // SVG propio con proyección equirectangular: los nodos NO son un
 // layout de fuerza, son posiciones reales (capital_centro en nivel
 // país, centro_etiqueta en los drills) → la silueta ES el grafo.
-// - Vista país: 24 provincias + linderos reales (pares únicos).
-// - Objeto activo (R5): el nodo de la ficha abierta lleva halo pulsante
-//   esmeralda + chip DATOS CARGADOS (CSS, respeta prefers-reduced-motion).
+// - Vista país: 24 provincias (radio = densidad real de deptos) +
+//   529 deptos como puntos en su centro real con hilos tenues: el
+//   enjambre DIBUJA el territorio (sin polígonos inventados).
+// - Objeto activo (R5): el nodo de la ficha abierta lleva halo
+//   pulsante esmeralda + chip DATOS CARGADOS (CSS, reduced-motion).
+// - Anti-solape de etiquetas (R6-b): cajas greedy con stagger; la
+//   que pierde se oculta y queda en el <title> (hover nativo).
+// - Hover-focus estilo Obsidian: el nodo + sus vecinos quedan
+//   vivos, el resto se atenúa (1-hop).
 // - Drill: provincia → departamentos → municipios, cada nodo con sus
-//   relaciones (contiene + linderos + padre fantasma). Agrupación
-//   "+ N más" (tope 12 visibles, clic expande: determinista).
+//   relaciones reales. Grupo "+ N más" (tope 12, expandible).
 // - Clic nodo → navegarA (dossier sync); clic fondo → sube un nivel;
 //   breadcrumb Argentina › Salta › Anta.
 // Zero-alucinación (SPEC §4): sin coordenada real no hay nodo; sin
@@ -55,19 +60,44 @@ function datosNodo(obj, c, rol) {
   return n;
 }
 
-/** Vista país: nodos provincia (capital_centro) + linderos únicos. */
+/** Vista país (R6-b "segundo cerebro"): 24 provincias (capital_centro)
+ * + 529 deptos como puntos reales (la densidad DIBUJA la silueta del
+ * territorio: cero geometría inventada, SPEC §4) + hilos contiene
+ * tenues + linderos sólidos. Radio de provincia = densidad real
+ * (sqrt de deptos). */
 function cargarVistaPais() {
   nodosById = new Map();
   const nodos = [];
-  for (const o of getObjetos().filter((x) => x.nivel === 'provincia')) {
+  const enlaces = [];
+  const provincias = getObjetos().filter((x) => x.nivel === 'provincia');
+  const enElGrafo = new Set();
+  for (const o of provincias) {
     const c = coordsDe(o);
     if (!c) continue; // missing explícito: sin coordenada no hay nodo
-    nodos.push(datosNodo(o, c, 'provincia'));
+    enElGrafo.add(o.yvy_id);
+    const n = datosNodo(o, c, 'provincia');
+    // Densidad visible: radio por sqrt(#deptos) — más subdivisión, más masa
+    const nHijos = (getHijos(o.yvy_id) || []).length;
+    n.r = 4.5 + Math.min(6.5, Math.sqrt(nHijos) * 0.6);
+    n.hijos = getHijos(o.yvy_id) || [];
+    nodos.push(n);
+  }
+  // Deptos: puntos en su centro real, hilo tenue hacia la provincia.
+  // El enjambre dibuja la forma del país sin dibujar ningún polígono.
+  // (copia: el loop agrega al array mientras itera)
+  for (const p of [...nodos]) {
+    for (const h of (p.hijos || [])) {
+      const ch = coordsDe(h);
+      if (!ch) continue;
+      const d = datosNodo(h, ch, 'depto-dot');
+      d.r = 1.7;
+      d.padreId = p.id;
+      nodos.push(d);
+      enlaces.push({ s: p, t: d, tipo: 'hilo' });
+    }
   }
   const vistos = new Set();
-  const enlaces = [];
-  const enElGrafo = new Set(nodos.map((n) => n.id));
-  for (const p of getObjetos().filter((x) => x.nivel === 'provincia')) {
+  for (const p of provincias) {
     if (!enElGrafo.has(p.yvy_id)) continue;
     for (const r of getRelaciones(p.yvy_id)) {
       if (r.tipo !== 'lindero') continue;
@@ -161,10 +191,10 @@ function proyectador(puntos, w, h) {
   const lats = visibles.map((p) => p[1]);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  // Padding asimétrico (R5-b): abajo +34 (etiquetas de 2 líneas y Salta
-  // capital arriba del nodo sur — TDF/Georgias se recortaban) y arriba
-  // +30 (chip DATOS CARGADOS cuelga -26px del nodo).
-  const PAD_X = 46, PAD_TOP = 76, PAD_BOTTOM = 80;
+  // Padding asimétrico (R6-b "segundo cerebro"): la red LLENA el panel.
+  // Abro solo lo que hace falta: abajo etiquetas de provincias grandes,
+  // arriba el halo/chip del nodo activo.
+  const PAD_X = 26, PAD_TOP = 46, PAD_BOTTOM = 52;
   const despY = (PAD_TOP - PAD_BOTTOM) / 2;
   const spanLng = (maxLng - minLng) || 1e-6;
   const spanLat = (maxLat - minLat) || 1e-6;
@@ -194,9 +224,11 @@ function pintar() {
     n.x = p[0];
     n.y = p[1];
   }
+  acomodarEtiquetas(red.nodos);
   gEnlaces.innerHTML = '';
   gNodos.innerHTML = '';
   gAccesorios.innerHTML = '';
+  redActual = red;
 
   for (const e of red.enlaces) {
     const line = document.createElementNS(NS, 'line');
@@ -208,19 +240,49 @@ function pintar() {
     gEnlaces.appendChild(line);
   }
 
-  // Orden de capas: fantasma/grupo al fondo, central arriba
-  const orden = ['fantasma', 'grupo', 'municipio', 'depto', 'provincia', 'central'];
+  // Orden de capas: enjambre de deptos al fondo, central arriba
+  const orden = ['depto-dot', 'fantasma', 'grupo', 'municipio', 'depto', 'provincia', 'central'];
   const capas = [...red.nodos].sort((a, b) => orden.indexOf(a.rol) - orden.indexOf(b.rol));
   for (const n of capas) gNodos.appendChild(renderNodo(n));
 
   const nodoVivo = vivoId != null ? red.nodos.find((n) => n.id === vivoId) : null;
   if (nodoVivo) accesoriosNodoVivo(nodoVivo);
   actualizarBC();
+  aplicarFoco(null); // repintado: el hover-focus se re-evalúa solo
+}
+
+/**
+ * Anti-solape (R6-b): cajas greedy con stagger vertical. La etiqueta
+ * que no encuentra lugar se oculta (labelY=null) y queda accesible en
+ * el <title> del nodo (hover nativo). Determinista: orden por Y.
+ */
+function acomodarEtiquetas(nodos) {
+  const cajas = [];
+  const conTexto = nodos.filter((n) => n.rol !== 'depto-dot' && n.rol !== 'grupo' && n.rol !== 'fantasma');
+  conTexto.sort((a, b) => a.y - b.y);
+  for (const n of conTexto) {
+    n.labelY = null;
+    const r = n.r || RADIO[n.rol] || 5;
+    const w = (n.nombre ? n.nombre.length : 0) * 5.6 + 10;
+    const h = 11;
+    const base = n.y + r + 11;
+    for (const dy of [0, -13, 13, -23, 23, -33]) {
+      const yy = base + dy;
+      const box = { x1: n.x - w / 2, x2: n.x + w / 2, y1: yy - h, y2: yy + 3 };
+      const choca = cajas.some((c) => !(box.x2 < c.x1 || box.x1 > c.x2 || box.y2 < c.y1 || box.y1 > c.y2));
+      if (!choca) {
+        cajas.push(box);
+        n.labelY = yy;
+        break;
+      }
+    }
+  }
 }
 
 function renderNodo(n) {
   const g = document.createElementNS(NS, 'g');
   const esVivo = n.id === vivoId && n.rol !== 'fantasma';
+  const r = n.r || RADIO[n.rol] || 5;
   g.setAttribute('class', `gp-nodo gp-nodo--${n.rol}${esVivo ? ' gp-nodo--vivo' : ''}`);
   g.setAttribute('transform', `translate(${Math.round(n.x)},${Math.round(n.y)})`);
   if (n.rol === 'grupo') {
@@ -228,29 +290,29 @@ function renderNodo(n) {
   } else if (n.rol !== 'fantasma') {
     g.setAttribute('data-yvy', n.id);
   }
+  // Hover nativo accesible: siempre el nombre real en <title>
+  const titulo = document.createElementNS(NS, 'title');
+  titulo.textContent = n.rol === 'grupo' ? 'Expandir grupo' : `${n.nombre} · ${etiquetaNivel(n.nivel) || n.nivel}`;
+  g.appendChild(titulo);
   if (esVivo) {
     const halo = document.createElementNS(NS, 'circle');
-    halo.setAttribute('r', (RADIO[n.rol] || 5) + 4);
+    halo.setAttribute('r', r + 4);
     halo.setAttribute('class', 'gp-halo');
     g.appendChild(halo);
   }
   const circ = document.createElementNS(NS, 'circle');
-  circ.setAttribute('r', RADIO[n.rol] || 5);
+  circ.setAttribute('r', r);
   circ.setAttribute('class', 'gp-circulo');
   g.appendChild(circ);
-  const t = document.createElementNS(NS, 'text');
-  t.setAttribute('class', 'gp-texto' + (esVivo ? ' gp-texto--acento' : ''));
-  t.setAttribute('x', 0);
-  t.setAttribute('y', (RADIO[n.rol] || 5) + 11);
-  t.textContent = n.nombre;
-  g.appendChild(t);
-  if (n.rol !== 'central' && n.rol !== 'grupo' && n.rol !== 'fantasma' && n.nivel) {
-    const badge = document.createElementNS(NS, 'text');
-    badge.setAttribute('class', 'gp-tipo');
-    badge.setAttribute('x', 0);
-    badge.setAttribute('y', (RADIO[n.rol] || 5) + 21);
-    badge.textContent = `· ${etiquetaNivel(n.nivel) || n.nivel}`;
-    g.appendChild(badge);
+  // Etiqueta: solo roles con texto, solo si el anti-solape encontró
+  // lugar (los perdedores viven en el <title>).
+  if (n.rol !== 'depto-dot' && n.rol !== 'grupo' && n.rol !== 'fantasma' && n.labelY != null) {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('class', 'gp-texto' + (esVivo ? ' gp-texto--acento' : ''));
+    t.setAttribute('x', 0);
+    t.setAttribute('y', Math.round(n.labelY - n.y));
+    t.textContent = n.nombre;
+    g.appendChild(t);
   }
   return g;
 }
@@ -349,6 +411,41 @@ function setVista(nueva) {
   pintar();
 }
 
+// --------------------------------------------------------------
+// Hover-focus estilo Obsidian (R6-b): al pasar un nodo quedan vivos
+// él + sus vecinos 1-hop (y sus enlaces); el resto se atenúa. El
+// trabajo visual lo hace CSS (.gp-focus); acá solo se marcan clases.
+// --------------------------------------------------------------
+let redActual = null;
+let focoId = null;
+
+function aplicarFoco(id) {
+  if (!svg) return;
+  if (focoId === id) return;
+  focoId = id;
+  const enfocar = id != null;
+  svg.classList.toggle('gp-focus', enfocar);
+  if (!redActual) return;
+  const vecinos = enfocar ? new Set([id]) : null;
+  const lineas = gEnlaces.children;
+  redActual.enlaces.forEach((e, i) => {
+    const line = lineas[i];
+    if (!line) return;
+    const toca = enfocar && (e.s.id === id || e.t.id === id);
+    line.classList.toggle('gp-enlace--foco', toca);
+    if (toca) { vecinos.add(e.s.id); vecinos.add(e.t.id); }
+  });
+  if (!enfocar) {
+    for (const g of gNodos.children) g.classList.remove('gp-nodo--foco');
+    return;
+  }
+  for (const g of gNodos.children) {
+    const yvy = g.getAttribute('data-yvy');
+    if (yvy == null) continue;
+    g.classList.toggle('gp-nodo--foco', vecinos.has(Number(yvy)));
+  }
+}
+
 function ir(nueva) {
   setVista(nueva);
   if (nueva.id != null) navegarA(nueva.id);
@@ -373,6 +470,12 @@ export function inicializarPanelGrafo() {
   svg.appendChild(gNodos);
   svg.appendChild(gAccesorios);
   svg.addEventListener('click', onClicSvg);
+  // Hover-focus Obsidian: el nodo + vecinos quedan vivos, resto atenúa.
+  svg.addEventListener('mouseover', (e) => {
+    const g = e.target.closest ? e.target.closest('[data-yvy]') : null;
+    aplicarFoco(g ? Number(g.getAttribute('data-yvy')) : null);
+  });
+  svg.addEventListener('mouseleave', () => aplicarFoco(null));
   body.innerHTML = '';
   body.appendChild(svg);
   setVista({ nivel: 'pais' });

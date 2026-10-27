@@ -287,9 +287,10 @@ async function irAYvyId(yvyId) {
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
 
-  // Vuelo inicial para país: globo centrado en Argentina
+  // Vuelo país (R6-b): bicontinental — continente + islas + Antártida
+  // (el usuario elige "Argentina", no solo la parte continental).
   if (obj.nivel === 'pais') {
-    map.flyTo({ center: [-64, -50], zoom: 2.3, duration: 1400 });
+    map.flyTo({ ...VISTA_INICIAL, duration: 1400 });
     mostrarObjeto(yvyId);
     return;
   }
@@ -355,7 +356,12 @@ function encuadrarLleno() {
 function encuadrarDossier() {
   if (!map || !map.flyTo) return;
   const obj = getObjetoActivo();
-  if (!obj || obj.nivel === 'pais') return; // país: su vuelo ya es global
+  if (!obj) return;
+  // País: bicontinental también en la tira (honesto, aunque compacto)
+  if (obj.nivel === 'pais') {
+    map.flyTo({ ...VISTA_INICIAL, duration: 1200 });
+    return;
+  }
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
   try {
@@ -452,11 +458,23 @@ map.on('load', async () => {
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
 
-  // PORTADA (R6): sin boot demo — el arranque es el globo bicontinental
-  // (Sudamérica + Antártida, límites de países) + la tarjeta de consulta
-  // flotando sobre el mapa + el grafo protagonista. El dossier NO existe
-  // hasta que el cliente elige (cero espacio vacío). Con permalink,
-  // share.js navega directo (irAYvyId cierra la tarjeta).
+  // PORTADA PAÍS (R6-b): sin permalink el arranque ES Argentina — globo
+  // bicontinental (Sudamérica + Antártida) + tarjeta con sus números
+  // reales + grafo país denso. El dossier NO existe hasta que el
+  // cliente elige una jurisdicción (cero espacio vacío). Con permalink,
+  // share.js navega directo (irAYvyId cierra la tarjeta y abre ficha).
+  if (!location.hash) {
+    try {
+      const obj = getObjeto(0);
+      if (obj) {
+        setObjetoActivo(obj);
+        setObjetoBarra(obj); // "Argentina · 3.669.710,7 km²"
+        refrescarGrafo();
+      }
+    } catch (err) {
+      console.warn('[yvy] portada país falló:', err?.message || err);
+    }
+  }
 
   // Barra de producto
   inicializarBarraTecnica(map);

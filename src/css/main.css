@@ -1648,23 +1648,38 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 .panel-grafo svg { display: block; width: 100%; height: 100%; }
 
-/* --- Grafo del panel (R2): nodos posicionados, halo vivo, chip --- */
+/* --- Grafo del panel (R2 + R6-b): enjambre real, hover-focus Obsidian --- */
 .panel-grafo-svg { cursor: crosshair; }
-.gp-enlace { stroke: var(--text-dim); stroke-width: 1.1; fill: none; opacity: 0.55; }
+.gp-enlace { stroke: var(--text-dim); stroke-width: 1.1; fill: none; opacity: 0.55; transition: opacity 160ms ease; }
 .gp-enlace--contiene { stroke: var(--accent); opacity: 0.7; }
 .gp-enlace--broader { stroke: var(--text-dim); stroke-dasharray: 3 4; opacity: 0.4; }
-.gp-enlace--lindero { stroke: var(--text-muted); stroke-dasharray: 4 3; }
-.gp-circulo { fill: var(--canvas); stroke: #8B98AF; stroke-width: 1.4; }
+/* R6-b: linderos sólidos finos (antes punteados: parecían debug) */
+.gp-enlace--lindero { stroke: #46566D; stroke-width: 1; opacity: 0.45; }
+/* R6-b: hilos provincia→depto, la malla que dibuja el territorio */
+.gp-enlace--hilo { stroke: var(--accent); stroke-width: 0.75; opacity: 0.07; }
+.gp-circulo { fill: var(--canvas); stroke: #8B98AF; stroke-width: 1.4; transition: opacity 160ms ease; }
 .gp-nodo--central .gp-circulo { fill: var(--accent); stroke: var(--accent-bright); stroke-width: 2; }
 .gp-nodo--fantasma .gp-circulo { fill: var(--surface); stroke: var(--text-dim); stroke-dasharray: 2.5 2.5; }
 .gp-nodo--grupo .gp-circulo { stroke-dasharray: 2.5 2.5; stroke: var(--text-dim); }
 .gp-nodo--vivo .gp-circulo { fill: var(--accent); stroke: var(--accent-bright); stroke-width: 2; }
+/* R6-b: provincias = nodos esmeralda sólidos (los "nodos principales") */
+.gp-nodo--provincia .gp-circulo { fill: var(--accent); stroke: var(--accent-bright); stroke-width: 1.6; }
+/* R6-b: deptos = puntos cian sutiles: la densidad dibuja la silueta */
+.gp-nodo--depto-dot .gp-circulo { fill: rgba(56, 189, 248, 0.38); stroke: none; }
+.gp-nodo--depto-dot:hover .gp-circulo { fill: rgba(56, 189, 248, 0.95); }
 .gp-nodo[data-yvy], .gp-nodo[data-grupo-ver] { cursor: pointer; }
 .gp-nodo:hover .gp-circulo { stroke: var(--accent-bright); stroke-width: 2.2; }
+.gp-nodo--depto-dot:hover .gp-circulo { stroke: #7DD3FC; stroke-width: 1; }
+.gp-nodo { transition: opacity 160ms ease; }
+/* Hover-focus Obsidian: foco + vecinos vivos, resto atenúa */
+.panel-grafo-svg.gp-focus .gp-nodo:not(.gp-nodo--foco) { opacity: 0.13; }
+.panel-grafo-svg.gp-focus .gp-nodo--foco { opacity: 1; }
+.panel-grafo-svg.gp-focus .gp-enlace { opacity: 0.03; }
+.panel-grafo-svg.gp-focus .gp-enlace--foco { opacity: 0.85; }
 .gp-texto {
   fill: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 9.5px;
   paint-order: stroke;
   stroke: #07090D;
   stroke-width: 2.6px;
@@ -1673,18 +1688,6 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   pointer-events: none;
 }
 .gp-texto--acento { fill: var(--accent-bright); }
-.gp-tipo {
-  fill: var(--text-dim);
-  opacity: 0.8;
-  font-family: var(--font-mono);
-  font-size: 7.5px;
-  paint-order: stroke;
-  stroke: #07090D;
-  stroke-width: 2.2px;
-  stroke-linejoin: round;
-  text-anchor: middle;
-  pointer-events: none;
-}
 /* Salta "viva": halo esmeralda pulsante (prefers-reduced-motion lo apaga) */
 .gp-halo {
   fill: none;
@@ -1824,6 +1827,27 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 
 /* Chips del start screen */
 .welcome-chip--dato { border-style: dashed; }
+/* Hero país (R6-b): la portada es Argentina con sus números reales */
+.welcome__pais {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 10px 0 2px;
+}
+.welcome__pais-nombre {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  color: var(--text);
+}
+.welcome__pais-stats {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  opacity: 0.9;
+}
 .welcome__meta {
   display: block;
   margin-top: 10px;

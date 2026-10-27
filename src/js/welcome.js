@@ -85,6 +85,34 @@ export function inicializarBienvenida(fnNavegar) {
   // real (focus post-navegación); "Última actualización" = fecha honesta.
   const sugerencias = ['Salta', 'Jujuy'];
   const objetos = getObjetos();
+
+  // R6-b: la portada ES el país — hero con números reales del manifest
+  // (cero alucinación: superficie IGN + conteos del catálogo).
+  const pais = objetos.find((o) => o.nivel === 'pais');
+  const head = document.querySelector('.welcome__head');
+  if (pais && head) {
+    const n = (nivel) => objetos.reduce((s, o) => s + (o.nivel === nivel ? 1 : 0), 0);
+    const km2 = pais.sup_oficial_km2 != null
+      ? Number(pais.sup_oficial_km2).toLocaleString('es-AR', { maximumFractionDigits: 1 })
+      : null;
+    const stats = [
+      km2 ? `${km2} km²` : null,
+      `${n('provincia')} provincias`,
+      `${n('depto').toLocaleString('es-AR')} departamentos`,
+    ].filter(Boolean);
+    const hero = document.createElement('div');
+    hero.className = 'welcome__pais';
+    const nombre = document.createElement('span');
+    nombre.className = 'welcome__pais-nombre';
+    nombre.textContent = pais.nombre_oficial;
+    const detalle = document.createElement('span');
+    detalle.className = 'welcome__pais-stats';
+    detalle.textContent = stats.join(' · ');
+    hero.appendChild(nombre);
+    hero.appendChild(detalle);
+    head.appendChild(hero);
+  }
+
   const sugeridos = sugerencias
     .map((n) => objetos.find((o) => normalizar(o.nombre_oficial) === normalizar(n)))
     .filter(Boolean);
