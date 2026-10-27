@@ -809,6 +809,37 @@ async function construirManifest() {
     }
   }
 
+  // Capitales provinciales (WGS 84, curadas en scripts/capitales.json):
+  // capital_centro = sede de gobierno, no el centroide geométrico.
+  // El panel Grafo posiciona los nodos de provincia en esta coordenada.
+  // Zero-alucinación (SPEC §4): si una provincia no matchea ninguna
+  // capital curada, queda sin capital_centro (missing explícito, no invento).
+  {
+    let capitales = null;
+    try {
+      const rawCap = await fs.readFile(path.resolve('scripts/capitales.json'), 'utf8');
+      const crudo = JSON.parse(rawCap);
+      capitales = Object.entries(crudo).filter(([k]) => !k.startsWith('_'));
+    } catch (err) {
+      advertencias.push(`scripts/capitales.json no se pudo leer: ${err?.message || err}`);
+    }
+    if (capitales) {
+      let conCapital = 0;
+      for (const o of objetos) {
+        if (o.nivel !== 'provincia') continue;
+        const norm = normalizar(o.nombre_oficial);
+        for (const [key, lnglat] of capitales) {
+          if (norm.startsWith(key)) {
+            o.capital_centro = lnglat;
+            conCapital++;
+            break;
+          }
+        }
+      }
+      console.log(`[yvy-manifest] capital_centro inyectado: ${conCapital} provincias`);
+    }
+  }
+
   return { fuentes, objetos, datasets, advertencias };
 }
 
@@ -1042,6 +1073,7 @@ async function escribirManifest() {
         "sup_fuente": "dct:source",
         "sup_fuente_corta": "dct:bibliographicCitation",
         "centro": { "@id": "geo:hasCentroid", "@type": "geo:wktLiteral" },
+        "capital_centro": { "@id": "yvyont:capitalCentro", "@type": "geo:wktLiteral" },
         "pmtiles": { "@id": "yvyont:pmtiles", "@type": "@id" },
         "tiene_geometria": { "@id": "yvyont:tieneGeometria", "@type": "xsd:boolean" },
         "bounds_objeto": { "@id": "geo:hasBoundingBox", "@type": "geo:wktLiteral" }
@@ -1059,6 +1091,7 @@ async function escribirManifest() {
     if (o.sup_fuente) n["sup_fuente"] = o.sup_fuente;
     if (o.sup_fuente_corta) n["sup_fuente_corta"] = o.sup_fuente_corta;
     if (o.centro) n["centro"] = `POINT(${o.centro[0]} ${o.centro[1]})`;
+    if (o.capital_centro) n["capital_centro"] = `POINT(${o.capital_centro[0]} ${o.capital_centro[1]})`;
     if (o.bounds_objeto) n["bounds_objeto"] = `BOX(${o.bounds_objeto.join(' ')})`;
     if (o.pmtiles) n["pmtiles"] = o.pmtiles;
     return n;

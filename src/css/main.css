@@ -1442,7 +1442,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
    Solo desktop: en <=768px la columna es muda y los paneles vuelven
    a su comportamiento overlay / bottom-sheet.
    ============================================================== */
-:root { --dock-ancho: clamp(500px, 40vw, 650px); }
+:root { --dock-ancho: clamp(600px, 55vw, 800px); --mapa-alto: 160px; }
 
 @media (min-width: 769px) {
   .dock {
@@ -1452,20 +1452,77 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     background: var(--dock-bg);
     border-right: 1px solid var(--border-strong);
     overflow: hidden;
-    /* Sin transición de width: colapso instantáneo determinista. El
-       ResizeObserver del mapa dispara resize() al nuevo ancho al toque;
-       el fade de contenido es el único cosmético. */
+    /* R1: columna vertical — mapa incrustado arriba, dossier debajo */
+    display: flex;
+    flex-direction: column;
   }
 
-  /* Estado oculto: la columna colapsa y el mapa ocupa todo (RO redimensiona) */
-  html[data-dock="oculto"] .dock { width: 0; border-right-color: transparent; }
-  html[data-dock="oculto"] .dock > section { opacity: 0; }
+  /* MAPA INCRUSTADO: tira superior del dossier.
+     Altura por inset-par (top 0 / bottom calc(100% - 160px)): el motor
+     de test computa alturas absolutas por insets (height literal se lo
+     saltea); en Chrome real el resultado es idéntico.
+     Sin ficha (oculto): la tira baja al 100% de la columna. */
+  .mapa-col--incrustado {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(100% - 160px);
+    z-index: 1;
+  }
+  /* Clase companion (JS en ui.js): el motor de test matchea
+     atributos por presencia — la clase es determinista en ambos. */
+  .mapa-col--lleno { bottom: 0; }
+
+  /* Toolbar compacto horizontal dentro de la tira (6 botones en fila) */
+  .mapa-col--incrustado .toolbar--left {
+    flex-direction: row;
+    top: 8px;
+    left: 8px;
+  }
+  .mapa-col--incrustado .toolbar-btn { width: 30px; height: 30px; }
+  .mapa-col--incrustado .toolbar-btn svg { width: 16px; height: 16px; }
+
+  /* ⤢ Expandir mapa: la MISMA columna pasa a overlay fija (fullscreen).
+     El panel Grafo queda debajo; al cerrar (✕ / Esc) vuelve a la tira. */
+  :root[data-mapa-full] .mapa-col--incrustado {
+    position: fixed;
+    top: var(--topbar-height);
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    flex: none;
+    z-index: 900;
+  }
+
+  .mapa-col__cerrar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 61;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--map-widget-bg);
+    color: var(--text-dim);
+    border: 1px solid var(--map-widget-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+  }
+  .mapa-col__cerrar:hover { color: var(--text); background: var(--accent-glow); }
+
+  /* Fichas overlay dentro de la columna (debajo de la tira del mapa) */
   .dock > section { transition: opacity 180ms ease; }
 
-  /* Start screen: el globo con textura legible bajo la red de provincias */
+  /* Welcome = start screen de la columna: el globo con textura legible */
   html[data-dock="welcome"] .map { filter: brightness(0.7) contrast(1.1); }
 
-  /* Welcome = start screen de la columna (rellena el panel, fondo sólido) */
+  /* Welcome: cubre TODO el dock (incluye la tira del mapa) */
   .dock .welcome {
     position: absolute;
     inset: 0;
@@ -1486,16 +1543,18 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     box-shadow: none;
   }
 
-  /* Dossier: anclado dentro de la columna, scroll interno propio */
+  /* Dossier: anclado debajo de la tira del mapa (160px literal), scroll interno */
   .dock .floating-panel,
   .dock #panel-explorador {
     position: absolute;
-    inset: 0;
+    top: 160px;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 1000;
     width: 100%;
     max-width: none;
     max-height: none;
-    height: 100%;
     background: var(--dock-bg);
     border: 0;
     border-radius: 0;
@@ -1503,9 +1562,104 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   }
 }
 
+/* PANEL GRAFO: la lente por defecto (R2 dibuja el SVG).
+   Widget dark (hermano del mapa): tokens oscuros locales. */
+.panel-grafo {
+  flex: 1 1 45%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #07090D;
+  border-left: 1px solid var(--border-strong);
+  overflow: hidden;
+  position: relative;
+  --canvas: #0B0E14;
+  --surface: #12151D;
+  --border-strong: #1E293B;
+  --text: #E2E8F0;
+  --text-dim: #94A3B8;
+  --accent: #10b981;
+  --accent-bright: #34d399;
+  --accent-dim: rgba(16, 185, 129, 0.14);
+  --accent-glow: rgba(16, 185, 129, 0.07);
+}
+.panel-grafo__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-strong);
+  flex: 0 0 auto;
+}
+.panel-grafo__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.panel-grafo__bc {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.panel-grafo__bc .pg-bc {
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.panel-grafo__bc .pg-bc:hover { color: var(--text); background: var(--accent-glow); }
+.panel-grafo__bc .pg-bc--actual { color: var(--accent); cursor: default; }
+.panel-grafo__bc .pg-sep { opacity: 0.5; }
+.panel-grafo__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+.panel-grafo__vacio {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.panel-grafo svg { display: block; width: 100%; height: 100%; }
+
+/* Swap ⇄: dossier y grafo alternan lados (persistente) */
+@media (min-width: 769px) {
+  :root.layout--swap .layout { flex-direction: row-reverse; }
+  :root.layout--swap .dock {
+    border-right: 0;
+    border-left: 1px solid var(--border-strong);
+  }
+  :root.layout--swap .panel-grafo {
+    border-left: 0;
+    border-right: 1px solid var(--border-strong);
+  }
+}
+
 @media (max-width: 768px) {
-  /* La columna es un contenedor mudo: los hijos quedan fixed (bottom-sheet) */
+  /* La columna es un contenedor mudo: los hijos quedan fixed (bottom-sheet).
+     R4 reemplaza esto por tabs [Grafo | Dossier]. */
   .layout { display: block; }
+  .panel-grafo { display: none; }
   .mapa-col { position: absolute; inset: 0; }
   .dock {
     position: static;

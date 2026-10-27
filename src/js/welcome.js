@@ -200,7 +200,8 @@ export function inicializarBienvenida(fnNavegar) {
   });
 
   render('');
-  abrir();
+  // R1: el welcome NO abre al arrancar (boot directo al dossier/demo).
+  // Se abre por Ctrl+K, botón buscar o mostrarBienvenida().
 }
 
 /**

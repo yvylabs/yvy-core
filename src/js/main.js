@@ -18,7 +18,6 @@ import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
-import { inicializarSintetico } from './sintetico.js';
 import { inicializarTema } from './tema.js';
 import { track } from './telemetry.js';
 
@@ -102,8 +101,10 @@ function crearMapa(projectionType) {
       projection: { type: projectionType },
     },
     locale: LOCALE_ES,
-    center: [-60, -24],
-    zoom: 2.2,
+    // Bicontinental: continente + Malvinas/Georgias/Sandwich + Antártida
+    // (el sector antártico 25°W–74°W llega al polo: cover por geometría).
+    center: [-64, -56],
+    zoom: 2.4,
     attributionControl: true,
     failIfMajorPerformanceCaveat: false,
   });
@@ -165,6 +166,58 @@ function agregarControlIzquierda() {
       console.warn('Geolocalización denegada o no disponible:', err);
     });
   });
+}
+
+// --------------------------------------------------------------
+// Mapa incrustado (R1): tira superior del dossier.
+// La tira nunca roba el scroll del dossier: sin scrollZoom ni doble
+// click ni teclado; al expandir (⤢) se activa la navegación completa.
+// --------------------------------------------------------------
+function inicializarModoMapa() {
+  const btnFull = document.getElementById('btn-mapa-full');
+  const btnCerrar = document.getElementById('btn-mapa-cerrar');
+  if (!btnFull) return;
+
+  const gestos = (full) => {
+    const modo = full ? 'enable' : 'disable';
+    try { map.scrollZoom[modo](); } catch { /* sin handler */ }
+    try { map.keyboard[modo](); } catch { /* sin handler */ }
+    try { map.doubleClickZoom[modo](); } catch { /* sin handler */ }
+  };
+
+  function aplicarModo(full) {
+    gestos(full);
+    document.documentElement.toggleAttribute('data-mapa-full', full);
+    btnFull.setAttribute('aria-expanded', String(full));
+    if (btnCerrar) btnCerrar.hidden = !full;
+  }
+
+  btnFull.addEventListener('click', () => {
+    // Expandir cierra welcome si estuviera abierto (nunca ambos activos).
+    cerrarBienvenida();
+    aplicarModo(!document.documentElement.hasAttribute('data-mapa-full'));
+  });
+  if (btnCerrar) btnCerrar.addEventListener('click', () => aplicarModo(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.documentElement.hasAttribute('data-mapa-full')) aplicarModo(false);
+  });
+  gestos(false); // estado incrustado desde el arranque
+}
+
+// --------------------------------------------------------------
+// Swap ⇄ (R1): dossier y grafo alternan lados (persistente en
+// localStorage; FOUC evitado por el script inicial del head).
+// --------------------------------------------------------------
+function inicializarSwap() {
+  const btn = document.getElementById('btn-swap');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const swap = !document.documentElement.classList.contains('layout--swap');
+    document.documentElement.classList.toggle('layout--swap', swap);
+    btn.setAttribute('aria-pressed', String(swap));
+    try { localStorage.setItem('yvy:swap', swap ? '1' : '0'); } catch { /* storage bloqueado */ }
+  });
+  btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('layout--swap')));
 }
 
 // --------------------------------------------------------------
@@ -269,8 +322,8 @@ async function garantizarDatos() {
 
 // --------------------------------------------------------------
 // Volver al globo: el logo/brand restablece la vista inicial
-// --------------------------------------------------------------
-const VISTA_INICIAL = { center: [-60, -24], zoom: 3.1, pitch: 0, bearing: 0 };
+// (bicontinental: continente + sector antártico; sin ficha → mapa lleno).
+const VISTA_INICIAL = { center: [-64, -56], zoom: 2.4, pitch: 0, bearing: 0 };
 
 function volverAlInicio() {
   setObjetoActual(null);
@@ -279,8 +332,8 @@ function volverAlInicio() {
   aplicarBandaVisible(null);
   map.stop();
   map.flyTo({ ...VISTA_INICIAL, duration: 2600 });
-  // El dock vuelve al start screen (el limpiarFicha ya lo pasa a bienvenida).
-  mostrarBienvenida();
+  // limpiarFicha deja el panel oculto: el mapa llena la columna (oculto).
+  // El welcome solo se abre por Ctrl+K o botón buscar (ya no al arrancar).
 }
 
 const brandEl = document.querySelector('.topbar__brand');
@@ -316,16 +369,26 @@ map.on('load', async () => {
   // Controles de la izquierda (zoom in/out + ubicación)
   agregarControlIzquierda();
 
+  // Mapa incrustado (tira del dossier, ⤢ expandible) + swap de lados
+  inicializarModoMapa();
+  inicializarSwap();
+
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
   inicializarBienvenida(irAYvyId);
 
-  // Red sintética del welcome: 24 provincias sobre el globo (solo render).
-  // Necesita el manifest ya cargado (depende de garantizarDatos arriba).
-  inicializarSintetico();
-
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
+
+  // DEMO (R1): si el permalink no trae objeto, arrancar con Salta cargada.
+  // El welcome queda accesible vía Ctrl+K o botón buscar (never-blind boot).
+  if (!location.hash) {
+    try {
+      await irAYvyId(1066); // Salta provincia (yvy:1066, parent 0)
+    } catch (err) {
+      console.warn('[yvy] boot demo Salta falló:', err?.message || err);
+    }
+  }
 
   // Barra de producto
   inicializarBarraTecnica(map);
