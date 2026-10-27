@@ -161,13 +161,17 @@ function proyectador(puntos, w, h) {
   const lats = visibles.map((p) => p[1]);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-  const pad = 46;
+  // Padding asimétrico (R5-b): abajo +34 (etiquetas de 2 líneas y Salta
+  // capital arriba del nodo sur — TDF/Georgias se recortaban) y arriba
+  // +30 (chip DATOS CARGADOS cuelga -26px del nodo).
+  const PAD_X = 46, PAD_TOP = 76, PAD_BOTTOM = 80;
+  const despY = (PAD_TOP - PAD_BOTTOM) / 2;
   const spanLng = (maxLng - minLng) || 1e-6;
   const spanLat = (maxLat - minLat) || 1e-6;
-  const esc = Math.min((w - pad * 2) / spanLng, (h - pad * 2) / spanLat);
+  const esc = Math.min((w - PAD_X * 2) / spanLng, (h - PAD_TOP - PAD_BOTTOM) / spanLat);
   const cx = (minLng + maxLng) / 2;
   const cy = (minLat + maxLat) / 2;
-  return ([lng, lat]) => [w / 2 + (lng - cx) * esc, h / 2 + (cy - lat) * esc];
+  return ([lng, lat]) => [w / 2 + (lng - cx) * esc, h / 2 + despY + (cy - lat) * esc];
 }
 
 const RADIO = { fantasma: 5, grupo: 4.5, municipio: 4, depto: 5, provincia: 6.5, central: 10 };
@@ -176,6 +180,10 @@ function pintar() {
   if (!svg || !body) return;
   const R = body.getBoundingClientRect();
   if (R.width < 60 || R.height < 60) return; // panel oculto/plegado: nada
+  // viewBox explícito (R5-b): con CSS 100%/100% basta, pero un SVG sin
+  // caja (300x150 default) recorta el mapa si el sheet todavía no aplica.
+  svg.setAttribute('viewBox', `0 0 ${Math.round(R.width)} ${Math.round(R.height)}`);
+  if (!svg.getAttribute('preserveAspectRatio')) svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   // Nodo "vivo" (R5): el objeto activo de la ficha (NO una decoración
   // fija). En cualquier vista: halo pulsante + chip DATOS CARGADOS.
   vivoId = (() => { const o = getObjetoActivo(); return o ? Number(o.yvy_id) : null; })();
@@ -368,7 +376,14 @@ export function inicializarPanelGrafo() {
   body.innerHTML = '';
   body.appendChild(svg);
   setVista({ nivel: 'pais' });
-  window.addEventListener('resize', () => pintar());
+  // R5-b: reencuadre sintomático del PANEL REAL (no window): el layout R
+  // cambia el alto del panel con el estado (tira/dossier/tabs) y el
+  // window no se mueve. Fallback window.resize para entornos sin RO.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => pintar()).observe(body);
+  } else {
+    window.addEventListener('resize', () => pintar());
+  }
   // El catálogo puede llegar después del primer pintado (boot): repinta.
   setTimeout(() => { try { pintar(); } catch (e) { console.warn('[yvy] repintado grafo:', e?.message); } }, 600);
   track('grafo_panel', { ok: 1 });
