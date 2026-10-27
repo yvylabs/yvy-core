@@ -125,6 +125,11 @@ export function setObjetoActivo(objeto) {
   objetoActivo = objeto || null;
 }
 
+/** Objeto activo de la ficha (grafo-panel lo consulta para el halo/chip). */
+export function getObjetoActivo() {
+  return objetoActivo;
+}
+
 /**
  * Registra la función que navega el mapa a un objeto (la inyecta
  * main.js para evitar import circular).

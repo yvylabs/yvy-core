@@ -41,6 +41,9 @@ export function sincronizarLayout() {
   document.documentElement.setAttribute('data-dock', vista);
   dock.setAttribute('data-vista', vista);
   dock.classList.toggle('dock--oculto', vista === 'oculto');
+  // R5: main.js releva la cámara por estado (tira = fit del objeto
+  // activo; mapa lleno = bicontinental) escuchando este evento.
+  document.dispatchEvent(new CustomEvent('yvy:dock', { detail: { vista } }));
   // Tira del mapa llena (oculto) o compacta (dossier/welcome) — clase
   // companion porque el motor de test matchea atributos por presencia.
   const mapaCol = document.getElementById('mapa-col');

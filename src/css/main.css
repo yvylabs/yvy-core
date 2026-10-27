@@ -1289,61 +1289,6 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   50% { opacity: 0.42; }
 }
 
-/* ==============================================================
-   RED SINTÉTICA DEL WELCOME — provincias proyectadas sobre el
-   globo (solo render: nombre + punto, sin datos numéricos).
-   La red de linderos dibuja la silueta de Argentina girando con
-   la Tierra. Océano azul-noche es render del estado (sintetico.js).
-   ============================================================== */
-.sintetico-red {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 5; /* sobre el canvas, bajo el toolbar y el dock */
-  pointer-events: none;
-  overflow: hidden;
-  transition: opacity 320ms ease;
-}
-.sintetico-red--off { opacity: 0; }
-
-.sintetico__enlace {
-  stroke: rgba(16, 185, 129, 0.32);
-  stroke-width: var(--sint-enlace, 1);
-  fill: none;
-}
-
-.sintetico__nodo { pointer-events: auto; cursor: pointer; }
-.sintetico__halo {
-  fill: none;
-  stroke: rgba(16, 185, 129, 0.16);
-  r: calc(var(--sint-radio, 4.5) * 2.4);
-  transition: stroke var(--transition);
-}
-.sintetico__nucleo {
-  fill: var(--accent);
-  r: var(--sint-radio, 4.5);
-  transition: fill var(--transition);
-}
-.sintetico__nodo:hover .sintetico__nucleo { fill: var(--accent-bright); }
-.sintetico__nodo:hover .sintetico__halo { stroke: rgba(52, 211, 153, 0.5); }
-
-.sintetico__etiqueta {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  fill: #E2E8F0;
-  opacity: 0.92;
-  paint-order: stroke;
-  stroke: rgba(7, 9, 13, 0.8);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-  pointer-events: none;
-  transition: opacity 260ms ease;
-}
-/* Aleja el globo: solo silueta de nodos y enlaces; nombres al acercar */
-.sintetico-red--lejos .sintetico__etiqueta { opacity: 0; }
-
 .dossier-acc__grupo {
   padding: 8px 10px 4px;
   font-family: var(--font-mono);
@@ -1442,7 +1387,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
    Solo desktop: en <=768px la columna es muda y los paneles vuelven
    a su comportamiento overlay / bottom-sheet.
    ============================================================== */
-:root { --dock-ancho: clamp(600px, 55vw, 800px); --mapa-alto: 160px; }
+:root { --dock-ancho: clamp(600px, 55vw, 800px); --mapa-alto: 192px; }
 
 @media (min-width: 769px) {
   .dock {
@@ -1458,7 +1403,7 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   }
 
   /* MAPA INCRUSTADO: tira superior del dossier.
-     Altura por inset-par (top 0 / bottom calc(100% - 160px)): el motor
+     Altura por inset-par (top 0 / bottom calc(100% - 192px)): el motor
      de test computa alturas absolutas por insets (height literal se lo
      saltea); en Chrome real el resultado es idéntico.
      Sin ficha (oculto): la tira baja al 100% de la columna. */
@@ -1467,21 +1412,57 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     top: 0;
     left: 0;
     right: 0;
-    bottom: calc(100% - 160px);
+    bottom: calc(100% - 192px);
     z-index: 1;
   }
   /* Clase companion (JS en ui.js): el motor de test matchea
      atributos por presencia — la clase es determinista en ambos. */
   .mapa-col--lleno { bottom: 0; }
 
-  /* Toolbar compacto horizontal dentro de la tira (6 botones en fila) */
+  /* Tira mínima (R5): sin toolbar flotante — SOLO ⤢ en la esquina
+     superior derecha (widget plano, sin caja flotante). Pan sí,
+     controles no: buscar vía Ctrl+K/welcome; zoom/ubicación/ficha
+     solo en mapa lleno (oculto o fullscreen). */
   .mapa-col--incrustado .toolbar--left {
-    flex-direction: row;
     top: 8px;
-    left: 8px;
+    left: auto;
+    right: 8px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    gap: 0;
   }
-  .mapa-col--incrustado .toolbar-btn { width: 30px; height: 30px; }
-  .mapa-col--incrustado .toolbar-btn svg { width: 16px; height: 16px; }
+  .mapa-col--incrustado .toolbar-btn { display: none; }
+  .mapa-col--incrustado .toolbar-btn:last-child {
+    display: flex;
+    width: 30px;
+    height: 30px;
+    background: var(--map-widget-bg);
+    border: 1px solid var(--map-widget-border);
+    border-radius: var(--radius-sm);
+  }
+  .mapa-col--incrustado .toolbar-btn:last-child svg { width: 16px; height: 16px; }
+
+  /* Mapa lleno (sin ficha): toolbar COMPLETA (R5) — igual que fullscreen. */
+  .mapa-col--lleno .toolbar--left {
+    top: 14px;
+    left: 14px;
+    right: auto;
+    background: var(--map-widget-bg);
+    border: 1px solid var(--map-widget-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    padding: 6px;
+    gap: 6px;
+  }
+  .mapa-col--lleno .toolbar-btn {
+    display: flex;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+  }
 
   /* ⤢ Expandir mapa: la MISMA columna pasa a overlay fija (fullscreen).
      El panel Grafo queda debajo; al cerrar (✕ / Esc) vuelve a la tira. */
@@ -1493,6 +1474,26 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     right: 0;
     flex: none;
     z-index: 900;
+  }
+
+  /* Fullscreen (R5): toolbar COMPLETA vuelve (zoom/ubicación/buscar/ficha) */
+  :root[data-mapa-full] .mapa-col--incrustado .toolbar--left {
+    top: 14px;
+    left: 14px;
+    right: auto;
+    background: var(--map-widget-bg);
+    border: 1px solid var(--map-widget-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    padding: 6px;
+    gap: 6px;
+  }
+  :root[data-mapa-full] .mapa-col--incrustado .toolbar-btn {
+    display: flex;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
   }
 
   .mapa-col__cerrar {
@@ -1543,11 +1544,11 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
     box-shadow: none;
   }
 
-  /* Dossier: anclado debajo de la tira del mapa (160px literal), scroll interno */
+  /* Dossier: anclado debajo de la tira del mapa (192px literal), scroll interno */
   .dock .floating-panel,
   .dock #panel-explorador {
     position: absolute;
-    top: 160px;
+    top: 192px;
     right: 0;
     bottom: 0;
     left: 0;
@@ -1713,6 +1714,33 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 
 /* Swap ⇄: dossier y grafo alternan lados (persistente) */
+/* Swap pill (R5): vive sobre el DIVISOR Dossier/Grafo (no en topbar).
+   Corre con --dock-ancho; con layout--swap el dock pasa a la derecha y
+   el divisor queda a 100% - ancho. Oculta en <=768px (tabs la reemplazan). */
+.swap-pill {
+  position: absolute;
+  top: 50%;
+  left: var(--dock-ancho);
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dock-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: color var(--transition), border-color var(--transition);
+}
+.swap-pill:hover { color: var(--accent-bright); border-color: var(--accent); }
+.swap-pill svg { width: 15px; height: 15px; pointer-events: none; }
+:root.layout--swap .swap-pill { left: calc(100% - var(--dock-ancho)); }
+
 @media (min-width: 769px) {
   :root.layout--swap .layout { flex-direction: row-reverse; }
   :root.layout--swap .dock {
@@ -1772,6 +1800,8 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   }
 
   .panel-grafo { display: none; }
+  /* Swap pill: en móvil el divisor no existe (tabs [Dossier|Grafo] la reemplazan) */
+  .swap-pill { display: none; }
   .dock {
     position: static;
     width: 0;

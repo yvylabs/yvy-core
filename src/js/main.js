@@ -11,14 +11,14 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 
-import { cargarDatos, getObjeto, getPadre, setObjetoActivo, setNavegador } from './manifest.js';
+import { cargarDatos, getObjeto, getPadre, getObjetoActivo, setObjetoActivo, setNavegador } from './manifest.js';
 import { agregarCapaObjeto, silenciarTextosBase, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
 import { inicializarUIPaneles, inicializarTabsMobile } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
-import { inicializarPanelGrafo } from './grafo-panel.js';
+import { inicializarPanelGrafo, refrescarGrafo } from './grafo-panel.js';
 import { inicializarTema } from './tema.js';
 import { track } from './telemetry.js';
 
@@ -191,6 +191,10 @@ function inicializarModoMapa() {
     document.documentElement.toggleAttribute('data-mapa-full', full);
     btnFull.setAttribute('aria-expanded', String(full));
     if (btnCerrar) btnCerrar.hidden = !full;
+    // Encuadre por estado (R5): mapa lleno = bicontinental; al volver a la
+    // tira, re-ajusta al objeto activo (si lo hay).
+    if (full) encuadrarLleno();
+    else encuadrarDossier();
   }
 
   btnFull.addEventListener('click', () => {
@@ -260,9 +264,13 @@ async function irAYvyId(yvyId) {
   if (yvyId == null) {
     // Deseleccionar: ocultar todo el contexto y limpiar la UI
     setObjetoActual(null);
+    setObjetoActivo(null);
     aplicarBandaVisible(null);
     setObjetoBarra(null);
     limpiarFicha();
+    refrescarGrafo();
+    // Sin ficha el mapa llena la columna (oculto): encuadre bicontinental.
+    encuadrarLleno();
     return;
   }
   const obj = getObjeto(yvyId);
@@ -304,6 +312,7 @@ async function irAYvyId(yvyId) {
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
 
   mostrarObjeto(yvyId);
+  refrescarGrafo(); // halo + chip "DATOS CARGADOS" siguen al objeto activo
 }
 
 // El navegador de la ficha (padre/hijos/chips) usa la misma ruta
@@ -326,11 +335,49 @@ async function garantizarDatos() {
 // (bicontinental: continente + sector antártico; sin ficha → mapa lleno).
 const VISTA_INICIAL = { center: [-64, -56], zoom: 2.4, pitch: 0, bearing: 0 };
 
+// --------------------------------------------------------------
+// Encuadre por estado (R5): la tira (dossier) SIEMPRE fitBounds del
+// objeto activo; el mapa lleno (oculto, welcome sin objeto, fullscreen ⤢)
+// SIEMPRE la vista bicontinental. El boot Welcome no navega: el mapa
+// nace en VISTA_INICIAL y ningún estado inicial pisa ese encuadre.
+// --------------------------------------------------------------
+function encuadrarLleno() {
+  if (!map || !map.flyTo) return;
+  map.stop();
+  map.flyTo({ ...VISTA_INICIAL, duration: 1200 });
+}
+
+function encuadrarDossier() {
+  if (!map || !map.flyTo) return;
+  const obj = getObjetoActivo();
+  if (!obj || obj.nivel === 'pais') return; // país: su vuelo ya es global
+  let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
+  let zoomObjetivo = obj.zoom ?? 7;
+  try {
+    if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
+      const b = obj.bounds_objeto;
+      const cam = map.cameraForBounds(
+        [[b[0], b[1]], [b[2], b[3]]],
+        { padding: { top: 80, bottom: 80, right: 80, left: 80 }, maxZoom: (obj.maxzoom ?? 22) + 3, minZoom: Math.min(obj.minzoom ?? 0, 6) }
+      );
+      if (cam) {
+        centro = cam.center;
+        zoomObjetivo = cam.zoom;
+      }
+    }
+  } catch {
+    // bounds degenerados: se vuela a centro/zoom fijos
+  }
+  map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1200 });
+}
+
 function volverAlInicio() {
   setObjetoActual(null);
+  setObjetoActivo(null);
   setObjetoBarra(null);
   limpiarFicha();
   aplicarBandaVisible(null);
+  refrescarGrafo();
   map.stop();
   map.flyTo({ ...VISTA_INICIAL, duration: 2600 });
   // limpiarFicha deja el panel oculto: el mapa llena la columna (oculto).
@@ -344,6 +391,15 @@ if (brandEl) {
     volverAlInicio();
   });
 }
+
+// Encuadre por estado (R5): cada cambio de vista del dock releva la cámara.
+// oculto (mapa lleno) → bicontinental; dossier → fit del objeto activo;
+// welcome → no toca la cámara (arranque ya está en VISTA_INICIAL).
+document.addEventListener('yvy:dock', (e) => {
+  const vista = e.detail?.vista;
+  if (vista === 'oculto') encuadrarLleno();
+  else if (vista === 'dossier') encuadrarDossier();
+});
 
 // --------------------------------------------------------------
 // Evento load del mapa
@@ -387,15 +443,10 @@ map.on('load', async () => {
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
 
-  // DEMO (R1): si el permalink no trae objeto, arrancar con Salta cargada.
-  // El welcome queda accesible vía Ctrl+K o botón buscar (never-blind boot).
-  if (!location.hash) {
-    try {
-      await irAYvyId(1066); // Salta provincia (yvy:1066, parent 0)
-    } catch (err) {
-      console.warn('[yvy] boot demo Salta falló:', err?.message || err);
-    }
-  }
+  // R5: sin boot demo. Sin permalink el arranque ES el Welcome (abierto
+  // por inicializarBienvenida) sobre el mapa bicontinental; el grafo
+  // muestra la red completa de provincias. Con permalink, share.js
+  // navega (irAYvyId cierra el Welcome y ajusta la ficha).
 
   // Barra de producto
   inicializarBarraTecnica(map);

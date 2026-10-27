@@ -4,8 +4,8 @@
 // layout de fuerza, son posiciones reales (capital_centro en nivel
 // país, centro_etiqueta en los drills) → la silueta ES el grafo.
 // - Vista país: 24 provincias + linderos reales (pares únicos).
-// - Salta "viva": halo pulsante esmeralda + chip DATOS CARGADOS
-//   (CSS, respeta prefers-reduced-motion).
+// - Objeto activo (R5): el nodo de la ficha abierta lleva halo pulsante
+//   esmeralda + chip DATOS CARGADOS (CSS, respeta prefers-reduced-motion).
 // - Drill: provincia → departamentos → municipios, cada nodo con sus
 //   relaciones (contiene + linderos + padre fantasma). Agrupación
 //   "+ N más" (tope 12 visibles, clic expande: determinista).
@@ -15,12 +15,11 @@
 // hijos no hay drill; el conteo "+ N más" es el resto real.
 // ==============================================================
 
-import { getObjeto, getObjetos, getHijos, getRelaciones, navegarA, etiquetaNivel } from './manifest.js';
+import { getObjeto, getObjetos, getHijos, getRelaciones, navegarA, etiquetaNivel, getObjetoActivo } from './manifest.js';
 import { track } from './telemetry.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const MAX_VISIBLE = 12; // nodos con etiqueta antes del grupo "+ N más"
-const DEMO_ID = 1066; // Salta: nodo "vivo" (halo + chip)
 
 let svg = null;
 let gEnlaces = null;
@@ -31,6 +30,7 @@ let bc = null;
 let vista = null; // { nivel: 'pais' } | { nivel: 'provincia'|'depto', id }
 let expandidos = new Set(); // keys 'nivelPadre:id' con grupos "+N más" abiertos
 let nodosById = new Map();
+let vivoId = null; // objeto activo de la ficha: halo + chip lo siguen
 
 // --------------------------------------------------------------
 // Carga de vistas
@@ -176,6 +176,9 @@ function pintar() {
   if (!svg || !body) return;
   const R = body.getBoundingClientRect();
   if (R.width < 60 || R.height < 60) return; // panel oculto/plegado: nada
+  // Nodo "vivo" (R5): el objeto activo de la ficha (NO una decoración
+  // fija). En cualquier vista: halo pulsante + chip DATOS CARGADOS.
+  vivoId = (() => { const o = getObjetoActivo(); return o ? Number(o.yvy_id) : null; })();
   const red = (!vista || vista.nivel === 'pais') ? cargarVistaPais() : cargarEgo(vista.id);
   const proyectar = proyectador(red.nodos.filter((n) => n.rol !== 'grupo').map((n) => n.lonlat), R.width, R.height);
   for (const n of red.nodos) {
@@ -202,16 +205,14 @@ function pintar() {
   const capas = [...red.nodos].sort((a, b) => orden.indexOf(a.rol) - orden.indexOf(b.rol));
   for (const n of capas) gNodos.appendChild(renderNodo(n));
 
-  // Salta "viva" solo en la vista país
-  if ((!vista || vista.nivel === 'pais') && red.nodos.some((n) => n.id === DEMO_ID)) {
-    accesoriosSalta(red.nodos.find((n) => n.id === DEMO_ID));
-  }
+  const nodoVivo = vivoId != null ? red.nodos.find((n) => n.id === vivoId) : null;
+  if (nodoVivo) accesoriosNodoVivo(nodoVivo);
   actualizarBC();
 }
 
 function renderNodo(n) {
   const g = document.createElementNS(NS, 'g');
-  const esVivo = n.id === DEMO_ID && (!vista || vista.nivel === 'pais') && n.rol === 'provincia';
+  const esVivo = n.id === vivoId && n.rol !== 'fantasma';
   g.setAttribute('class', `gp-nodo gp-nodo--${n.rol}${esVivo ? ' gp-nodo--vivo' : ''}`);
   g.setAttribute('transform', `translate(${Math.round(n.x)},${Math.round(n.y)})`);
   if (n.rol === 'grupo') {
@@ -221,7 +222,7 @@ function renderNodo(n) {
   }
   if (esVivo) {
     const halo = document.createElementNS(NS, 'circle');
-    halo.setAttribute('r', RADIO.central);
+    halo.setAttribute('r', (RADIO[n.rol] || 5) + 4);
     halo.setAttribute('class', 'gp-halo');
     g.appendChild(halo);
   }
@@ -246,8 +247,8 @@ function renderNodo(n) {
   return g;
 }
 
-/** Chip esmeralda [DATOS CARGADOS] junto al nodo vivo (Salta). */
-function accesoriosSalta(nodo) {
+/** Chip esmeralda [DATOS CARGADOS] junto al nodo del objeto activo. */
+function accesoriosNodoVivo(nodo) {
   if (!nodo) return;
   const g = document.createElementNS(NS, 'g');
   g.setAttribute('class', 'gp-chip');
@@ -371,4 +372,14 @@ export function inicializarPanelGrafo() {
   // El catálogo puede llegar después del primer pintado (boot): repinta.
   setTimeout(() => { try { pintar(); } catch (e) { console.warn('[yvy] repintado grafo:', e?.message); } }, 600);
   track('grafo_panel', { ok: 1 });
+}
+
+/**
+ * Repintado externo (R5): main.js lo llama al cambiar el objeto activo
+ * para que halo + chip "DATOS CARGADOS" sigan a la ficha. Seguro si el
+ * panel aún no existe.
+ */
+export function refrescarGrafo() {
+  if (!svg || !body) return;
+  try { pintar(); } catch (e) { console.warn('[yvy] repintado grafo:', e?.message); }
 }
