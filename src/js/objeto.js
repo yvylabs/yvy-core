@@ -429,7 +429,8 @@ function ExtrasRuta(obj) {
 function bloqueCopiarFooter(refsEl, obj, estadoAg, extras) {
   const row = document.createElement('div');
   row.className = 'dossier-footer';
-  row.appendChild(bloqueCopiar(obj, estadoAg, extras));
+  row.appendChild(bloqueCopiar(obj, estadoAg, extras, refsEl));
+  row.appendChild(bloqueCopiarJsonLd(obj));
   const fn = document.createElement('button');
   fn.type = 'button';
   fn.className = 'dossier-copy dossier-copy--fuentes';
@@ -444,14 +445,71 @@ function bloqueCopiarFooter(refsEl, obj, estadoAg, extras) {
   return row;
 }
 
-function bloqueCopiar(obj, estadoAg, extras) {  const b = document.createElement('button');
+// JSON-LD mínimo y verificable: mismos campos del manifest, sin inventar.
+// Es la ficha que un cliente puede pegar en su CMS o en un LLM.
+function textoJsonLd(obj) {
+  const padre = getPadre(obj.yvy_id);
+  const doc = {
+    '@context': 'https://schema.org',
+    '@type': 'AdministrativeArea',
+    '@id': `https://explorer.yvylabs.com/#yvy:${obj.yvy_id}`,
+    identifier: `yvy:${obj.yvy_id}`,
+    name: obj.nombre_oficial,
+    additionalType: obj.nivel,
+  };
+  if (padre) {
+    doc.containedInPlace = {
+      '@type': 'AdministrativeArea',
+      '@id': `https://explorer.yvylabs.com/#yvy:${padre.yvy_id}`,
+      name: padre.nombre_oficial,
+    };
+  }
+  const sup = Number(obj.sup_oficial_km2);
+  if (Number.isFinite(sup) && sup > 0) {
+    doc.area = { '@type': 'QuantitativeValue', value: Math.round(sup * 10) / 10, unitCode: 'KMK' };
+  }
+  return JSON.stringify(doc, null, 2);
+}
+
+function bloqueCopiarJsonLd(obj) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'dossier-copy dossier-copy--fuentes';
+  b.textContent = 'Copiar JSON-LD';
+  b.title = 'Copiar la ficha como JSON-LD (schema.org)';
+  b.addEventListener('click', async () => {
+    const txt = textoJsonLd(obj);
+    try {
+      await navigator.clipboard.writeText(txt);
+      b.textContent = 'Copiado';
+    } catch {
+      window.prompt('Copiá este JSON-LD:', txt);
+    }
+    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel, formato: 'jsonld' });
+    setTimeout(() => { b.textContent = 'Copiar JSON-LD'; }, 2000);
+  });
+  return b;
+}
+
+function bloqueCopiar(obj, estadoAg, extras, refsEl) {
+  const b = document.createElement('button');
   b.type = 'button';
   b.className = 'dossier-copy';
   b.textContent = 'Copiar dossier';
   b.addEventListener('click', async () => {
     // Lee el estado AL CLICKEAR: refleja lo visible (los agregados
     // async llenan el estado cuando resuelven, nunca después del clic).
-    const txt = textoDossier(obj, estadoAg && estadoAg.m, extras);
+    // Las referencias también se leen del DOM: el censo y los datasets
+    // se agregan tarde y el MD tiene que salir con TODAS las fuentes.
+    const refsDom = refsEl
+      ? [...refsEl.querySelectorAll('.dossier-ref__item')]
+        .map((el) => el.textContent.trim())
+        .filter((t) => t && t !== 'Sin fuentes registradas')
+      : [];
+    const extrasVivos = refsDom.length
+      ? { ...extras, refs: refsDom.map((nombre) => ({ nombre })) }
+      : extras;
+    const txt = textoDossier(obj, estadoAg && estadoAg.m, extrasVivos);
     try {
       await navigator.clipboard.writeText(txt);
       b.textContent = 'Copiado';

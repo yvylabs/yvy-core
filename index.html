@@ -110,31 +110,6 @@
         <button class="mapa-col__cerrar" id="btn-mapa-cerrar" aria-label="Colapsar mapa, volver al dossier" hidden>✕</button>
       </main>
 
-      <!-- Vista BIENVENIDA / COMMAND (solo Ctrl+K o botón buscar) -->
-      <section class="welcome" id="welcome" hidden aria-label="Consulta territorial">
-        <div class="welcome__panel">
-          <header class="welcome__head">
-            <span class="welcome__eyebrow">CONSULTA TERRITORIAL</span>
-            <h1 class="welcome__title">¿Qué lugar querés consultar?</h1>
-          </header>
-
-          <div class="welcome__search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-            <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar un lugar…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar" />
-            <span class="welcome__hint" id="welcome-hint"></span>
-          </div>
-
-          <div class="welcome__results" id="welcome-results"></div>
-
-          <footer class="welcome__foot">
-            <span class="welcome__foot-label">ACCESOS</span>
-            <div class="welcome__suggestions" id="welcome-suggestions"></div>
-            <span class="welcome__kbd">Ctrl+K para buscar · Esc para ocultar el panel</span>
-            <span class="welcome__meta" id="welcome-meta"></span>
-          </footer>
-        </div>
-      </section>
-
       <!-- Vista DOSSIER (jurisdicción elegida) -->
       <section class="floating-panel" id="panel-explorador" hidden aria-label="Dossier de la jurisdicción">
         <header class="floating-panel__head" id="explorer-head-inspect">
@@ -183,12 +158,47 @@
     </nav>
   </div>
 
+  <!-- PORTADA / COMMAND (R13): una pantalla, una acción. Vive fuera del
+       layout para cubrir el viewport completo; el mapa y el grafo quedan
+       detrás como textura. Sin métricas ni jerga de dev en la portada. -->
+  <section class="welcome" id="welcome" hidden aria-label="Consulta territorial">
+    <div class="welcome__scrim" aria-hidden="true"></div>
+    <div class="welcome__panel">
+      <header class="welcome__head">
+        <span class="welcome__eyebrow"><i class="welcome__pulse" aria-hidden="true"></i>Datos oficiales de Argentina</span>
+        <h1 class="welcome__title">Grafo de decisiones territoriales.</h1>
+        <p class="welcome__sub">Consultá población, límites y catastro de cualquier jurisdicción. Sin registro, con la fuente a la vista.</p>
+      </header>
+
+      <div class="welcome__search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar provincia, departamento, municipio o dato…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar o dato" />
+        <span class="welcome__hint" id="welcome-hint"></span>
+        <kbd class="welcome__kbd" aria-hidden="true">Ctrl K</kbd>
+        <button class="welcome__go" id="welcome-go" type="button" aria-label="Abrir el primer resultado">↵</button>
+      </div>
+
+      <div class="welcome__results" id="welcome-results" hidden></div>
+
+      <footer class="welcome__foot">
+        <div class="welcome__suggestions" id="welcome-suggestions"></div>
+        <div class="welcome__fuentes" id="welcome-fuentes"></div>
+        <div class="welcome__legal">
+          <span>Acceso abierto</span><span aria-hidden="true">·</span>
+          <span>Sin registro</span><span aria-hidden="true">·</span>
+          <span>Fuente oficial</span>
+          <span class="welcome__meta" id="welcome-meta"></span>
+        </div>
+      </footer>
+    </div>
+  </section>
+
   <!-- ============================================================ -->
   <!-- BARRA DE PRODUCTO (objeto activo) -->
   <!-- ============================================================ -->
   <footer class="status-bar" id="status-bar">
     <span class="status-bar__item status-bar__item--objeto"><span class="status-bar__v" id="st-objeto" aria-live="polite">Ninguna jurisdicción seleccionada</span></span>
-    <span class="status-bar__item status-bar__item--right"><span class="status-bar__k">Acceso abierto · Sin registro · ¿Marca blanca?</span>&nbsp;<a class="status-bar__link" href="mailto:yvylabs@proton.me?subject=Marca%20blanca%20Yvy%20Explorer">hablemos →</a></span>
+    <span class="status-bar__item status-bar__item--right">Acceso abierto · Sin registro · Fuente oficial</span>
   </footer>
 
   <!-- Cloudflare Web Analytics: visitantes únicos (privado, sin cookies).
