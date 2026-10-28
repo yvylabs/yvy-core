@@ -36,6 +36,17 @@ let vista = null; // { nivel: 'pais' } | { nivel: 'provincia'|'depto', id }
 let expandidos = new Set(); // keys 'nivelPadre:id' con grupos "+N más" abiertos
 let nodosById = new Map();
 let vivoId = null; // objeto activo de la ficha: halo + chip lo siguen
+// Estado del catálogo (R10): 'cargando' | 'ok' | 'error'. El estado vacío
+// del grafo lo dice con honestidad (antes "cargando" eterno si fallaba).
+let estadoCatalogo = 'cargando';
+
+/** main.js avisa cómo va el catálogo; repinta el vacío si hace falta. */
+export function setEstadoCatalogo(estado) {
+  if (estadoCatalogo === estado) return;
+  estadoCatalogo = estado;
+  if (!svg || !body) return;
+  try { pintar(); } catch { /* panel aún sin medidas */ }
+}
 
 // --------------------------------------------------------------
 // Carga de vistas
@@ -226,12 +237,19 @@ function pintar() {
     gEnlaces.innerHTML = '';
     gNodos.innerHTML = '';
     gAccesorios.innerHTML = '';
+    const error = estadoCatalogo === 'error';
+    const html = error
+      ? '<strong>No se pudo cargar el catálogo</strong><span>Revisá la conexión y recargá la página. El mapa sigue funcionando.</span>'
+      : '<strong>Cargando el catálogo…</strong><span>El grafo aparece en cuanto llegan las entidades.</span>';
     if (!elVacio) {
       elVacio = document.createElement('div');
       elVacio.className = 'panel-grafo__vacio';
-      elVacio.innerHTML = '<strong>Cargando el catálogo…</strong><span>El grafo aparece en cuanto llegan las entidades.</span>';
+      elVacio.innerHTML = html;
       body.appendChild(elVacio);
+    } else if (elVacio.innerHTML !== html) {
+      elVacio.innerHTML = html;
     }
+    elVacio.classList.toggle('panel-grafo__vacio--error', error);
     actualizarBC();
     return;
   }
@@ -307,6 +325,15 @@ function renderNodo(n) {
     g.setAttribute('data-grupo-ver', n.ver);
   } else if (n.rol !== 'fantasma') {
     g.setAttribute('data-yvy', n.id);
+  }
+  // Accesibilidad (R10): nodos alcanzables con teclado (roving tabindex),
+  // con nombre y acción anunciados. El fantasma no es interactivo.
+  if (n.rol !== 'fantasma') {
+    g.setAttribute('tabindex', '-1');
+    g.setAttribute('role', 'button');
+    g.setAttribute('aria-label', n.rol === 'grupo'
+      ? `${n.nombre}. Mostrar el resto.`
+      : `${n.nombre}, ${etiquetaNivel(n.nivel) || n.nivel}. Abrir dossier.`);
   }
   // Hover nativo accesible: siempre el nombre real en <title>
   const titulo = document.createElementNS(NS, 'title');
@@ -396,23 +423,27 @@ function actualizarBC() {
 }
 
 /** Interacción: grupo "+N más", nodo (drill + navegar) o fondo (subir). */
-function onClicSvg(e) {
-  const gGrupo = e.target.closest('[data-grupo-ver]');
-  if (gGrupo) {
-    expandidos.add(gGrupo.getAttribute('data-grupo-ver'));
+function activarNodo(gNodo) {
+  if (!gNodo) return;
+  if (gNodo.hasAttribute('data-grupo-ver')) {
+    expandidos.add(gNodo.getAttribute('data-grupo-ver'));
     pintar();
     track('grafo_mas', { vista: vista ? vista.nivel : 'pais' });
     return;
   }
-  const gNodo = e.target.closest('[data-yvy]');
+  const id = Number(gNodo.getAttribute('data-yvy'));
+  const n = nodosById.get(id);
+  if (!n) return;
+  track('grafo_nodo', { nivel: n.nivel, yvy_id: id });
+  navegarA(id); // abre el dossier (y vuela el mapa)
+  if (n.nivel === 'provincia') setVista({ nivel: 'provincia', id });
+  else if (n.nivel === 'depto') setVista({ nivel: 'depto', id });
+}
+
+function onClicSvg(e) {
+  const gNodo = e.target.closest ? e.target.closest('[data-grupo-ver],[data-yvy]') : null;
   if (gNodo) {
-    const id = Number(gNodo.getAttribute('data-yvy'));
-    const n = nodosById.get(id);
-    if (!n) return;
-    track('grafo_nodo', { nivel: n.nivel, yvy_id: id });
-    navegarA(id); // abre el dossier (y vuela el mapa)
-    if (n.nivel === 'provincia') setVista({ nivel: 'provincia', id });
-    else if (n.nivel === 'depto') setVista({ nivel: 'depto', id });
+    activarNodo(gNodo);
     return;
   }
   // Fondo del lienzo: subir un nivel (país ← provincia ← depto)
@@ -421,6 +452,44 @@ function onClicSvg(e) {
   const padreId = o ? o.parent_yvy_id : null;
   const padre = padreId != null ? getObjeto(padreId) : null;
   setVista(padre && padre.nivel === 'provincia' ? { nivel: 'provincia', id: padreId } : { nivel: 'pais' });
+}
+
+/**
+ * Teclado (R10): roving tabindex. Tab entra al grafo UNA vez; flechas
+ * recorren los nodos en orden de lectura; Enter/Espacio activan el nodo
+ * (mismo camino que el clic). Sin 565 tab-stops inútiles.
+ */
+function onTecladoSvg(e) {
+  const activo = document.activeElement;
+  const g = activo && activo.closest ? activo.closest('[data-yvy],[data-grupo-ver]') : null;
+  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+    if (g) { e.preventDefault(); activarNodo(g); }
+    return;
+  }
+  const paso = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1
+    : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
+  if (!paso) return;
+  // Orden de lectura: central → provincias → deptos → grupos (no el orden
+  // de capas del DOM, que pone el enjambre de deptos primero).
+  const prioridad = (n) => n.classList.contains('gp-nodo--central') ? 0
+    : n.classList.contains('gp-nodo--provincia') ? 1
+    : n.classList.contains('gp-nodo--depto-dot') ? 4 : 3;
+  const pos = (n) => {
+    const m = (n.getAttribute('transform') || '').match(/translate\(([-\d.]+),([-\d.]+)\)/);
+    return m ? [Number(m[2]), Number(m[1])] : [0, 0];
+  };
+  const lista = [...gNodos.querySelectorAll('[data-yvy],[data-grupo-ver]')].sort((a, b) =>
+    prioridad(a) - prioridad(b) || pos(a)[0] - pos(b)[0] || pos(a)[1] - pos(b)[1]);
+  if (!lista.length) return;
+  e.preventDefault();
+  const i = lista.indexOf(g);
+  const siguiente = lista[Math.max(0, Math.min(lista.length - 1, i + paso))];
+  for (const n of lista) n.setAttribute('tabindex', '-1');
+  siguiente.setAttribute('tabindex', '0');
+  siguiente.focus();
+  // El foco enciende el vecindario aunque el motor no emita focusin.
+  const yvy = siguiente.getAttribute('data-yvy');
+  aplicarFoco(yvy != null ? Number(yvy) : null);
 }
 
 /** Cambia de vista y repinta. */
@@ -479,8 +548,9 @@ export function inicializarPanelGrafo() {
   if (!body || !bc) return;
   svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'panel-grafo-svg');
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'Grafo de jurisdicciones argentinas');
+  svg.setAttribute('role', 'group');
+  svg.setAttribute('tabindex', '0');
+  svg.setAttribute('aria-label', 'Grafo de jurisdicciones argentinas. Usá las flechas para recorrer y Enter para abrir.');
   gEnlaces = document.createElementNS(NS, 'g');
   gNodos = document.createElementNS(NS, 'g');
   gAccesorios = document.createElementNS(NS, 'g');
@@ -488,12 +558,21 @@ export function inicializarPanelGrafo() {
   svg.appendChild(gNodos);
   svg.appendChild(gAccesorios);
   svg.addEventListener('click', onClicSvg);
+  svg.addEventListener('keydown', onTecladoSvg);
   // Hover-focus Obsidian: el nodo + vecinos quedan vivos, resto atenúa.
   svg.addEventListener('mouseover', (e) => {
     const g = e.target.closest ? e.target.closest('[data-yvy]') : null;
     aplicarFoco(g ? Number(g.getAttribute('data-yvy')) : null);
   });
   svg.addEventListener('mouseleave', () => aplicarFoco(null));
+  // Teclado: el foco también enciende el vecindario (mismo lenguaje visual)
+  svg.addEventListener('focusin', (e) => {
+    const g = e.target.closest ? e.target.closest('[data-yvy]') : null;
+    if (g) aplicarFoco(Number(g.getAttribute('data-yvy')));
+  });
+  svg.addEventListener('focusout', (e) => {
+    if (!svg.contains(e.relatedTarget)) aplicarFoco(null);
+  });
   body.innerHTML = '';
   body.appendChild(svg);
   setVista({ nivel: 'pais' });

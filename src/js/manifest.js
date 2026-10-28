@@ -28,13 +28,20 @@ export async function cargarDatos() {
 
   const base = import.meta.env.BASE_URL || './';
   const [mr, rr] = await Promise.all([
-    fetch(`${base}data/manifest.json`)
-      .then((r) => (r.ok ? r.json() : { objetos: [] }))
-      .catch(() => ({ objetos: [] })),
+    // R10: el manifest NO se tolera vacío. Un fallo de red o un 404 debe
+    // propagarse para que la UI diga "no se pudo cargar" (antes se
+    // tragaba el error y el grafo quedaba en "cargando" para siempre).
+    fetch(`${base}data/manifest.json`).then((r) => {
+      if (!r.ok) throw new Error(`manifest HTTP ${r.status}`);
+      return r.json();
+    }),
     fetch(`${base}data/relaciones.json`)
       .then((r) => (r.ok ? r.json() : { relaciones: [] }))
       .catch(() => ({ relaciones: [] })),
   ]);
+  if (!mr || !Array.isArray(mr.objetos) || mr.objetos.length === 0) {
+    throw new Error('manifest sin objetos');
+  }
 
   const objetos = new Map();
   for (const o of mr.objetos || []) objetos.set(o.yvy_id, o);

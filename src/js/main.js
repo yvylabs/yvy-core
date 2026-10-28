@@ -18,7 +18,7 @@ import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
 import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
-import { inicializarPanelGrafo, refrescarGrafo } from './grafo-panel.js';
+import { inicializarPanelGrafo, refrescarGrafo, setEstadoCatalogo } from './grafo-panel.js';
 import { inicializarTema } from './tema.js';
 import { track } from './telemetry.js';
 
@@ -465,8 +465,10 @@ map.on('load', async () => {
   // ninguna capa ni bloquea el globo. El árbol se arma bajo demanda.
   try {
     await garantizarDatos();
+    setEstadoCatalogo('ok');
   } catch (err) {
     console.error('No se pudo cargar el manifiesto territorial:', err);
+    setEstadoCatalogo('error');
   }
 
   // Controles de la izquierda (zoom in/out + ubicación)
