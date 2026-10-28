@@ -373,6 +373,10 @@ export function inicializarBienvenida(fnNavegar) {
     if (e.key === 'Escape' && !overlay.hasAttribute('hidden')) cerrar();
   });
 
+  // Tocar fuera de la tarjeta también cierra (en móvil no hay Esc).
+  const scrim = overlay.querySelector('.welcome__scrim');
+  if (scrim) scrim.addEventListener('click', cerrar);
+
   // Foco atrapado: la portada cubre la app, así que Tab no debe irse
   // al mapa o al grafo que están detrás del velo.
   overlay.addEventListener('keydown', (e) => {
@@ -405,7 +409,9 @@ export function inicializarBienvenida(fnNavegar) {
 
   // PORTADA (R13): una sola pantalla al arranque. Al elegir, pick() la
   // cierra; Ctrl+K / btn-buscar la reabren en modo command.
-  abrir('portada');
+  // Con permalink a un objeto la ficha ya manda: la portada no la tapa.
+  const conObjeto = /[#&]y=\d+/.test(location.hash);
+  if (!conObjeto) abrir('portada');
 }
 
 /**

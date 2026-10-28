@@ -161,18 +161,28 @@
   <!-- PORTADA / COMMAND (R13): una pantalla, una acción. Vive fuera del
        layout para cubrir el viewport completo; el mapa y el grafo quedan
        detrás como textura. Sin métricas ni jerga de dev en la portada. -->
-  <section class="welcome" id="welcome" hidden aria-label="Consulta territorial">
+  <section class="welcome" id="welcome" hidden aria-label="Consulta">
     <div class="welcome__scrim" aria-hidden="true"></div>
+
+    <header class="welcome__top">
+      <div class="welcome__brand">
+        <svg class="welcome__logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 20.66 7v10L12 22 3.34 17V7Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span class="welcome__brand-name">Yvy Explorer</span>
+        <span class="welcome__brand-tag">· Soporte a la acción</span>
+      </div>
+      <a class="welcome__labs" href="https://yvylabs.com" target="_blank" rel="noopener">Labs <span>(Beta)</span> →</a>
+    </header>
+
     <div class="welcome__panel">
       <header class="welcome__head">
-        <span class="welcome__eyebrow"><i class="welcome__pulse" aria-hidden="true"></i>Datos oficiales de Argentina</span>
-        <h1 class="welcome__title">Grafo de decisiones territoriales.</h1>
-        <p class="welcome__sub">Consultá población, límites y catastro de cualquier jurisdicción. Sin registro, con la fuente a la vista.</p>
+        <span class="welcome__pill"><i class="welcome__dot" aria-hidden="true"></i>Capa semántica operativa</span>
+        <h1 class="welcome__title">Grafo de decisiones.</h1>
+        <p class="welcome__sub">La infraestructura que conecta cada objeto con su jerarquía, sus relaciones y la fuente que respalda cada decisión.</p>
       </header>
 
       <div class="welcome__search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar provincia, departamento, municipio o dato…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar o dato" />
+        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar provincia, departamento, municipio o dato..." autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar o dato" />
         <span class="welcome__hint" id="welcome-hint"></span>
         <kbd class="welcome__kbd" aria-hidden="true">Ctrl K</kbd>
         <button class="welcome__go" id="welcome-go" type="button" aria-label="Abrir el primer resultado">↵</button>
@@ -186,7 +196,7 @@
         <div class="welcome__legal">
           <span>Acceso abierto</span><span aria-hidden="true">·</span>
           <span>Sin registro</span><span aria-hidden="true">·</span>
-          <span>Fuente oficial</span>
+          <span>Trazabilidad</span>
           <span class="welcome__meta" id="welcome-meta"></span>
         </div>
       </footer>
