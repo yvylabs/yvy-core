@@ -62,6 +62,9 @@ html[data-theme="light"] {
   --bg: #F3F4F6;
   --canvas: #FFFFFF;
   --surface: #FFFFFF;
+  --surface-1: #FFFFFF;
+  --surface-2: #F8FAFC;
+  --surface-3: #EEF2F7;
   --surface-hover: #EAEFF4;
   --surface-translucent: #FFFFFF;
   --skeleton: #E4E9F0;
@@ -170,40 +173,72 @@ html[data-theme="light"] .topbar { background: rgba(243, 244, 246, 0.78); }
   line-height: 1.15;
 }
 
-/* Breadcrumb vivo + telemetría ( densos, mono ) */
+/* Breadcrumb vivo + telemetría ( densos, mono )
+   R8: cada nivel es un CHIP (pill hairline). El usuario ve que el
+   breadcrumb es navegable sin tener que adivinarlo. */
 .topbar__crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   flex: 1;
   justify-content: center;
   overflow: hidden;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
 .topbar__crumbs:empty { display: none; }
-.topbar__crumb { color: var(--text-dim); }
+.topbar__crumb {
+  display: inline-flex;
+  align-items: center;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  color: var(--text-dim);
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
 button.topbar__crumb {
-  background: none;
-  border: none;
-  padding: 0;
+  padding: 3px 9px;
   cursor: pointer;
   font: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
 }
 button.topbar__crumb:hover {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--accent-bright);
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.32);
+  text-decoration: none;
 }
-.topbar__crumb--sep { opacity: 0.5; }
-.topbar__crumb--active { color: var(--text); }
+.topbar__crumb--sep {
+  background: none;
+  border: 0;
+  padding: 0 1px;
+  opacity: 0.35;
+}
+.topbar__crumb--active {
+  color: var(--accent-bright);
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.26);
+}
+html[data-theme="light"] .topbar__crumb {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+html[data-theme="light"] .topbar__crumb--sep { background: none; border-color: transparent; }
+html[data-theme="light"] .topbar__crumb--active {
+  color: var(--accent);
+  background: rgba(5, 150, 105, 0.09);
+  border-color: rgba(5, 150, 105, 0.24);
+}
 .topbar__right {
   display: flex;
   align-items: center;
@@ -1292,16 +1327,24 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
    sin los márgenes horizontales de la versión top-level. */
 .dossier-acc .dossier-grid { margin: 6px 4px 0; }
 
-/* Skeleton: pulso mientras getAgregado resuelve (fetch lazy) */
+/* Skeleton: shimmer mientras getAgregado resuelve (fetch lazy).
+   R8: barrido de luz (gradiente animado) — se lee como "cargando",
+   no como "roto". Respeta reduced-motion por la regla global. */
 .skeleton-bloque {
   height: 14px;
   border-radius: 4px;
-  background: var(--skeleton);
-  animation: skeleton-pulso 1.4s ease-in-out infinite;
+  background: linear-gradient(
+    100deg,
+    var(--skeleton) 30%,
+    rgba(148, 163, 184, 0.16) 50%,
+    var(--skeleton) 70%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-brillo 1.6s ease-in-out infinite;
 }
 .skeleton-bloque--num { height: 30px; width: 150px; }
-.skeleton-bloque:nth-child(2) { width: 78%; animation-delay: 0.15s; }
-.skeleton-bloque:nth-child(3) { width: 56%; animation-delay: 0.3s; }
+.skeleton-bloque:nth-child(2) { width: 78%; animation-delay: 0.12s; }
+.skeleton-bloque:nth-child(3) { width: 56%; animation-delay: 0.24s; }
 
 .dossier-grupo-skeleton {
   margin: 12px 16px 0;
@@ -1311,9 +1354,9 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 .dossier-acc .dossier-grupo-skeleton { margin: 6px 4px 0; }
 
-@keyframes skeleton-pulso {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.42; }
+@keyframes skeleton-brillo {
+  0% { background-position: 190% 0; }
+  100% { background-position: -90% 0; }
 }
 
 .dossier-acc__grupo {
@@ -1620,8 +1663,8 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   --canvas: #0B0E14;
   --surface: #12151D;
   --border-strong: #1E293B;
-  --text: #E2E8F0;
-  --text-dim: #94A3B8;
+  --text: #F1F5F9;
+  --text-dim: #A8B3C4;
   --accent: #10b981;
   --accent-bright: #34d399;
   --accent-dim: rgba(16, 185, 129, 0.14);
@@ -1634,6 +1677,51 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-strong);
   flex: 0 0 auto;
+}
+/* Leyenda flotante (R8): vidrio discreto abajo a la izquierda, no come
+   alto del grafo ni intercepta el hover (pointer-events: none). */
+.panel-grafo__leyenda {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 5px 10px;
+  background: rgba(7, 9, 13, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  pointer-events: none;
+  user-select: none;
+}
+.gp-key { display: inline-flex; align-items: center; gap: 5px; }
+.gp-key__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
+}
+.gp-key__dot--depto {
+  width: 4px;
+  height: 4px;
+  background: rgba(56, 189, 248, 0.75);
+  box-shadow: none;
+}
+.gp-key__line {
+  width: 12px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.55;
 }
 .panel-grafo__label {
   font-family: var(--font-mono);

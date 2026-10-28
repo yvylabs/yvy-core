@@ -147,6 +147,13 @@
         <nav class="panel-grafo__bc" id="panel-grafo-bc" aria-label="Jerarquía del grafo"></nav>
       </header>
       <div class="panel-grafo__body" id="panel-grafo-body"></div>
+      <!-- Leyenda (R8): el grafo se explica solo — nodo = jurisdicción,
+           punto cian = departamento (densidad), línea = vínculo real. -->
+      <div class="panel-grafo__leyenda" aria-hidden="true">
+        <span class="gp-key"><i class="gp-key__dot"></i>jurisdicción</span>
+        <span class="gp-key"><i class="gp-key__dot gp-key__dot--depto"></i>departamento</span>
+        <span class="gp-key"><i class="gp-key__line"></i>vínculo</span>
+      </div>
     </section>
 
     <!-- Swap ⇄ (R5): pill circular sobre el divisor Dossier/Grafo.
