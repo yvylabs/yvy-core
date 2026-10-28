@@ -218,6 +218,24 @@ function pintar() {
   // fija). En cualquier vista: halo pulsante + chip DATOS CARGADOS.
   vivoId = (() => { const o = getObjetoActivo(); return o ? Number(o.yvy_id) : null; })();
   const red = (!vista || vista.nivel === 'pais') ? cargarVistaPais() : cargarEgo(vista.id);
+  // Estado vacío honesto (R9): si el catálogo todavía no llegó, el panel
+  // lo DICE (antes quedaba un lienzo mudo que parecía roto).
+  const vacio = red.nodos.length === 0;
+  let elVacio = body.querySelector('.panel-grafo__vacio');
+  if (vacio) {
+    gEnlaces.innerHTML = '';
+    gNodos.innerHTML = '';
+    gAccesorios.innerHTML = '';
+    if (!elVacio) {
+      elVacio = document.createElement('div');
+      elVacio.className = 'panel-grafo__vacio';
+      elVacio.innerHTML = '<strong>Cargando el catálogo…</strong><span>El grafo aparece en cuanto llegan las entidades.</span>';
+      body.appendChild(elVacio);
+    }
+    actualizarBC();
+    return;
+  }
+  if (elVacio) elVacio.remove();
   const proyectar = proyectador(red.nodos.filter((n) => n.rol !== 'grupo').map((n) => n.lonlat), R.width, R.height);
   for (const n of red.nodos) {
     const p = proyectar(n.lonlat);

@@ -1723,6 +1723,16 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   background: var(--accent);
   opacity: 0.55;
 }
+/* Paneles angostos: la leyenda se compacta (nunca desborda el grafo) */
+@media (max-width: 1180px) {
+  .panel-grafo__leyenda {
+    gap: 8px;
+    padding: 4px 8px;
+    font-size: 8px;
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+  }
+}
 .panel-grafo__label {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -1763,6 +1773,8 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
+  gap: 6px;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -1772,6 +1784,14 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   letter-spacing: 0.04em;
   color: var(--text-dim);
 }
+.panel-grafo__vacio strong {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.panel-grafo__vacio span { max-width: 30ch; line-height: 1.55; }
 .panel-grafo svg { display: block; width: 100%; height: 100%; }
 
 /* --- Grafo del panel (R2 + R6-b): enjambre real, hover-focus Obsidian --- */
@@ -1876,7 +1896,9 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
   transition: width 200ms var(--ease-out), border-color var(--transition), box-shadow var(--transition);
 }
-.swap-pill svg { width: 15px; height: 15px; flex-shrink: 0; pointer-events: none; }
+.swap-pill svg { width: 15px; height: 15px; flex-shrink: 0; pointer-events: none; transition: transform 220ms var(--ease-out); }
+/* R9: al cambiar de lado el icono se invierte — el gesto "explica" el swap */
+:root.layout--swap .swap-pill svg { transform: scaleX(-1); }
 .swap-pill__label {
   max-width: 0;
   opacity: 0;
