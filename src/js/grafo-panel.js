@@ -410,24 +410,33 @@ function actualizarBC() {
       sep.textContent = '›';
       bc.appendChild(sep);
     }
+    const ultimo = i === items.length - 1;
+    // R11: el nivel actual NO es una acción. Antes era un <button> que no
+    // hacía nada (tab-stop muerto); ahora es texto con aria-current.
+    if (ultimo) {
+      const actual = document.createElement('span');
+      actual.className = 'pg-bc pg-bc--actual';
+      actual.setAttribute('aria-current', 'true');
+      actual.textContent = it.nombre;
+      bc.appendChild(actual);
+      return;
+    }
     const btn = document.createElement('button');
     btn.type = 'button';
-    const ultimo = i === items.length - 1;
-    btn.className = 'pg-bc' + (ultimo ? ' pg-bc--actual' : '');
-    if (!ultimo) {
-      btn.addEventListener('click', () => ir(it.nivel === 'pais' ? { nivel: 'pais' } : { nivel: it.nivel, id: it.id }));
-    }
+    btn.className = 'pg-bc';
+    btn.addEventListener('click', () => ir(it.nivel === 'pais' ? { nivel: 'pais' } : { nivel: it.nivel, id: it.id }));
     btn.textContent = it.nombre;
     bc.appendChild(btn);
   });
 }
 
 /** Interacción: grupo "+N más", nodo (drill + navegar) o fondo (subir). */
-function activarNodo(gNodo) {
+function activarNodo(gNodo, desdeTeclado) {
   if (!gNodo) return;
   if (gNodo.hasAttribute('data-grupo-ver')) {
     expandidos.add(gNodo.getAttribute('data-grupo-ver'));
     pintar();
+    if (desdeTeclado && svg) { try { svg.focus(); } catch { /* sin foco */ } }
     track('grafo_mas', { vista: vista ? vista.nivel : 'pais' });
     return;
   }
@@ -438,6 +447,9 @@ function activarNodo(gNodo) {
   navegarA(id); // abre el dossier (y vuela el mapa)
   if (n.nivel === 'provincia') setVista({ nivel: 'provincia', id });
   else if (n.nivel === 'depto') setVista({ nivel: 'depto', id });
+  // Teclado (R11): el repintado borra el nodo enfocado; devolvemos el foco
+  // al lienzo para no expulsar al usuario del grafo.
+  if (desdeTeclado && svg) { try { svg.focus(); } catch { /* sin foco */ } }
 }
 
 function onClicSvg(e) {
@@ -463,7 +475,7 @@ function onTecladoSvg(e) {
   const activo = document.activeElement;
   const g = activo && activo.closest ? activo.closest('[data-yvy],[data-grupo-ver]') : null;
   if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-    if (g) { e.preventDefault(); activarNodo(g); }
+    if (g) { e.preventDefault(); activarNodo(g, true); }
     return;
   }
   const paso = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1

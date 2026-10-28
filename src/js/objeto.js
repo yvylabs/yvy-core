@@ -186,12 +186,24 @@ function bloqueHero(m, densidadTexto) {
   hero.className = 'dossier-hero';
   const num = document.createElement('div');
   num.className = 'dossier-hero-num';
-  num.textContent = m ? fmtInt.format(Number(m.poblacion) || 0) : '–';
+  // R11: el estado `missing` se DICE (SPEC §4). Un guion solo no alcanza:
+  // el hero lo declara y la nota dice por qué, sin inventar un cero.
+  const sinDatos = !m || m.poblacion == null || m.poblacion === '';
+  num.textContent = sinDatos ? '–' : fmtInt.format(Number(m.poblacion) || 0);
+  num.classList.toggle('dossier-hero-num--vacio', sinDatos);
   const lab = document.createElement('div');
   lab.className = 'dossier-hero-label';
-  lab.textContent = densidadTexto ? `Habitantes · ${densidadTexto} hab/km²` : 'Habitantes';
+  lab.textContent = sinDatos
+    ? 'Población · sin datos del Censo 2022'
+    : (densidadTexto ? `Habitantes · ${densidadTexto} hab/km²` : 'Habitantes');
   hero.appendChild(num);
   hero.appendChild(lab);
+  if (sinDatos) {
+    const nota = document.createElement('div');
+    nota.className = 'dossier-hero-nota';
+    nota.textContent = 'El Censo 2022 no publica datos para este objeto.';
+    hero.appendChild(nota);
+  }
   return hero;
 }
 

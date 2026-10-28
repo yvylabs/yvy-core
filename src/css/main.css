@@ -75,8 +75,8 @@ html[data-theme="light"] {
   --text: #111827;
   --text-dim: #4B5563;
   --text-muted: #6B7280;
-  --accent: #059669;
-  --accent-bright: #10B981;
+  --accent: #047857; /* R11: AA sobre blanco (5.4:1); antes #059669 (3.77) */
+  --accent-bright: #059669; /* R11: 3.77:1 — válido para texto grande y gráficos */
   --accent-dim: rgba(5, 150, 105, 0.12);
   --accent-glow: rgba(5, 150, 105, 0.06);
   --danger: #d43b34;
@@ -1060,6 +1060,17 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   margin-top: 6px;
 }
 
+/* R11: estado missing explícito (nunca un cero inventado) */
+.dossier-hero-num--vacio { color: var(--text-dim); }
+.dossier-hero-nota {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-top: 4px;
+  opacity: 0.9;
+}
+
 /* Grid atómico de métricas (R7): 2 tarjetas primarias arriba, el resto
    como FILAS hairline (menos cajas compitiendo = más aire = más caro) */
 .dossier-grid {
@@ -1757,11 +1768,12 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   color: var(--text-dim);
   cursor: pointer;
   font: inherit;
+  display: inline-block;
   padding: 2px 5px;
   border-radius: 3px;
   white-space: nowrap;
 }
-.panel-grafo__bc .pg-bc:hover { color: var(--text); background: var(--accent-glow); }
+.panel-grafo__bc .pg-bc:not(.pg-bc--actual):hover { color: var(--text); background: var(--accent-glow); }
 .panel-grafo__bc .pg-bc--actual { color: var(--accent); cursor: default; }
 .panel-grafo__bc .pg-sep { opacity: 0.5; }
 .panel-grafo__body {
