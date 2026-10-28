@@ -3,9 +3,12 @@
 // SVG propio con proyección equirectangular: los nodos NO son un
 // layout de fuerza, son posiciones reales (capital_centro en nivel
 // país, centro_etiqueta en los drills) → la silueta ES el grafo.
-// - Vista país: 24 provincias (radio = densidad real de deptos) +
-//   529 deptos como puntos en su centro real con hilos tenues: el
-//   enjambre DIBUJA el territorio (sin polígonos inventados).
+// - Vista país (R12): 24 provincias + 43 linderos, NADA MÁS. El
+//   enjambre de 541 deptos se retiró: dibujaba la silueta pero
+//   volvía ilegible el grafo ("nube de mosquitos"). Los deptos
+//   viven donde corresponden: en el drill de cada provincia.
+//   Radio = población real (Censo 2022, escala sqrt): el tamaño
+//   dice algo que el cliente entiende sin explicación.
 // - Objeto activo (R5): el nodo de la ficha abierta lleva halo
 //   pulsante esmeralda + chip DATOS CARGADOS (CSS, reduced-motion).
 // - Anti-solape de etiquetas (R6-b): cajas greedy con stagger; la
@@ -20,11 +23,19 @@
 // hijos no hay drill; el conteo "+ N más" es el resto real.
 // ==============================================================
 
-import { getObjeto, getObjetos, getHijos, getRelaciones, navegarA, etiquetaNivel, getObjetoActivo } from './manifest.js';
+import { getObjeto, getObjetos, getHijos, getRelaciones, navegarA, etiquetaNivel, getObjetoActivo, getAgregado } from './manifest.js';
 import { track } from './telemetry.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const MAX_VISIBLE = 12; // nodos con etiqueta antes del grupo "+ N más"
+const NUM = new Intl.NumberFormat('es-AR');
+
+// Población (Censo 2022) por yvy_id: cache de módulo para que el radio
+// no dispare 24 fetches en cada repintado (y para reusar lo que el
+// dossier ya pidió). `pidiendo` evita pedidos duplicados en vuelo.
+const poblaciones = new Map();
+const pidiendo = new Set();
+let pintarToken = 0;
 
 let svg = null;
 let gEnlaces = null;
@@ -71,42 +82,33 @@ function datosNodo(obj, c, rol) {
   return n;
 }
 
-/** Vista país (R6-b "segundo cerebro"): 24 provincias (capital_centro)
- * + 529 deptos como puntos reales (la densidad DIBUJA la silueta del
- * territorio: cero geometría inventada, SPEC §4) + hilos contiene
- * tenues + linderos sólidos. Radio de provincia = densidad real
- * (sqrt de deptos). */
+/**
+ * Vista país (R12 "grafo limpio"): 24 provincias + 43 linderos, nada
+ * más. Radio = población real (Censo 2022) con escala sqrt: el tamaño
+ * dice algo legible ("Buenos Aires pesa más que Tierra del Fuego") en
+ * vez de codificar un conteo de subdivisiones que nadie adivina.
+ * Los deptos ya no viven acá: aparecen al hacer drill en su provincia.
+ */
 function cargarVistaPais() {
   nodosById = new Map();
   const nodos = [];
   const enlaces = [];
   const provincias = getObjetos().filter((x) => x.nivel === 'provincia');
-  const enElGrafo = new Set();
+  const conCoord = [];
   for (const o of provincias) {
     const c = coordsDe(o);
     if (!c) continue; // missing explícito: sin coordenada no hay nodo
-    enElGrafo.add(o.yvy_id);
     const n = datosNodo(o, c, 'provincia');
-    // Densidad visible: radio por sqrt(#deptos) — más subdivisión, más masa
-    const nHijos = (getHijos(o.yvy_id) || []).length;
-    n.r = 4.5 + Math.min(6.5, Math.sqrt(nHijos) * 0.6);
     n.hijos = getHijos(o.yvy_id) || [];
-    nodos.push(n);
+    n.poblacion = poblaciones.get(o.yvy_id) || null;
+    conCoord.push(n);
   }
-  // Deptos: puntos en su centro real, hilo tenue hacia la provincia.
-  // El enjambre dibuja la forma del país sin dibujar ningún polígono.
-  // (copia: el loop agrega al array mientras itera)
-  for (const p of [...nodos]) {
-    for (const h of (p.hijos || [])) {
-      const ch = coordsDe(h);
-      if (!ch) continue;
-      const d = datosNodo(h, ch, 'depto-dot');
-      d.r = 1.7;
-      d.padreId = p.id;
-      nodos.push(d);
-      enlaces.push({ s: p, t: d, tipo: 'hilo' });
-    }
-  }
+  // Escala relativa a la provincia más poblada del país (Censo 2022).
+  const maxPob = Math.max(0, ...conCoord.map((n) => n.poblacion || 0));
+  for (const n of conCoord) n.r = radioPorPoblacion(n.poblacion, maxPob);
+  nodos.push(...conCoord);
+  const enElGrafo = new Set(conCoord.map((n) => n.id));
+  // Linderos reales: la única geometría de la vista país.
   const vistos = new Set();
   for (const p of provincias) {
     if (!enElGrafo.has(p.yvy_id)) continue;
@@ -121,7 +123,40 @@ function cargarVistaPais() {
       enlaces.push({ s: nodosById.get(p.yvy_id), t: nodosById.get(r.destino_yvy_id), tipo: 'lindero' });
     }
   }
+  // Poblaciones lazy (24 JSON pequeños, cacheados por el navegador y por
+  // el dossier): el radio se ajusta cuando llegan y se repinta una vez.
+  pedirPoblaciones(conCoord);
   return { nodos, enlaces };
+}
+
+/** Radio por población: piso 7, techo 24, sqrt contra la más poblada. */
+function radioPorPoblacion(pob, maxPob) {
+  const PISO = 7;
+  const TECHO = 24;
+  if (!pob || !maxPob) return PISO; // sin dato: piso, nunca un tamaño inventado
+  return Math.max(PISO, Math.min(TECHO, PISO + (TECHO - PISO) * Math.sqrt(pob / maxPob)));
+}
+
+/** Pide (una vez por provincia) la demografía y repinta al completar. */
+function pedirPoblaciones(nodos) {
+  const faltan = nodos.filter((n) => n.poblacion == null && !pidiendo.has(n.id));
+  if (faltan.length === 0) return;
+  const token = pintarToken;
+  for (const n of faltan) pidiendo.add(n.id);
+  Promise.all(faltan.map((n) => getAgregado('demografia', n.id)
+    .then((ag) => {
+      const pob = ag && ag.metricas ? Number(ag.metricas.poblacion) : 0;
+      if (pob > 0) poblaciones.set(n.id, pob);
+      n.poblacion = pob > 0 ? pob : null;
+    })
+    .catch(() => { n.poblacion = null; })
+    .finally(() => pidiendo.delete(n.id))))
+    .then(() => {
+      // Solo si seguimos en la misma vista país y nadie repintó en el medio.
+      if (token !== pintarToken) return;
+      if (vista && vista.nivel !== 'pais') return;
+      pintar();
+    });
 }
 
 /** Vista ego de una jurisdicción: hijos @ centro + relaciones reales. */
@@ -221,6 +256,7 @@ function pintar() {
   if (!svg || !body) return;
   const R = body.getBoundingClientRect();
   if (R.width < 60 || R.height < 60) return; // panel oculto/plegado: nada
+  pintarToken++; // invalida repintados async pendientes (poblaciones)
   // viewBox explícito (R5-b): con CSS 100%/100% basta, pero un SVG sin
   // caja (300x150 default) recorta el mapa si el sheet todavía no aplica.
   svg.setAttribute('viewBox', `0 0 ${Math.round(R.width)} ${Math.round(R.height)}`);
@@ -328,16 +364,23 @@ function renderNodo(n) {
   }
   // Accesibilidad (R10): nodos alcanzables con teclado (roving tabindex),
   // con nombre y acción anunciados. El fantasma no es interactivo.
+  const nivelTxt = etiquetaNivel(n.nivel) || n.nivel;
+  const datoTxt = n.poblacion ? `${NUM.format(n.poblacion)} habitantes` : '';
   if (n.rol !== 'fantasma') {
     g.setAttribute('tabindex', '-1');
     g.setAttribute('role', 'button');
     g.setAttribute('aria-label', n.rol === 'grupo'
       ? `${n.nombre}. Mostrar el resto.`
-      : `${n.nombre}, ${etiquetaNivel(n.nivel) || n.nivel}. Abrir dossier.`);
+      : `${n.nombre}, ${nivelTxt}.${datoTxt ? ` ${datoTxt}.` : ''} Abrir dossier.`);
   }
-  // Hover nativo accesible: siempre el nombre real en <title>
+  // Hover nativo accesible: nombre real + dato real en <title> (R12).
+  const detalle = [];
+  if (n.poblacion) detalle.push(`${NUM.format(n.poblacion)} hab`);
+  if (n.hijos && n.hijos.length) detalle.push(`${n.hijos.length} ${n.hijos.length === 1 ? 'subdivisión' : 'subdivisiones'}`);
   const titulo = document.createElementNS(NS, 'title');
-  titulo.textContent = n.rol === 'grupo' ? 'Expandir grupo' : `${n.nombre} · ${etiquetaNivel(n.nivel) || n.nivel}`;
+  titulo.textContent = n.rol === 'grupo'
+    ? 'Expandir grupo'
+    : `${n.nombre} · ${nivelTxt}${detalle.length ? ' · ' + detalle.join(' · ') : ''}`;
   g.appendChild(titulo);
   if (esVivo) {
     const halo = document.createElementNS(NS, 'circle');

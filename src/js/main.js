@@ -376,20 +376,33 @@ const VISTA_INICIAL = { center: [-64, -56], zoom: 2.4, pitch: 0, bearing: 0 };
 // objeto activo; el mapa lleno (oculto, welcome sin objeto, fullscreen ⤢)
 // SIEMPRE la vista bicontinental. El boot Welcome no navega: el mapa
 // nace en VISTA_INICIAL y ningún estado inicial pisa ese encuadre.
+// R12-b: `animar=false` permite re-encuadrar tras un cambio de caja
+// (ResizeObserver) sin volar de nuevo. `encuadreManual` protege al
+// usuario: si movió el mapa a mano, el layout no se lo pisa.
 // --------------------------------------------------------------
-function encuadrarLleno() {
-  if (!map || !map.flyTo) return;
-  map.stop();
-  map.flyTo({ ...VISTA_INICIAL, duration: 1200 });
+let encuadreManual = false;
+
+function volarA(center, zoom, animar) {
+  const opts = { center, zoom, duration: animar ? 1200 : 0 };
+  if (animar) map.flyTo(opts);
+  else map.jumpTo(opts);
 }
 
-function encuadrarDossier() {
+function encuadrarLleno(animar = true) {
   if (!map || !map.flyTo) return;
+  encuadreManual = false;
+  map.stop();
+  volarA(VISTA_INICIAL.center, VISTA_INICIAL.zoom, animar);
+}
+
+function encuadrarDossier(animar = true) {
+  if (!map || !map.flyTo) return;
+  encuadreManual = false;
   const obj = getObjetoActivo();
   if (!obj) return;
   // País: bicontinental también en la tira (honesto, aunque compacto)
   if (obj.nivel === 'pais') {
-    map.flyTo({ ...VISTA_INICIAL, duration: 1200 });
+    volarA(VISTA_INICIAL.center, VISTA_INICIAL.zoom, animar);
     return;
   }
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
@@ -409,7 +422,15 @@ function encuadrarDossier() {
   } catch {
     // bounds degenerados: se vuela a centro/zoom fijos
   }
-  map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1200 });
+  volarA(centro, zoomObjetivo, animar);
+}
+
+/** Re-encuadre del estado vigente (para cambios de caja, sin animación). */
+function encuadreVigente(animar) {
+  const vista = document.getElementById('dock')?.dataset.vista;
+  const full = document.documentElement.hasAttribute('data-mapa-full');
+  if (full || vista !== 'dossier') encuadrarLleno(animar);
+  else encuadrarDossier(animar);
 }
 
 function volverAlInicio() {
@@ -517,14 +538,41 @@ map.on('load', async () => {
   // El botón de búsqueda del toolbar reabre la bienvenida (manejado en welcome.js).
 });
 
-window.addEventListener('resize', () => {
-  map.resize();
-});
+// R12-b: si el usuario mueve el mapa a mano, el layout no le pisa la cámara.
+for (const ev of ['dragstart', 'rotatestart', 'pitchstart']) {
+  map.on(ev, () => { encuadreManual = true; });
+}
+map.on('zoomstart', (e) => { if (e && e.originalEvent) encuadreManual = true; });
 
-// ResizeObserver sobre el contenedor REAL del mapa: cualquier cambio
-// de ancho de la columna (dock abre/cierra colapsando, viewport, etc.)
-// dispara resize() solo — sin timers adivinando el layout.
+// Re-encuadre tras cambios de caja: resize() solo reajusta el canvas; sin
+// re-encuadrar, el país queda pegado a un borde al achicarse por el grafo
+// (el centro viejo ya no coincide con la caja nueva). Debounce para no
+// re-encuadrar en cada frame de la transición de layout.
+let roTimer = 0;
+let roPendiente = false;
+function reencuadrarPorCaja() {
+  clearTimeout(roTimer);
+  roTimer = setTimeout(() => {
+    try { map.resize(); } catch { /* mapa sin canvas */ }
+    if (encuadreManual) return;
+    try {
+      if (!map.isStyleLoaded || !map.isStyleLoaded()) return; // aún cargando
+      if (map.isMoving && map.isMoving()) {
+        // Vuelo en curso: esperar a que aterrice y re-encuadrar para la caja final.
+        if (roPendiente) return;
+        roPendiente = true;
+        map.once('moveend', () => {
+          roPendiente = false;
+          if (!encuadreManual) encuadreVigente(false);
+        });
+        return;
+      }
+      encuadreVigente(false);
+    } catch { /* estilo a medio cargar */ }
+  }, 90);
+}
+
+window.addEventListener('resize', reencuadrarPorCaja);
 if (typeof ResizeObserver !== 'undefined') {
-  new ResizeObserver(() => { try { map.resize(); } catch { /* mapa sin canvas */ } })
-    .observe(document.getElementById('map'));
+  new ResizeObserver(reencuadrarPorCaja).observe(document.getElementById('map'));
 }

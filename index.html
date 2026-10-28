@@ -66,8 +66,6 @@
       </span>
     </a>
 
-    <nav class="topbar__crumbs" id="topbar-crumbs" aria-label="Jerarquía activa"></nav>
-
     <div class="topbar__right">
       <button class="topbar__tema" id="btn-tema" type="button" aria-pressed="false" aria-label="Cambiar a modo claro" data-tooltip="Modo claro / oscuro"><svg class="tema-ico tema-ico--sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4L19 19M19 5l-1.6 1.6M6.6 17.4L5 19"/></svg><svg class="tema-ico tema-ico--luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg></button>
       <a class="topbar__labs" href="https://yvylabs.com" target="_blank" rel="noopener" aria-label="Yvy Labs — versión marca blanca">Labs <span class="topbar__labs-beta">Beta</span> →</a>
@@ -159,12 +157,12 @@
         <nav class="panel-grafo__bc" id="panel-grafo-bc" aria-label="Jerarquía del grafo" aria-live="polite"></nav>
       </header>
       <div class="panel-grafo__body" id="panel-grafo-body"></div>
-      <!-- Leyenda (R8): el grafo se explica solo — nodo = jurisdicción,
-           punto cian = departamento (densidad), línea = vínculo real. -->
+      <!-- Leyenda (R12): el grafo se explica solo — el tamaño del nodo es
+           población real (Censo 2022), la línea es un lindero real. Los
+           departamentos no viven acá: aparecen al abrir una provincia. -->
       <div class="panel-grafo__leyenda" aria-hidden="true">
-        <span class="gp-key"><i class="gp-key__dot"></i>jurisdicción</span>
-        <span class="gp-key"><i class="gp-key__dot gp-key__dot--depto"></i>departamento</span>
-        <span class="gp-key"><i class="gp-key__line"></i>vínculo</span>
+        <span class="gp-key"><i class="gp-key__dot"></i>tamaño = población</span>
+        <span class="gp-key"><i class="gp-key__line"></i>lindero</span>
       </div>
     </section>
 

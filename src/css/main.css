@@ -173,72 +173,6 @@ html[data-theme="light"] .topbar { background: rgba(243, 244, 246, 0.78); }
   line-height: 1.15;
 }
 
-/* Breadcrumb vivo + telemetría ( densos, mono )
-   R8: cada nivel es un CHIP (pill hairline). El usuario ve que el
-   breadcrumb es navegable sin tener que adivinarlo. */
-.topbar__crumbs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  flex: 1;
-  justify-content: center;
-  overflow: hidden;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.topbar__crumbs:empty { display: none; }
-.topbar__crumb {
-  display: inline-flex;
-  align-items: center;
-  max-width: 24ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.1);
-  color: var(--text-dim);
-  transition: color var(--transition), background var(--transition), border-color var(--transition);
-}
-button.topbar__crumb {
-  padding: 3px 9px;
-  cursor: pointer;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-}
-button.topbar__crumb:hover {
-  color: var(--accent-bright);
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.32);
-  text-decoration: none;
-}
-.topbar__crumb--sep {
-  background: none;
-  border: 0;
-  padding: 0 1px;
-  opacity: 0.35;
-}
-.topbar__crumb--active {
-  color: var(--accent-bright);
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.26);
-}
-html[data-theme="light"] .topbar__crumb {
-  background: rgba(15, 23, 42, 0.04);
-  border-color: rgba(15, 23, 42, 0.08);
-}
-html[data-theme="light"] .topbar__crumb--sep { background: none; border-color: transparent; }
-html[data-theme="light"] .topbar__crumb--active {
-  color: var(--accent);
-  background: rgba(5, 150, 105, 0.09);
-  border-color: rgba(5, 150, 105, 0.24);
-}
 .topbar__right {
   display: flex;
   align-items: center;
@@ -253,10 +187,6 @@ html[data-theme="light"] .topbar__crumb--active {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-@media (max-width: 900px) {
-  .topbar__crumbs { display: none; }
-}
-
 @media (max-width: 480px) {
   .topbar__tagline { display: none; }
 }
@@ -1722,12 +1652,6 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   background: var(--accent);
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
 }
-.gp-key__dot--depto {
-  width: 4px;
-  height: 4px;
-  background: rgba(56, 189, 248, 0.75);
-  box-shadow: none;
-}
 .gp-key__line {
   width: 12px;
   height: 1px;
@@ -1814,28 +1738,21 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 .gp-enlace--broader { stroke: var(--text-dim); stroke-dasharray: 3 4; opacity: 0.4; }
 /* R6-b: linderos sólidos finos (antes punteados: parecían debug) */
 .gp-enlace--lindero { stroke: #46566D; stroke-width: 1; opacity: 0.45; }
-/* R6-b: hilos provincia→depto, la malla que dibuja el territorio */
-.gp-enlace--hilo { stroke: var(--accent); stroke-width: 0.75; opacity: 0.07; }
 .gp-circulo { fill: var(--canvas); stroke: #8B98AF; stroke-width: 1.4; transition: opacity 160ms ease; }
 .gp-nodo--central .gp-circulo { fill: var(--accent); stroke: var(--accent-bright); stroke-width: 2; }
 .gp-nodo--fantasma .gp-circulo { fill: var(--surface); stroke: var(--text-dim); stroke-dasharray: 2.5 2.5; }
 .gp-nodo--grupo .gp-circulo { stroke-dasharray: 2.5 2.5; stroke: var(--text-dim); }
 .gp-nodo--vivo .gp-circulo { fill: var(--accent); stroke: var(--accent-bright); stroke-width: 2; }
-/* R6-b: provincias = nodos esmeralda sólidos (los "nodos principales") */
+/* R12: provincias = nodos esmeralda sólidos, tamaño = población */
 .gp-nodo--provincia .gp-circulo { fill: var(--accent); stroke: var(--accent-bright); stroke-width: 1.6; }
-/* R6-b: deptos = puntos cian sutiles: la densidad dibuja la silueta */
-.gp-nodo--depto-dot .gp-circulo { fill: rgba(56, 189, 248, 0.38); stroke: none; }
-.gp-nodo--depto-dot:hover .gp-circulo { fill: rgba(56, 189, 248, 0.95); }
 .gp-nodo[data-yvy], .gp-nodo[data-grupo-ver] { cursor: pointer; }
 /* Teclado (R10): foco visible en el nodo, sin outline cuadrado del SVG */
 .panel-grafo-svg:focus { outline: none; }
 .panel-grafo-svg:focus-visible { outline: 1px solid rgba(16, 185, 129, 0.35); outline-offset: -2px; }
 .gp-nodo { outline: none; }
 .gp-nodo:focus-visible .gp-circulo { stroke: var(--accent-bright); stroke-width: 2.6; }
-.gp-nodo--depto-dot:focus-visible .gp-circulo { stroke: #7DD3FC; stroke-width: 1.2; }
 .gp-nodo:focus-visible .gp-texto { fill: var(--accent-bright); }
 .gp-nodo:hover .gp-circulo { stroke: var(--accent-bright); stroke-width: 2.2; }
-.gp-nodo--depto-dot:hover .gp-circulo { stroke: #7DD3FC; stroke-width: 1; }
 .gp-nodo { transition: opacity 160ms ease; }
 /* Hover-focus Obsidian: foco + vecinos vivos, resto atenúa */
 .panel-grafo-svg.gp-focus .gp-nodo:not(.gp-nodo--foco) { opacity: 0.13; }
