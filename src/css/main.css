@@ -16,6 +16,9 @@
   --bg: #0B0E14;
   --canvas: #0B0E14; /* interiores: métricas, tooltips, accordeones, grafo */
   --surface: #12151D;
+  --surface-1: #0C1017; /* R7: profundidad en 4 niveles */
+  --surface-2: #121722;
+  --surface-3: #182031;
   --surface-hover: #161B22; /* hover enterprise de acordeones */
   --surface-translucent: #12151D;
   --skeleton: #17202E;
@@ -23,10 +26,10 @@
   --border: rgba(148, 163, 184, 0.14);
   --border-strong: #1E293B; /* líneas estructurales sólidas */
   --border-soft: #141821; /* separadores internos sutiles */
-  --map-widget-bg: #12151D; /* chip de controles flotando sobre el mapa (SIEMPRE dark: el globo es widget) */
-  --map-widget-border: #1E293B;
-  --text: #E2E8F0;
-  --text-dim: #94A3B8;
+  --map-widget-bg: rgba(18, 21, 29, 0.72); /* R7: widget de vidrio sobre el globo (SIEMPRE dark) */
+  --map-widget-border: rgba(148, 163, 184, 0.16);
+  --text: #F1F5F9; /* R7: contraste real (antes #E2E8F0 lavado) */
+  --text-dim: #A8B3C4; /* R7: legible (antes #94A3B8) */
   --text-muted: #475569;
   --text-bright: #F1F5F9; /* texto sobre acento (aplicado al fondo del mapa) */
   --tooltip-bg: #0B0E14; /* tooltips SIEMPRE dark (flotan sobre el globo) */
@@ -44,7 +47,9 @@
 
   --radius: 4px;
   --radius-sm: 4px;
+  --radius-card: 10px; /* R7: tarjetas/hero */
   --transition: 150ms ease;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); /* R7: movimiento con intención */
 }
 
 /* ==============================================================
@@ -111,10 +116,14 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: var(--canvas);
-  border-bottom: 1px solid var(--border-strong);
+  background: rgba(11, 14, 20, 0.72); /* R7: vidrio — el mapa pasa por debajo */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   z-index: 100;
 }
+/* Tema claro: el vidrio cambia de tinta, no de receta */
+html[data-theme="light"] .topbar { background: rgba(243, 244, 246, 0.78); }
 
 .topbar__brand {
   display: flex;
@@ -321,10 +330,12 @@ button.topbar__crumb:hover {
   flex-direction: column;
   gap: 6px;
   padding: 6px;
-  background: var(--map-widget-bg); /* widget del mapa: dark en ambos temas */
+  background: var(--map-widget-bg); /* R7: vidrio (SIEMPRE dark) */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--map-widget-border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
 }
 
 /* Toolbar DENTRO de la columna del mapa: se corre solo al cambiar el ancho */
@@ -985,22 +996,22 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   margin-top: 4px;
 }
 
-/* Hero de población (compacto: el número manda, el aire sobra) */
+/* Hero de población (R7: el número ES el titular — gradiente, no caja plana) */
 .dossier-hero {
-  margin: 12px 0 10px;
-  padding: 10px 16px 8px;
-  background: var(--accent-glow);
-  border: 1px solid rgba(16, 185, 129, 0.22);
-  border-radius: var(--radius);
+  margin: 14px 16px 12px;
+  padding: 16px 18px 14px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.04) 55%, transparent);
+  border: 1px solid rgba(16, 185, 129, 0.26);
+  border-radius: var(--radius-card);
 }
 
 .dossier-hero-num {
   font-family: var(--font-mono);
-  font-size: 24px;
+  font-size: clamp(32px, 5.5vw, 44px);
   font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  color: var(--accent);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--accent-bright);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1011,10 +1022,11 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
-/* Grid atómico de métricas */
+/* Grid atómico de métricas (R7): 2 tarjetas primarias arriba, el resto
+   como FILAS hairline (menos cajas compitiendo = más aire = más caro) */
 .dossier-grid {
   margin: 12px 16px 0;
   display: grid;
@@ -1023,22 +1035,37 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 
 .dossier-metrica {
-  background: var(--canvas);
+  background: var(--surface-1);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
+/* De la 3ª en adelante: fila full-width, label izq / valor der */
+.dossier-metrica:nth-child(n+3) {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  border-radius: 0;
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 2px 8px;
+}
+
 .dossier-metrica__valor {
   font-family: var(--font-mono);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+.dossier-metrica:nth-child(n+3) .dossier-metrica__valor { font-size: 13.5px; color: var(--text-dim); }
 
 .dossier-metrica__label {
   font-family: var(--font-mono);
@@ -1510,6 +1537,17 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   }
   .mapa-col__cerrar:hover { color: var(--text); background: var(--accent-glow); }
 
+  /* R7: vignette interior — la tira se asienta en la página (el borde
+     se funde, no corta en seco). pointer-events: no estorba. */
+  .mapa-col--incrustado::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.38);
+    z-index: 2;
+  }
+
   /* Fichas overlay dentro de la columna (debajo de la tira del mapa) */
   .dock > section { transition: opacity 180ms ease; }
 
@@ -1722,31 +1760,61 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
 }
 
 /* Swap ⇄: dossier y grafo alternan lados (persistente) */
-/* Swap pill (R5): vive sobre el DIVISOR Dossier/Grafo (no en topbar).
-   Corre con --dock-ancho; con layout--swap el dock pasa a la derecha y
-   el divisor queda a 100% - ancho. Oculta en <=768px (tabs la reemplazan). */
+/* Swap pill (R5→R7): sobre el DIVISOR Dossier/Grafo. Aparente pero
+   discreta: icono esmeralda, vidrio; en hover/focus se EXPANDE y se
+   explica sola ("Intercambiar"). Oculta en <=768px (tabs). */
 .swap-pill {
   position: absolute;
   top: 50%;
   left: var(--dock-ancho);
   transform: translate(-50%, -50%);
   z-index: 40;
-  width: 30px;
-  height: 30px;
+  height: 34px;
+  min-width: 34px;
+  width: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--dock-bg);
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  color: var(--text-dim);
+  background: rgba(18, 23, 34, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 17px;
+  color: var(--accent-bright);
   cursor: pointer;
-  padding: 0;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  transition: color var(--transition), border-color var(--transition);
+  padding: 0 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  transition: width 200ms var(--ease-out), border-color var(--transition), box-shadow var(--transition);
 }
-.swap-pill:hover { color: var(--accent-bright); border-color: var(--accent); }
-.swap-pill svg { width: 15px; height: 15px; pointer-events: none; }
+.swap-pill svg { width: 15px; height: 15px; flex-shrink: 0; pointer-events: none; }
+.swap-pill__label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: max-width 200ms var(--ease-out), opacity 160ms ease, margin 200ms var(--ease-out);
+}
+.swap-pill:hover,
+.swap-pill:focus-visible,
+.swap-pill--hint {
+  width: 124px;
+  border-color: var(--accent);
+  box-shadow: 0 6px 26px rgba(16, 185, 129, 0.22);
+}
+.swap-pill:hover .swap-pill__label,
+.swap-pill:focus-visible .swap-pill__label,
+.swap-pill--hint .swap-pill__label {
+  max-width: 90px;
+  opacity: 1;
+  margin-left: 7px;
+}
+html[data-theme="light"] .swap-pill { background: rgba(255, 255, 255, 0.85); }
 :root.layout--swap .swap-pill { left: calc(100% - var(--dock-ancho)); }
 
 @media (min-width: 769px) {
@@ -1857,6 +1925,18 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   text-transform: uppercase;
   color: var(--text-dim);
   opacity: 0.85;
+}
+
+/* Punto de capital (R7): dónde vive el gobierno de la jurisdicción —
+   dato real capital_centro del manifest (DOM marker de MapLibre) */
+.yvy-capital {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  border: 2px solid #0B0E14;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35), 0 0 14px rgba(52, 211, 153, 0.55);
+  pointer-events: none;
 }
 
 /* ==============================================================

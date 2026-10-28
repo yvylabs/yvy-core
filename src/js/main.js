@@ -228,6 +228,17 @@ function inicializarSwap() {
     try { localStorage.setItem('yvy:swap', swap ? '1' : '0'); } catch { /* storage bloqueado */ }
   });
   btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('layout--swap')));
+  // Affordance de primera vez (R7): la pill se expande sola 2.6s para
+  // que TODO usuario descubra el swap. Una sola vez, desktop, sin
+  // reduced-motion (persistencia honesta en localStorage).
+  try {
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!localStorage.getItem('yvy:swap-hint') && !reduce && innerWidth > 768) {
+      localStorage.setItem('yvy:swap-hint', '1');
+      btn.classList.add('swap-pill--hint');
+      setTimeout(() => btn.classList.remove('swap-pill--hint'), 2600);
+    }
+  } catch { /* storage bloqueado */ }
 }
 
 // --------------------------------------------------------------
@@ -235,6 +246,23 @@ function inicializarSwap() {
 // Carga de objetos Yvy — load once, dibujar siempre
 // --------------------------------------------------------------
 const cargados = new Set(); // yvy_ids con geometría ya en el mapa
+
+// Punto de capital (R7): dato real del manifest (capital_centro), DOM
+// marker — la tira muestra dónde vive el gobierno de la jurisdicción.
+let marcadorCapital = null;
+function pintarCapital(obj) {
+  if (marcadorCapital) { try { marcadorCapital.remove(); } catch { /* mapa reciclado */ } marcadorCapital = null; }
+  if (!map || !obj || !Array.isArray(obj.capital_centro) || obj.capital_centro.length !== 2) return;
+  try {
+    const el = document.createElement('div');
+    el.className = 'yvy-capital';
+    marcadorCapital = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([Number(obj.capital_centro[0]), Number(obj.capital_centro[1])])
+      .addTo(map);
+  } catch (e) {
+    console.warn('[yvy] marcador de capital no creado:', e?.message);
+  }
+}
 
 function cargarConContexto(obj) {
   // Solo el objeto elegido pinta. Los ancestros viven en el breadcrumb,
@@ -274,6 +302,7 @@ async function irAYvyId(yvyId) {
     setObjetoBarra(null);
     limpiarFicha();
     refrescarGrafo();
+    pintarCapital(null);
     // Sin ficha el mapa llena la columna (oculto): encuadre bicontinental.
     encuadrarLleno();
     return;
@@ -286,6 +315,7 @@ async function irAYvyId(yvyId) {
   setObjetoBarra(obj);
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
+  pintarCapital(obj);
 
   // Vuelo país (R6-b): bicontinental — continente + islas + Antártida
   // (el usuario elige "Argentina", no solo la parte continental).
@@ -389,6 +419,7 @@ function volverAlInicio() {
   limpiarFicha();
   aplicarBandaVisible(null);
   refrescarGrafo();
+  pintarCapital(null);
   map.stop();
   map.flyTo({ ...VISTA_INICIAL, duration: 2600 });
   // limpiarFicha deja el panel oculto: el mapa llena la columna (oculto).
