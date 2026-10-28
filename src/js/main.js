@@ -466,6 +466,9 @@ document.addEventListener('yvy:dock', (e) => {
   if (vista === 'oculto') encuadrarLleno();
   else if (vista === 'dossier' && !document.documentElement.hasAttribute('data-mapa-full')) encuadrarDossier();
   setEtiquetasBase(map, !lleno);
+  // R12-b: el vuelo se calculó con la caja de ese instante; al terminar la
+  // transición de layout, re-encuadrar para la caja final (sin animación).
+  setTimeout(reencuadrarPorCaja, 380);
 });
 
 // --------------------------------------------------------------
@@ -575,4 +578,13 @@ function reencuadrarPorCaja() {
 window.addEventListener('resize', reencuadrarPorCaja);
 if (typeof ResizeObserver !== 'undefined') {
   new ResizeObserver(reencuadrarPorCaja).observe(document.getElementById('map'));
+}
+// Red de seguridad: las transiciones de layout (dock/panel) pueden no
+// disparar el RO en el frame final. Al terminar la transición, una
+// pasada más de resize + re-encuadre (debounce incluido).
+for (const el of [document.getElementById('mapa-col'), document.getElementById('dock')]) {
+  if (!el) continue;
+  el.addEventListener('transitionend', (e) => {
+    if (['width', 'height', 'flex-basis', 'bottom', 'inset'].includes(e.propertyName)) reencuadrarPorCaja();
+  });
 }
