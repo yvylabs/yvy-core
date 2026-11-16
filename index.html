@@ -1,26 +1,40 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-dock="oculto">
 <head>
+  <script>try{if(localStorage.getItem('yvy:tema')==='light')document.documentElement.setAttribute('data-theme','light');if(localStorage.getItem('yvy:swap')==='1')document.documentElement.classList.add('layout--swap')}catch(e){}</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Yvy Explorer — Visor Territorial</title>
-  <meta name="description" content="Explorá jurisdicciones, concesiones y datos territoriales. Geointeligencia para minería, agro y gobierno." />
+  <title>Yvy Core | Infraestructura de Datos</title>
+  <meta name="description" content="Yvy Core: infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022 · IGN · DGI Salta · Minería): cada cifra con su fuente, su fecha de corte y salida en Markdown/JSON-LD. Acceso abierto, en tu navegador." />
+  <meta name="theme-color" content="#0B0E14" />
+  <link rel="manifest" href="./manifest.webmanifest" />
 
   <!-- Open Graph / Twitter -->
-  <meta property="og:title" content="Yvy Explorer — Visor Territorial" />
-  <meta property="og:description" content="Explorá jurisdicciones, concesiones y datos territoriales. Geointeligencia para minería, agro y gobierno." />
+  <meta property="og:title" content="Yvy Core" />
+  <meta property="og:description" content="Infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022, IGN, DGI Salta): cada cifra con su fuente y su fecha de corte. En el navegador, sin login, gratis." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://explorer.yvylabs.com" />
+  <meta property="og:site_name" content="Yvy Core" />
+  <meta property="og:locale" content="es_AR" />
+  <!-- Imagen OG (R9): generada con la geometría real del grafo (24 provincias
+       + 541 deptos del Censo 2022) — el preview de un link compartido ES
+       el producto, no un logo suelto. -->
+  <meta property="og:image" content="https://explorer.yvylabs.com/assets/og-yvy.jpg" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Yvy Core: grafo de las 24 provincias y 529 departamentos de Argentina" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://explorer.yvylabs.com/assets/og-yvy.jpg" />
 
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "Yvy Explorer",
-    "applicationCategory": "GeographicInformationSystem",
+    "name": "Yvy Core",
+    "applicationCategory": "DataCatalog",
     "operatingSystem": "Web Browser",
-    "description": "Visor de datos geoespaciales vectoriales y satelitales en formato PMTiles de alto rendimiento.",
+    "description": "Yvy Core: infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022 · IGN · DGI Salta · Minería): cada cifra con su fuente, su fecha de corte y salida en Markdown/JSON-LD. Acceso abierto, en tu navegador.",
     "author": {
       "@type": "Organization",
       "name": "Yvy Labs",
@@ -35,6 +49,7 @@
   </script>
 
   <link rel="icon" type="image/png" href="./assets/yvy_logo.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
   <link rel="stylesheet" href="./src/css/main.css" />
 </head>
 <body>
@@ -43,84 +58,148 @@
   <!-- TOPBAR -->
   <!-- ============================================================ -->
   <header class="topbar" id="topbar">
-    <a href="./" class="topbar__brand" aria-label="Yvy Explorer — Volver al inicio">
+    <a href="./" class="topbar__brand" aria-label="Yvy Core — Volver al inicio">
       <img src="./assets/yvy_logo.png" alt="" class="topbar__logo" />
       <span class="topbar__brand-text">
-        <span class="topbar__name">Yvy Explorer</span>
+        <span class="topbar__name">Yvy Core</span>
         <span class="topbar__tagline">Soporte a la acción</span>
       </span>
     </a>
 
-    <nav class="topbar__crumbs" id="topbar-crumbs" aria-label="Jerarquía activa"></nav>
-
     <div class="topbar__right">
+      <button class="topbar__tema" id="btn-tema" type="button" aria-pressed="false" aria-label="Cambiar a modo claro" data-tooltip="Modo claro / oscuro"><svg class="tema-ico tema-ico--sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4L19 19M19 5l-1.6 1.6M6.6 17.4L5 19"/></svg><svg class="tema-ico tema-ico--luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg></button>
+      <a class="topbar__labs" href="https://yvylabs.com" target="_blank" rel="noopener" aria-label="Yvy Labs — versión marca blanca">Labs <span class="topbar__labs-beta">Beta</span> →</a>
       <span class="topbar__fps" id="topbar-fps" title="Cuadros por segundo" hidden></span>
     </div>
   </header>
 
   <!-- ============================================================ -->
-  <!-- MAPA (controles nativos de MapLibre se inyectan en top-right) -->
+  <!-- LAYOUT FLEX: dossier (55%, con el mapa incrustado arriba) +   -->
+  <!-- panel Grafo (45%). El mapa es el render secundario del dossier -->
   <!-- ============================================================ -->
-  <main id="map" class="map">
-  </main>
+  <div class="layout">
+    <aside class="dock" id="dock" data-vista="inicio">
+      <!-- MAPA INCRUSTADO: tira superior del dossier (oculto → lleno) -->
+      <main class="mapa-col mapa-col--incrustado" id="mapa-col">
+        <div id="map" class="map"></div>
 
-  <!-- ============================================================ -->
-  <!-- BIENVENIDA / COMMAND (panel flotante, no tapa el globo) -->
-  <!-- ============================================================ -->
-  <section class="welcome" id="welcome" aria-label="Consulta territorial">
+        <!-- TOOLBAR (vive DENTRO de la columna del mapa: se corre solo) -->
+        <nav class="toolbar toolbar--left" id="toolbar-left" aria-label="Barra de navegación">
+          <button class="toolbar-btn" id="btn-buscar" aria-expanded="false" aria-label="Buscar jurisdicción" data-tooltip="Buscar jurisdicción">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+          </button>
+
+          <button class="toolbar-btn" id="btn-ficha" aria-expanded="false" aria-label="Dossier de la jurisdicción" data-tooltip="Dossier del objeto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></svg>
+          </button>
+
+          <button class="toolbar-btn" id="btn-zoom-in" aria-label="Acercar" data-tooltip="Acercar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="toolbar-btn" id="btn-zoom-out" aria-label="Alejar" data-tooltip="Alejar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="toolbar-btn" id="btn-location" aria-label="Mi ubicación" data-tooltip="Mi ubicación">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 22c-5.523 0-10-4.477-10-10S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+          </button>
+          <button class="toolbar-btn" id="btn-mapa-full" aria-expanded="false" aria-label="Expandir mapa" data-tooltip="Expandir mapa (⤢)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+        </nav>
+
+        <button class="mapa-col__cerrar" id="btn-mapa-cerrar" aria-label="Colapsar mapa, volver al dossier" hidden>✕</button>
+      </main>
+
+      <!-- Vista DOSSIER (jurisdicción elegida) -->
+      <section class="floating-panel" id="panel-explorador" hidden aria-label="Dossier de la jurisdicción">
+        <header class="floating-panel__head" id="explorer-head-inspect">
+          <div class="explorer-inspect-title">
+            <span class="explorer-inspect-title__label">Dossier</span>
+            <span class="explorer-inspect-title__id" id="explorer-inspect-id">—</span>
+          </div>
+          <button class="floating-panel__close" data-close aria-label="Cerrar, volver al inicio">✕</button>
+        </header>
+        <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
+          <div id="objeto-info"></div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- PANEL GRAFO: la lente por defecto del territorio (R2 lo dibuja) -->
+    <section class="panel-grafo" id="panel-grafo" aria-label="Grafo del territorio">
+      <header class="panel-grafo__top">
+        <span class="panel-grafo__label">GRAFO DEL TERRITORIO</span>
+        <nav class="panel-grafo__bc" id="panel-grafo-bc" aria-label="Jerarquía del grafo" aria-live="polite"></nav>
+      </header>
+      <div class="panel-grafo__body" id="panel-grafo-body"></div>
+      <!-- Leyenda (R12): el grafo se explica solo — el tamaño del nodo es
+           población real (Censo 2022), la línea es un lindero real. Los
+           departamentos no viven acá: aparecen al abrir una provincia. -->
+      <div class="panel-grafo__leyenda" aria-hidden="true">
+        <span class="gp-key"><i class="gp-key__dot"></i>tamaño = población</span>
+        <span class="gp-key"><i class="gp-key__line"></i>lindero</span>
+      </div>
+    </section>
+
+    <!-- Swap ⇄ (R5): pill circular sobre el divisor Dossier/Grafo.
+         Corre con --dock-ancho (flip en CSS con .layout--swap); en <=768px
+         se oculta (el grafo se cambia por tabs). Conserva id btn-swap: el
+         wiring (inicializarSwap) no cambia y el FOUC del head solo toca la
+         clase layout--swap, no la ubicación del botón. -->
+    <button class="swap-pill" id="btn-swap" type="button" aria-pressed="false" aria-label="Intercambiar Dossier ↔ Grafo" data-tooltip="Intercambiar Dossier ↔ Grafo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h13"/><path d="m14 6 3 3-3 3"/><path d="M20 15H7"/><path d="m10 12-3 3 3 3"/></svg>
+      <span class="swap-pill__label">Intercambiar</span>
+    </button>
+
+    <!-- TABS MOBILE (R4): [Dossier | Grafo] bajo la topbar -->
+    <nav class="dossier-tabs" id="dossier-tabs" aria-label="Vistas móviles">
+      <button type="button" data-tab="dossier" aria-pressed="true">DOSSIER</button>
+      <button type="button" data-tab="grafo" aria-pressed="false">GRAFO</button>
+    </nav>
+  </div>
+
+  <!-- PORTADA / COMMAND (R13): una pantalla, una acción. Vive fuera del
+       layout para cubrir el viewport completo; el mapa y el grafo quedan
+       detrás como textura. Sin métricas ni jerga de dev en la portada. -->
+  <section class="welcome" id="welcome" hidden aria-label="Consulta">
+    <div class="welcome__scrim" aria-hidden="true"></div>
+
+    <header class="welcome__top">
+      <div class="welcome__brand">
+        <svg class="welcome__logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 20.66 7v10L12 22 3.34 17V7Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span class="welcome__brand-name">Yvy Core</span>
+        <span class="welcome__brand-tag">· Soporte a la acción</span>
+      </div>
+      <a class="welcome__labs" href="https://yvylabs.com" target="_blank" rel="noopener">Labs <span>(Beta)</span> →</a>
+    </header>
+
     <div class="welcome__panel">
       <header class="welcome__head">
-        <span class="welcome__eyebrow">CONSULTA TERRITORIAL</span>
-        <h1 class="welcome__title">¿Qué lugar querés consultar?</h1>
+        <span class="welcome__pill"><i class="welcome__dot" aria-hidden="true"></i>Capa semántica operativa</span>
+        <h1 class="welcome__title">Grafo de decisiones.</h1>
+        <p class="welcome__sub">La infraestructura que conecta cada objeto con su jerarquía, sus relaciones y la fuente que respalda cada decisión.</p>
       </header>
 
       <div class="welcome__search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar un lugar…" autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar" />
+        <input type="search" id="welcome-input" class="welcome__input" placeholder="Buscar provincia, departamento, municipio o dato..." autocomplete="off" spellcheck="false" maxlength="80" aria-label="Buscar lugar o dato" />
         <span class="welcome__hint" id="welcome-hint"></span>
+        <kbd class="welcome__kbd" aria-hidden="true">Ctrl K</kbd>
+        <button class="welcome__go" id="welcome-go" type="button" aria-label="Abrir el primer resultado">↵</button>
       </div>
 
-      <div class="welcome__results" id="welcome-results"></div>
+      <div class="welcome__results" id="welcome-results" hidden></div>
 
       <footer class="welcome__foot">
-        <span class="welcome__foot-label">SUGERENCIAS</span>
         <div class="welcome__suggestions" id="welcome-suggestions"></div>
+        <div class="welcome__fuentes" id="welcome-fuentes"></div>
+        <div class="welcome__legal">
+          <span>Acceso abierto</span><span aria-hidden="true">·</span>
+          <span>Sin registro</span><span aria-hidden="true">·</span>
+          <span>Trazabilidad</span>
+          <span class="welcome__meta" id="welcome-meta"></span>
+        </div>
       </footer>
-    </div>
-  </section>
-
-  <!-- ============================================================ -->
-  <!-- TOOLBAR IZQUIERDO (Buscar + Ficha + Compartir) -->
-  <!-- ============================================================ -->
-  <nav class="toolbar toolbar--left" id="toolbar-left" aria-label="Barra de navegación">
-    <button class="toolbar-btn" id="btn-buscar" aria-expanded="false" aria-label="Buscar jurisdicción" data-tooltip="Buscar jurisdicción">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-    </button>
-
-    <button class="toolbar-btn" id="btn-ficha" aria-expanded="false" aria-label="Ficha de la jurisdicción" data-tooltip="Ficha del objeto">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></svg>
-    </button>
-
-    <button class="toolbar-btn" id="btn-compartir" aria-label="Compartir vista" data-tooltip="Compartir vista">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.9 7.6-4.7M8.2 13.1l7.6 4.7"/></svg>
-    </button>
-  </nav>
-
-  <!-- ============================================================ -->
-  <!-- PANELES FLOTANTES -->
-  <!-- ============================================================ -->
-
-  <!-- Panel OBJETO (ficha de la jurisdicción elegida: hijos + padres) -->
-  <section class="floating-panel" id="panel-explorador" hidden aria-label="Ficha de jurisdicción">
-    <header class="floating-panel__head" id="explorer-head-inspect">
-      <div class="explorer-inspect-title">
-        <span class="explorer-inspect-title__label">Ficha</span>
-        <span class="explorer-inspect-title__id" id="explorer-inspect-id">—</span>
-      </div>
-      <button class="floating-panel__close" data-close aria-label="Cerrar">✕</button>
-    </header>
-    <div class="floating-panel__body explorer-detalle" id="explorer-detalle">
-      <div id="objeto-info"></div>
     </div>
   </section>
 
@@ -128,7 +207,8 @@
   <!-- BARRA DE PRODUCTO (objeto activo) -->
   <!-- ============================================================ -->
   <footer class="status-bar" id="status-bar">
-    <span class="status-bar__item status-bar__item--objeto"><span class="status-bar__v" id="st-objeto">Ninguna jurisdicción seleccionada</span></span>
+    <span class="status-bar__item status-bar__item--objeto"><span class="status-bar__v" id="st-objeto" aria-live="polite">Ninguna jurisdicción seleccionada</span></span>
+    <span class="status-bar__item status-bar__item--right">Acceso abierto · Sin registro · Fuente oficial</span>
   </footer>
 
   <!-- Cloudflare Web Analytics: visitantes únicos (privado, sin cookies).

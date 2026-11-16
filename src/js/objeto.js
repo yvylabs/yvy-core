@@ -1,16 +1,34 @@
+// ==============================================================
+// objeto.js — Dossier del nodo (grafo de jurisdicciones)
+// Un nodo = identidad + métricas + su lugar en el grafo:
+// grafo de relaciones, breadcrumb de padres, Contiene (hijos),
+// Limita con / cerca de (relaciones laterales), agregados con fuente.
+// Sin vigencia en la UI (decisión de producto): el valor + la fuente.
+// Sin JSON-LD en la UI: el dato crudo vive en data/manifest.jsonld.
+// ==============================================================
+
 import {
   getObjeto,
   getPadre,
   getHijos,
   getRelaciones,
-  setObjetoActivo,
-  navegarA,
-  etiquetaNivel,
   getDatasets,
   getAgregado,
+  setObjetoActivo,
+  etiquetaNivel,
+  navegarA,
 } from './manifest.js';
-import { abrirPanelObjeto } from './ui.js';
+import { abrirPanelObjeto, sincronizarLayout } from './ui.js';
 import { track } from './telemetry.js';
+
+// Foco pos-navegación del start screen ("Minería en Salta"): el tipo
+// pedirá abrirse y resaltarse en la próxima ficha renderizada.
+let focoDatasetPendiente = null;
+
+/** Marca un dataset para abrirse y resaltarse en la próxima ficha. */
+export function enfocarDataset(tipo) {
+  focoDatasetPendiente = tipo;
+}
 
 const fmtInt = new Intl.NumberFormat('es-AR');
 const fmt1dec = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -25,20 +43,19 @@ function fmtSup(km2) {
   return `${fmt1dec.format(Math.round(n * 10) / 10)} km²`;
 }
 
+function fmtHa(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${fmtInt.format(Math.round(n))} ha`;
+}
+
 // Token anti-carrera: si el usuario navega antes de que vuelva el fetch,
 // la respuesta vieja no pinta.
 let renderToken = 0;
 
 // --------------------------------------------------------------
-// Etiquetas humanas (nada con forma de código, nada de siglas)
+// Fuentes humanas (nada con forma de código)
 // --------------------------------------------------------------
-const TITULO_TIPO = {
-  demografia: 'Demografía',
-  mineria: 'Minería',
-  catastro: 'Catastro',
-  barrios: 'Barrios',
-};
-
 const FUENTE = {
   'Censo 2022 - censo.gob.ar/gobiernos-locales': {
     nombre: 'Censo Nacional 2022 (INDEC)',
@@ -55,55 +72,45 @@ function fuenteHumana(raw) {
   return { nombre, corto: nombre, url: null };
 }
 
-function tituloTipo(tipo) {
-  return TITULO_TIPO[tipo] || (tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : 'Datos');
+// --------------------------------------------------------------
+// Nombre, hijos y superficie del objeto
+// --------------------------------------------------------------
+const HIJO_POR_NIVEL = { pais: 'provincia', provincia: 'depto', depto: 'municipio', municipio: 'barrio' };
+const ETIQUETA_HIJO = { provincia: ['provincia', 'provincias'], depto: ['departamento', 'departamentos'], municipio: ['municipio', 'municipios'], barrio: ['barrio', 'barrios'] };
+
+/** Conteo de hijos directos + etiqueta ("24 provincias"), o null si no aplica. */
+function resumenHijos(obj) {
+  const nivelHijo = HIJO_POR_NIVEL[obj.nivel];
+  if (!nivelHijo) return null;
+  const n = getHijos(obj.yvy_id).filter((h) => h.nivel === nivelHijo).length;
+  if (n === 0) return null;
+  const [sing, plur] = ETIQUETA_HIJO[nivelHijo];
+  return { n, texto: `${fmtInt.format(n)} ${n === 1 ? sing : plur}` };
 }
 
-function plural(n, sing, plur) {
-  return `${fmtInt.format(n)} ${n === 1 ? sing : plur}`;
-}
-
-function fmtHa(v) {
-  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
-  if (!Number.isFinite(n)) return null;
-  return `${fmt1dec.format(Math.round(n * 10) / 10)} hectáreas`;
+function densidad(obj, poblacion) {
+  const sup = Number(obj.sup_oficial_km2);
+  if (!Number.isFinite(sup) || sup <= 0 || !poblacion) return null;
+  return fmt1dec.format(Math.round((poblacion / sup) * 10) / 10);
 }
 
 // --------------------------------------------------------------
-// Estructura DOM mínima
+// Panel: helpers de estado
 // --------------------------------------------------------------
-function metrica(valor, label, opts = {}) {
-  const wrap = document.createElement('div');
-  wrap.className = opts.small ? 'objeto-metrica objeto-metrica--sm' : 'objeto-metrica';
-  const numEl = document.createElement('div');
-  numEl.className = opts.accent ? 'objeto-metrica__num objeto-metrica__num--accent' : 'objeto-metrica__num';
-  numEl.textContent = valor;
-  wrap.appendChild(numEl);
-  const lbl = document.createElement('div');
-  lbl.className = 'objeto-metrica__label';
-  lbl.textContent = label;
-  wrap.appendChild(lbl);
-  return wrap;
-}
-
-function setModoInspect(obj) {
-  const headInspect = document.getElementById('explorer-head-inspect');
-  const detalle = document.getElementById('explorer-detalle');
+function setTituloPanel(texto) {
   const idEl = document.getElementById('explorer-inspect-id');
-  if (headInspect) headInspect.hidden = false;
-  if (detalle) detalle.hidden = false;
-  if (idEl && obj) idEl.textContent = obj.nombre_oficial;
+  if (idEl) idEl.textContent = texto;
 }
 
-/**
- * Muestra el estado missing en la ficha (nunca silencio, nunca genérico).
- */
+function contenedorFicha() {
+  const detalle = document.getElementById('explorer-detalle');
+  if (detalle) detalle.hidden = false;
+  return document.getElementById('objeto-info');
+}
+
 export function mostrarEstadoFalta() {
-  const detalle = document.getElementById('explorer-detalle');
-  if (detalle) detalle.hidden = false;
-  const idEl = document.getElementById('explorer-inspect-id');
-  if (idEl) idEl.textContent = 'Sin datos';
-  const contenedor = document.getElementById('objeto-info');
+  const contenedor = contenedorFicha();
+  setTituloPanel('Sin datos');
   if (contenedor) {
     contenedor.innerHTML = '';
     const d = document.createElement('div');
@@ -113,9 +120,22 @@ export function mostrarEstadoFalta() {
     d.appendChild(p);
     contenedor.appendChild(d);
   }
-  const headInspect = document.getElementById('explorer-head-inspect');
-  if (headInspect) headInspect.hidden = false;
   abrirPanelObjeto();
+}
+
+export function limpiarFicha() {
+  const detalle = document.getElementById('explorer-detalle');
+  if (detalle) detalle.hidden = false; // próxima renderFicha arranca limpio
+  setTituloPanel('—');
+  const pEl = document.getElementById('panel-explorador');
+  if (pEl) pEl.hidden = true; // el dock vuelve al start screen (nunca vacío)
+  const contenedor = document.getElementById('objeto-info');
+  if (!contenedor) return;
+  contenedor.innerHTML = `
+    <div class="objeto-empty-state">
+      <p>Sin objeto seleccionado.</p>
+    </div>`;
+  sincronizarLayout();
 }
 
 export function mostrarObjeto(yvyId) {
@@ -125,92 +145,162 @@ export function mostrarObjeto(yvyId) {
     return;
   }
   setObjetoActivo(obj);
-  renderFicha(obj);
-  setModoInspect(obj);
+  setTituloPanel(obj.nombre_oficial);
   abrirPanelObjeto();
-}
-
-export function limpiarFicha() {
-  const detalle = document.getElementById('explorer-detalle');
-  if (detalle) detalle.hidden = true;
-  const contenedor = document.getElementById('objeto-info');
-  if (!contenedor) return;
-  contenedor.innerHTML = `
-    <div class="objeto-empty-state">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z" stroke-linejoin="round"/><circle cx="12" cy="9" r="2.5"/></svg>
-      <p>Sin objeto seleccionado.</p>
-    </div>`;
+  renderFicha(obj).catch((err) => console.warn('[yvy] dossier no pintado:', err));
 }
 
 // --------------------------------------------------------------
-// Reporte textual: plantilla fija, cambian jurisdicción + hijos + padres
+// Dossier: header + hero + grilla atómica + síntesis + referencias
 // --------------------------------------------------------------
-const ORDEN_HIJOS = ['provincia', 'depto', 'municipio', 'barrio'];
-
-function gruposHijos(obj) {
-  const grupos = [];
-  for (const nivel of ORDEN_HIJOS) {
-    const items = getHijos(obj.yvy_id).filter((h) => h.nivel === nivel);
-    if (items.length > 0) grupos.push({ nivel, items });
-  }
-  return grupos;
+function bloqueHeader(obj) {
+  const header = document.createElement('div');
+  header.className = 'dossier-header';
+  const chip = document.createElement('span');
+  chip.className = 'dossier-chip';
+  chip.textContent = etiquetaNivel(obj.nivel).toUpperCase();
+  const sup = document.createElement('span');
+  sup.className = 'dossier-superficie';
+  sup.textContent = fmtSup(obj.sup_oficial_km2) || 'Sin superficie';
+  header.appendChild(chip);
+  header.appendChild(sup);
+  return header;
 }
 
-function todosMunicipios(obj) {
-  if (obj.nivel !== 'provincia') return [];
-  const out = [];
-  for (const d of getHijos(obj.yvy_id)) {
-    if (d.nivel === 'depto') out.push(...getHijos(d.yvy_id).filter((m) => m.nivel === 'municipio'));
-  }
-  return out;
+function metrica(valor, label) {
+  const item = document.createElement('div');
+  item.className = 'dossier-metrica';
+  const v = document.createElement('div');
+  v.className = 'dossier-metrica__valor';
+  v.textContent = valor;
+  const l = document.createElement('div');
+  l.className = 'dossier-metrica__label';
+  l.textContent = label;
+  item.appendChild(v);
+  item.appendChild(l);
+  return item;
 }
 
+function bloqueHero(m, densidadTexto) {
+  const hero = document.createElement('div');
+  hero.className = 'dossier-hero';
+  const num = document.createElement('div');
+  num.className = 'dossier-hero-num';
+  // R11: el estado `missing` se DICE (SPEC §4). Un guion solo no alcanza:
+  // el hero lo declara y la nota dice por qué, sin inventar un cero.
+  const sinDatos = !m || m.poblacion == null || m.poblacion === '';
+  num.textContent = sinDatos ? '–' : fmtInt.format(Number(m.poblacion) || 0);
+  num.classList.toggle('dossier-hero-num--vacio', sinDatos);
+  const lab = document.createElement('div');
+  lab.className = 'dossier-hero-label';
+  lab.textContent = sinDatos
+    ? 'Población · sin datos del Censo 2022'
+    : (densidadTexto ? `Habitantes · ${densidadTexto} hab/km²` : 'Habitantes');
+  hero.appendChild(num);
+  hero.appendChild(lab);
+  if (sinDatos) {
+    const nota = document.createElement('div');
+    nota.className = 'dossier-hero-nota';
+    nota.textContent = 'El Censo 2022 no publica datos para este objeto.';
+    hero.appendChild(nota);
+  }
+  return hero;
+}
+
+function bloqueGrid(obj, m) {
+  const grid = document.createElement('div');
+  grid.className = 'dossier-grid';
+  const num = (v) => (v == null || v === '' || Number(v) === 0 ? '–' : fmtInt.format(Number(v)));
+  const hijos = resumenHijos(obj);
+  grid.appendChild(metrica(num(m && m.poblacion), 'Población'));
+  grid.appendChild(metrica(num(m && m.viviendas), 'Viviendas'));
+  grid.appendChild(metrica(densidad(obj, Number(m && m.poblacion)) ? `${densidad(obj, Number(m && m.poblacion))} hab/km²` : '–', 'Densidad'));
+  grid.appendChild(metrica(num(m && m.pob_colectivas), 'Población en viviendas colectivas'));
+  grid.appendChild(metrica(num(m && m.pob_calle), 'Población en situación de calle'));
+  grid.appendChild(metrica(hijos ? hijos.texto : '–', 'Jurisdicción'));
+  return grid;
+}
+
+// --------------------------------------------------------------
+// Síntesis: EL LUGAR DEL NODO EN EL GRAFO
+// Los números ya viven en el hero y en la grilla: la síntesis dice
+// con quién se relaciona el nodo (hacia arriba, hacia abajo, lateral),
+// sin repetir métricas. El valor está en la relación, no en el dato.
+// --------------------------------------------------------------
 function frasePertenencia(obj) {
   const padre = getPadre(obj);
-  if (obj.nivel === 'municipio' && padre && padre.nivel === 'depto') {
-    const abuelo = getPadre(padre);
-    return `Municipio del departamento ${padre.nombre_oficial}${abuelo ? `, ${abuelo.nombre_oficial}` : ''}.`;
+  if (!padre) return null;
+  if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
+    return `Área de la provincia de ${padre.nombre_oficial} sin gobierno local.`;
   }
-  if (obj.nivel === 'depto' && padre) return `Departamento de ${padre.nombre_oficial}.`;
-  return null;
+  switch (obj.nivel) {
+    case 'provincia': return `Provincia que integra ${padre.nombre_oficial}.`;
+    case 'depto': return `Departamento de la provincia de ${padre.nombre_oficial}.`;
+    case 'municipio':
+      if (padre.nivel === 'depto') {
+        const abuelo = getPadre(padre);
+        return `Municipio del departamento ${padre.nombre_oficial}${abuelo ? `, ${abuelo.nombre_oficial}` : ''}.`;
+      }
+      return `Municipio de la provincia de ${padre.nombre_oficial}.`;
+    case 'barrio': return `Barrio de ${padre.nombre_oficial}.`;
+    default: return `Integra ${padre.nombre_oficial}.`;
+  }
 }
 
 function fraseEstructura(obj) {
   if (obj.nivel === 'pais') {
-    const n = getHijos(obj.yvy_id).length;
-    return n > 0 ? `Se organiza en ${plural(n, 'provincia', 'provincias')}.` : null;
+    const provs = getHijos(obj.yvy_id).filter((h) => h.nivel === 'provincia');
+    return provs.length > 0 ? `Se organiza en ${provs.length} ${provs.length === 1 ? 'provincia' : 'provincias'}.` : null;
   }
   if (obj.nivel === 'provincia') {
     const deptos = getHijos(obj.yvy_id).filter((h) => h.nivel === 'depto');
-    const munis = todosMunicipios(obj);
-    if (deptos.length === 0 && munis.length === 0) return null;
-    return `Se organiza en ${plural(deptos.length, 'departamento', 'departamentos')} y ${plural(munis.length, 'municipio', 'municipios')}.`;
+    const munisDirectos = getHijos(obj.yvy_id).filter((h) => h.nivel === 'municipio');
+    const vistos = new Set(munisDirectos.map((m) => m.yvy_id));
+    const munis = [...munisDirectos, ...todosMunicipios(obj).filter((m) => !vistos.has(m.yvy_id))];
+    const partes = [];
+    if (deptos.length > 0) partes.push(`${deptos.length} ${deptos.length === 1 ? 'departamento' : 'departamentos'}`);
+    if (munis.length > 0) partes.push(`${munis.length} ${munis.length === 1 ? 'municipio' : 'municipios'}`);
+    if (partes.length === 0) return null;
+    return `Contiene ${partes.join(' y ')}.`;
   }
   if (obj.nivel === 'depto') {
     const munis = getHijos(obj.yvy_id).filter((h) => h.nivel === 'municipio');
-    if (munis.length === 0) return 'Sin municipios registrados.';
-    return `Tiene ${plural(munis.length, 'municipio', 'municipios')}.`;
+    return munis.length > 0 ? `Contiene ${munis.length} ${munis.length === 1 ? 'municipio' : 'municipios'}.` : 'Sin municipios registrados.';
   }
   if (obj.nivel === 'municipio') {
     const barrios = getHijos(obj.yvy_id).filter((h) => h.nivel === 'barrio');
-    if (barrios.length === 0) return null;
-    return `Tiene ${plural(barrios.length, 'barrio', 'barrios')}.`;
+    return barrios.length > 0 ? `Contiene ${barrios.length} ${barrios.length === 1 ? 'barrio' : 'barrios'}.` : null;
   }
   return null;
 }
 
-function fraseResto(m) {
-  if (!m) return null;
-  const partes = [];
-  const col = Number(m.pob_colectivas) || 0;
-  const calle = Number(m.pob_calle) || 0;
-  if (col > 0) partes.push(`${fmtInt.format(col)} personas en viviendas colectivas`);
-  if (calle > 0) partes.push(`${fmtInt.format(calle)} en situación de calle`);
-  if (partes.length === 0) return null;
-  return `Viven ${partes.join(' y ')}.`;
+function bloqueSintesis(obj, m, limitaTexto) {
+  const div = document.createElement('div');
+  div.className = 'dossier-briefing';
+  const label = document.createElement('div');
+  label.className = 'dossier-briefing__label';
+  label.textContent = 'Síntesis';
+  const texto = document.createElement('div');
+  texto.className = 'dossier-briefing__texto';
+  texto.textContent = sintesisTexto(obj, m, limitaTexto);
+  div.appendChild(label);
+  div.appendChild(texto);
+  return div;
 }
 
-function fraseLinderos(obj) {
+function sintesisTexto(obj, m, limitaTexto) {
+  const frases = [];
+  const pert = frasePertenencia(obj);
+  if (pert) frases.push(pert);
+  const est = fraseEstructura(obj);
+  if (est) frases.push(est);
+  if (limitaTexto) frases.push(limitaTexto);
+  if (frases.length === 0) return 'Todavía no hay relaciones registradas para este nodo.';
+  return frases.join(' ');
+}
+
+// "Limita con Jujuy, Formosa y 2 más." — nombres reales del grafo.
+function fraseLimita(obj) {
   const nombres = [];
   const vistos = new Set();
   for (const r of getRelaciones(obj.yvy_id)) {
@@ -226,229 +316,241 @@ function fraseLinderos(obj) {
   return `Limita con ${tope.join(', ')}${resto > 0 ? ` y ${resto} más` : ''}.`;
 }
 
-async function componerNarrativa(obj) {
-  const aplicables = getDatasets().filter((ds) => (ds.niveles || []).includes(obj.nivel));
-  const ags = {};
-  await Promise.all(
-    aplicables.map(async (ds) => {
-      ags[ds.tipo] = await getAgregado(ds.tipo, obj.yvy_id);
-    })
-  );
-  const frases = [];
-  const refs = [];
-  const demo = ags.demografia;
-  if (demo && demo.metricas) {
-    const m = demo.metricas;
-    const pob = Number(m.poblacion) || 0;
-    const viv = Number(m.viviendas) || 0;
-    const f = fuenteHumana(demo.fuente);
-    const vig = demo.fecha_vigencia ? ` · vigencia ${demo.fecha_vigencia}` : '';
-    let s1;
-    if (obj.nivel === 'pais') s1 = `${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
-    else if (obj.nivel === 'provincia') s1 = `La provincia de ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
-    else if (obj.nivel === 'depto') s1 = `El departamento ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
-    else if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
-      const prov = getPadre(obj);
-      s1 = `El área sin gobierno local${prov ? ` de ${prov.nombre_oficial}` : ''} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
-    } else s1 = `El municipio de ${obj.nombre_oficial} tiene ${fmtInt.format(pob)} habitantes y ${fmtInt.format(viv)} viviendas.`;
-    frases.push(`${s1} (${f.corto}${vig}).`);
-    refs.push({ ...f, fecha: demo.fecha_vigencia });
-    const supKm2 = Number(obj.sup_oficial_km2);
-    if (Number.isFinite(supKm2) && supKm2 > 0 && pob > 0) {
-      frases.push(`La densidad es de ${fmt1dec.format(Math.round((pob / supKm2) * 10) / 10)} habitantes por km².`);
-    }
-    const resto = fraseResto(m);
-    if (resto) frases.push(resto);
-  } else if (aplicables.some((ds) => ds.tipo === 'demografia')) {
-    if (/sin gobierno local/i.test(obj.nombre_oficial || '')) {
-      const padre = getPadre(obj);
-      frases.push(`Área sin gobierno local${padre ? ` de ${padre.nombre_oficial}` : ''}: todavía no hay datos censales registrados.`);
-    } else if (obj.nivel === 'municipio' || obj.nivel === 'depto' || obj.nivel === 'provincia' || obj.nivel === 'pais') {
-      frases.push('Todavía no hay datos censales registrados.');
-    }
-  }
-  if (obj.nivel === 'barrio') {
-    const padre = getPadre(obj);
-    const clase = obj.clase_barrio ? String(obj.clase_barrio).toLowerCase() : 'barrio';
-    frases.push(padre ? `Es un ${clase} de ${padre.nombre_oficial}.` : `Es un ${clase}.`);
-  }
-  const est = fraseEstructura(obj);
-  if (est) frases.push(est);
-  const lind = fraseLinderos(obj);
-  if (lind) frases.push(lind);
-  const min = ags.mineria;
-  if (min && min.metricas && Number(min.metricas.total_concesiones) > 0) {
-    const area = fmtHa(min.metricas.area_total_ha);
-    frases.push(`La minería registra ${plural(Number(min.metricas.total_concesiones), 'concesión', 'concesiones')}${area ? ` en ${area}` : ''}.`);
-    refs.push({ ...fuenteHumana(min.fuente), fecha: min.fecha_vigencia });
-  }
-  const cat = ags.catastro;
-  if (cat && cat.metricas && Number(cat.metricas.total_parcelas) > 0) {
-    const area = fmtHa(cat.metricas.area_total_ha);
-    frases.push(`El catastro registra ${plural(Number(cat.metricas.total_parcelas), 'parcela', 'parcelas')}${area ? ` (${area})` : ''}.`);
-    refs.push({ ...fuenteHumana(cat.fuente), fecha: cat.fecha_vigencia });
-  }
-  if (obj.sup_oficial_km2 != null && obj.sup_fuente) {
-    refs.push({ nombre: `Superficie (${obj.sup_fuente})`, fecha: null });
-  }
-  return { frases, refs, ags };
+// Tooltip enterprise: "Fuente oficial: [Nombre] — [Año]".
+function titleFuente(f) {
+  const anio = (String(f && f.nombre || '').match(/\d{4}/) || [])[0];
+  return `Fuente oficial: ${f ? f.nombre : '—'}${anio ? ` — ${anio}` : ''}`;
 }
 
-function renderFicha(obj) {
-  const token = ++renderToken;
-  const detalle = document.getElementById('explorer-detalle');
-  if (detalle) detalle.hidden = false;
-  const contenedor = document.getElementById('objeto-info');
-  if (!contenedor) return;
-  contenedor.innerHTML = '';
-
-  const identidad = document.createElement('div');
-  identidad.className = 'objeto-identidad';
-  const filaTitulo = document.createElement('div');
-  filaTitulo.className = 'objeto-titulo';
-  const nombre = document.createElement('h3');
-  nombre.className = 'objeto-nombre';
-  nombre.textContent = obj.nombre_oficial;
-  filaTitulo.appendChild(nombre);
-  const badge = document.createElement('span');
-  badge.className = 'objeto-badge';
-  badge.textContent = etiquetaNivel(obj.nivel).toUpperCase();
-  filaTitulo.appendChild(badge);
-  identidad.appendChild(filaTitulo);
-  const pert = frasePertenencia(obj);
-  const sup = obj.sup_oficial_km2 != null ? fmtSup(obj.sup_oficial_km2) : null;
-  if (pert || sup) {
-    const subtitle = document.createElement('div');
-    subtitle.className = 'objeto-subtitle';
-    subtitle.textContent = [pert, sup].filter(Boolean).join(' ');
-    identidad.appendChild(subtitle);
+// Un ítem de referencia, con tooltip de fuente oficial.
+function refItem(ref) {
+  const node = document.createElement(ref && ref.url ? 'a' : 'span');
+  if (ref && ref.url) {
+    node.href = ref.url;
+    node.target = '_blank';
+    node.rel = 'noopener noreferrer';
   }
-  contenedor.appendChild(identidad);
+  node.textContent = ref ? ref.nombre : 'Sin fuentes registradas';
+  node.className = 'dossier-ref__item';
+  if (ref && ref.nombre) node.title = titleFuente(ref);
+  return node;
+}
 
-  const narrativa = document.createElement('div');
-  narrativa.className = 'objeto-narrativa';
-  const sk = document.createElement('p');
-  sk.className = 'skeleton';
-  sk.textContent = 'Cargando datos…';
-  narrativa.appendChild(sk);
-  contenedor.appendChild(narrativa);
+function bloqueReferencias(refs) {
+  const cont = document.createElement('div');
+  cont.className = 'dossier-ref';
+  const label = document.createElement('span');
+  label.className = 'dossier-ref__label';
+  label.textContent = 'Referencias:';
+  cont.appendChild(label);
+  if (!refs || refs.length === 0) cont.appendChild(refItem(null));
+  else refs.forEach((ref) => cont.appendChild(refItem(ref)));
+  return cont;
+}
 
-  renderBreadcrumbInline(contenedor, obj);
-  renderHijos(contenedor, obj, null);
-  renderDatasetsAplicables(contenedor, obj);
+// Quita el placeholder "Sin fuentes registradas" si algo resuelve tarde.
+function limpiarRefsVacias(refsEl) {
+  const vacio = refsEl.querySelector('.dossier-ref__item');
+  if (vacio && vacio.textContent === 'Sin fuentes registradas') vacio.remove();
+}
 
-  componerNarrativa(obj).then(({ frases, refs }) => {
-    if (token !== renderToken) return;
-    narrativa.innerHTML = '';
-    for (const f of frases) {
-      const p = document.createElement('p');
-      p.textContent = f;
-      narrativa.appendChild(p);
-    }
-    if (refs.length > 0) {
-      const r = document.createElement('div');
-      r.className = 'objeto-referencias';
-      const lab = document.createElement('span');
-      lab.className = 'objeto-referencias__label';
-      lab.textContent = 'Referencias · ';
-      r.appendChild(lab);
-      refs.forEach((ref, i) => {
-        if (i > 0) {
-          const sep = document.createElement('span');
-          sep.textContent = ' · ';
-          r.appendChild(sep);
-        }
-        if (ref.url) {
-          const a = document.createElement('a');
-          a.href = ref.url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          a.textContent = ref.nombre;
-          r.appendChild(a);
-        } else {
-          const s = document.createElement('span');
-          s.textContent = ref.nombre;
-          r.appendChild(s);
-        }
-        if (ref.fecha) {
-          const v = document.createElement('span');
-          v.textContent = ` (vigencia ${ref.fecha})`;
-          r.appendChild(v);
-        }
-      });
-      contenedor.appendChild(r);
-    }
-    obj._narrativa = frases;
-    obj._refs = refs;
-    contenedor.appendChild(botonCopiar(obj));
+// Referencia resuelta tarde (demografía) al frente, con separador.
+function insertarRefItem(refsEl, ref) {
+  limpiarRefsVacias(refsEl);
+  const item = refItem(ref);
+  const label = refsEl.querySelector('.dossier-ref__label');
+  refsEl.insertBefore(item, label ? label.nextSibling : null);
+  refsEl.insertBefore(document.createTextNode(' · '), item.nextSibling);
+}
+
+// Referencia de dataset resuelto tarde, al final.
+function agregarRefItem(refsEl, ref) {
+  limpiarRefsVacias(refsEl);
+  if (refsEl.querySelector('.dossier-ref__item')) {
+    refsEl.appendChild(document.createTextNode(' · '));
+  }
+  refsEl.appendChild(refItem(ref));
+}
+
+// Texto del portapapeles: dossier accionable, sin párrafos.
+// `missing` se escribe explícito, nunca se omite (SPEC §4).
+function textoDossier(obj, m, extras) {
+  const lineas = [];
+  const sup = fmtSup(obj.sup_oficial_km2);
+  lineas.push(`${obj.nombre_oficial} · ${etiquetaNivel(obj.nivel)}${sup ? ` · ${sup}` : ''}`);
+  lineas.push('---');
+  if (m && Number(m.poblacion)) {
+    const hijos = resumenHijos(obj);
+    lineas.push(`POBLACIÓN: ${fmtInt.format(Number(m.poblacion))}`);
+    lineas.push(`VIVIENDAS: ${fmtInt.format(Number(m.viviendas) || 0)}`);
+    const d = densidad(obj, Number(m.poblacion));
+    if (d) lineas.push(`DENSIDAD: ${d} hab/km²`);
+    if (Number(m.pob_colectivas)) lineas.push(`POBLACIÓN EN VIVIENDAS COLECTIVAS: ${fmtInt.format(Number(m.pob_colectivas))}`);
+    if (Number(m.pob_calle)) lineas.push(`POBLACIÓN EN SITUACIÓN DE CALLE: ${fmtInt.format(Number(m.pob_calle))}`);
+    if (hijos) lineas.push(`JURISDICCIÓN: ${hijos.texto}`);
+  } else {
+    lineas.push('DATOS: no tengo ese dato todavía');
+  }
+  lineas.push('');
+  lineas.push(`Síntesis: ${sintesisTexto(obj, m, extras.limita || null)}`);
+  const ruta = ExtrasRuta(obj);
+  if (ruta.length > 1) lineas.push(`RUTA: ${ruta.join(' › ')}`);
+  if (extras.contiene) lineas.push(`CONTIENE: ${extras.contiene}`);
+  if (extras.limita) lineas.push(`LINDERA CON: ${extras.limitaNombres}`);
+  if (extras.datasetLineas.length > 0) {
+    lineas.push('');
+    for (const l of extras.datasetLineas) lineas.push(l);
+  }
+  const refs = extras.refs.map((r) => r.nombre);
+  if (refs.length > 0) {
+    lineas.push('');
+    lineas.push(`Referencias: ${refs.join(' · ')}`);
+  }
+  lineas.push(`Ver en Yvy: ${location.href}`);
+  return lineas.join('\n');
+}
+
+// Ruta jerárquica completa hasta el país ("Argentina › Salta › Anta").
+function ExtrasRuta(obj) {
+  const ruta = [obj.nombre_oficial];
+  let cur = getPadre(obj);
+  while (cur) {
+    ruta.unshift(cur.nombre_oficial);
+    cur = getPadre(cur);
+  }
+  return ruta;
+}
+
+/**
+ * Pie del dossier: "Copiar dossier" (primaria) + "Fuentes ↗" (secundaria).
+ * Fuentes scrollea la línea de Referencias con un flash breve: invita,
+ * no obliga (acordeones y contenido son los protagonistas).
+ */
+function bloqueCopiarFooter(refsEl, obj, estadoAg, extras) {
+  const row = document.createElement('div');
+  row.className = 'dossier-footer';
+  row.appendChild(bloqueCopiar(obj, estadoAg, extras, refsEl));
+  row.appendChild(bloqueCopiarJsonLd(obj));
+  const fn = document.createElement('button');
+  fn.type = 'button';
+  fn.className = 'dossier-copy dossier-copy--fuentes';
+  fn.textContent = 'Fuentes ↗';
+  fn.title = 'Ver las referencias del dossier';
+  fn.addEventListener('click', () => {
+    refsEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    refsEl.classList.add('dossier-ref--foco');
+    setTimeout(() => refsEl.classList.remove('dossier-ref--foco'), 1600);
   });
+  row.appendChild(fn);
+  return row;
 }
 
-const LIMITE_HIJOS = 8;
-
-function renderHijos(contenedor, obj, filtroNivel) {
-  const grupos = gruposHijos(obj);
-  let extras = [];
-  if (!filtroNivel && obj.nivel === 'provincia') {
-    const munis = todosMunicipios(obj);
-    if (munis.length > 0) extras.push({ nivel: 'municipio', items: munis, titulo: `Municipios · ${munis.length}` });
+// JSON-LD mínimo y verificable: mismos campos del manifest, sin inventar.
+// Es la ficha que un cliente puede pegar en su CMS o en un LLM.
+function textoJsonLd(obj) {
+  const padre = getPadre(obj.yvy_id);
+  const doc = {
+    '@context': 'https://schema.org',
+    '@type': 'AdministrativeArea',
+    '@id': `https://explorer.yvylabs.com/#yvy:${obj.yvy_id}`,
+    identifier: `yvy:${obj.yvy_id}`,
+    name: obj.nombre_oficial,
+    additionalType: obj.nivel,
+  };
+  if (padre) {
+    doc.containedInPlace = {
+      '@type': 'AdministrativeArea',
+      '@id': `https://explorer.yvylabs.com/#yvy:${padre.yvy_id}`,
+      name: padre.nombre_oficial,
+    };
   }
-  const lista = filtroNivel ? grupos.filter((g) => g.nivel === filtroNivel) : grupos;
-  for (const g of lista) {
-    contenedor.appendChild(seccionHijos(obj, g.nivel, g.items, g.titulo));
+  const sup = Number(obj.sup_oficial_km2);
+  if (Number.isFinite(sup) && sup > 0) {
+    doc.area = { '@type': 'QuantitativeValue', value: Math.round(sup * 10) / 10, unitCode: 'KMK' };
   }
-  for (const g of extras) {
-    if (filtroNivel && g.nivel !== filtroNivel) continue;
-    contenedor.appendChild(seccionHijos(obj, g.nivel, g.items, g.titulo));
+  return JSON.stringify(doc, null, 2);
+}
+
+function bloqueCopiarJsonLd(obj) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'dossier-copy dossier-copy--fuentes';
+  b.textContent = 'Copiar JSON-LD';
+  b.title = 'Copiar la ficha como JSON-LD (schema.org)';
+  b.addEventListener('click', async () => {
+    const txt = textoJsonLd(obj);
+    try {
+      await navigator.clipboard.writeText(txt);
+      b.textContent = 'Copiado';
+    } catch {
+      window.prompt('Copiá este JSON-LD:', txt);
+    }
+    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel, formato: 'jsonld' });
+    setTimeout(() => { b.textContent = 'Copiar JSON-LD'; }, 2000);
+  });
+  return b;
+}
+
+function bloqueCopiar(obj, estadoAg, extras, refsEl) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'dossier-copy';
+  b.textContent = 'Copiar dossier';
+  b.addEventListener('click', async () => {
+    // Lee el estado AL CLICKEAR: refleja lo visible (los agregados
+    // async llenan el estado cuando resuelven, nunca después del clic).
+    // Las referencias también se leen del DOM: el censo y los datasets
+    // se agregan tarde y el MD tiene que salir con TODAS las fuentes.
+    const refsDom = refsEl
+      ? [...refsEl.querySelectorAll('.dossier-ref__item')]
+        .map((el) => el.textContent.trim())
+        .filter((t) => t && t !== 'Sin fuentes registradas')
+      : [];
+    const extrasVivos = refsDom.length
+      ? { ...extras, refs: refsDom.map((nombre) => ({ nombre })) }
+      : extras;
+    const txt = textoDossier(obj, estadoAg && estadoAg.m, extrasVivos);
+    try {
+      await navigator.clipboard.writeText(txt);
+      b.textContent = 'Copiado';
+    } catch {
+      window.prompt('Copiá este dossier:', txt);
+    }
+    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel });
+    setTimeout(() => { b.textContent = 'Copiar dossier'; }, 2000);
+  });
+  return b;
+}
+
+// --------------------------------------------------------------
+// EL GRAFO — breadcrumb de padres (clicable)
+// --------------------------------------------------------------
+function breadcrumbNodo(obj) {
+  const rutaObjs = [];
+  let cur = obj;
+  while (cur) {
+    rutaObjs.unshift(cur);
+    cur = getPadre(cur);
   }
-}
+  if (rutaObjs.length < 2) return null; // el país no lleva breadcrumb
 
-function etiquetaPlural(nivel, n) {
-  const base = { provincia: 'Provincias', depto: 'Departamentos', municipio: 'Municipios', barrio: 'Barrios' }[nivel] || nivel;
-  return `${base} · ${n}`;
-}
-
-function seccionHijos(obj, nivel, items, tituloForzado) {
-  const d = seccion(tituloForzado || etiquetaPlural(nivel, items.length));
-  const visibles = items.slice(0, LIMITE_HIJOS);
-  for (const h of visibles) d.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
-  if (items.length > LIMITE_HIJOS) {
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'objeto-more-btn';
-    more.textContent = `Ver los ${items.length} →`;
-    more.addEventListener('click', () => renderDetalleHijos(obj, nivel, items, tituloForzado));
-    d.appendChild(more);
-  }
-  return d;
-}
-
-function renderDetalleHijos(obj, nivel, items, tituloForzado) {
-  renderToken++;
-  const contenedor = document.getElementById('objeto-info');
-  if (!contenedor) return;
-  contenedor.innerHTML = '';
-  const back = document.createElement('button');
-  back.type = 'button';
-  back.className = 'objeto-volver';
-  back.textContent = `← ${obj.nombre_oficial}`;
-  back.addEventListener('click', () => renderFicha(obj));
-  contenedor.appendChild(back);
-  const d = seccion(tituloForzado || etiquetaPlural(nivel, items.length));
-  for (const h of items) d.appendChild(btnNavegar(null, h.nombre_oficial, h.yvy_id));
-  contenedor.appendChild(d);
-}
-
-function renderBreadcrumb(ruta) {
   const bc = document.createElement('nav');
   bc.className = 'objeto-breadcrumb';
   bc.setAttribute('aria-label', 'Jerarquía');
-  ruta.forEach((o, i) => {
-    const ultimo = i === ruta.length - 1;
-    const chip = document.createElement('span');
+  rutaObjs.forEach((o, i) => {
+    const ultimo = i === rutaObjs.length - 1;
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'objeto-breadcrumb__sep';
+      sep.setAttribute('aria-hidden', 'true');
+      sep.textContent = '›';
+      bc.appendChild(sep);
+    }
     if (ultimo) {
+      const chip = document.createElement('span');
       chip.className = 'objeto-breadcrumb__final';
       chip.textContent = o.nombre_oficial;
+      bc.appendChild(chip);
     } else {
       const b = document.createElement('button');
       b.type = 'button';
@@ -456,206 +558,536 @@ function renderBreadcrumb(ruta) {
       b.textContent = o.nombre_oficial;
       b.title = `Ir a ${o.nombre_oficial}`;
       b.addEventListener('click', () => navegarA(o.yvy_id));
-      chip.appendChild(b);
-    }
-    bc.appendChild(chip);
-    if (!ultimo) {
-      const sep = document.createElement('span');
-      sep.className = 'objeto-breadcrumb__sep';
-      sep.setAttribute('aria-hidden', 'true');
-      sep.textContent = '›';
-      bc.appendChild(sep);
+      bc.appendChild(b);
     }
   });
   return bc;
 }
 
-// Breadcrumb inline (el del topbar se oculta en móvil).
-function renderBreadcrumbInline(contenedor, obj) {
-  const ruta = [];
-  let cur = obj;
-  while (cur) {
-    ruta.push(cur);
-    cur = getPadre(cur);
-  }
-  if (ruta.length > 1) contenedor.appendChild(renderBreadcrumb(ruta.reverse()));
-}
-
-function seccion(title) {
-  const d = document.createElement('div');
-  d.className = 'objeto-section';
-  const t = document.createElement('h4');
-  t.className = 'objeto-section__title';
-  t.textContent = title;
-  d.appendChild(t);
-  return d;
-}
-
-function btnNavegar(tipo, nombre, yvyId) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'objeto-nav';
-  const left = document.createElement('span');
-  left.style.display = 'flex';
-  left.style.flexDirection = 'column';
-  left.style.minWidth = '0';
-  if (tipo) {
-    const t = document.createElement('span');
-    t.className = 'objeto-nav__tipo';
-    t.textContent = tipo;
-    left.appendChild(t);
-  }
-  const n = document.createElement('span');
-  n.className = 'objeto-nav__nombre';
-  n.textContent = nombre;
-  left.appendChild(n);
-  b.appendChild(left);
-  b.addEventListener('click', () => navegarA(yvyId));
-  return b;
-}
-
-function textoResumen(obj) {
-  const ruta = [];
-  let cur = obj;
-  while (cur) {
-    ruta.push(cur.nombre_oficial);
-    cur = getPadre(cur);
-  }
-  ruta.reverse();
-  const líneas = [`${obj.nombre_oficial} · ${etiquetaNivel(obj.nivel)}`];
-  for (const f of obj._narrativa || []) líneas.push(f);
-  líneas.push(ruta.join(' › '));
-  const refs = (obj._refs || []).map((r) => `${r.nombre}${r.fecha ? ` (vigencia ${r.fecha})` : ''}`);
-  if (refs.length > 0) líneas.push(`Referencias: ${refs.join(' · ')}`);
-  líneas.push(location.href);
-  return líneas.join('\n');
-}
-
-function botonCopiar(obj) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'objeto-copy';
-  b.textContent = 'Copiar resumen';
-  b.addEventListener('click', async () => {
-    const txt = textoResumen(obj);
-    try {
-      await navigator.clipboard.writeText(txt);
-      b.textContent = 'Copiado';
-    } catch {
-      window.prompt('Copia este resumen:', txt);
-    }
-    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel });
-    setTimeout(() => { b.textContent = 'Copiar resumen'; }, 2000);
-  });
-  return b;
-}
-
-const METRICA_LABEL = {
-  poblacion: 'POBLACIÓN',
-  viviendas: 'VIVIENDAS',
-  viv_particulares: 'VIVIENDAS PARTICULARES',
-  pob_particulares: 'POBLACIÓN EN VIVIENDAS PARTICULARES',
-  viv_colectivas: 'VIVIENDAS COLECTIVAS',
-  pob_colectivas: 'POBLACIÓN EN VIVIENDAS COLECTIVAS',
-  pob_calle: 'POBLACIÓN EN SITUACIÓN DE CALLE',
-};
-// Métricas colapsadas (siempre visibles) y las que muestran "–" en 0 (no hay)
-const METRICA_TOP = ['poblacion', 'viviendas'];
-const METRICA_GUION_EN_CERO = new Set(['viv_colectivas', 'pob_colectivas', 'pob_calle']);
-
-function etiquetaMetrica(key) {
-  return METRICA_LABEL[key] || String(key).replace(/_/g, ' ').toUpperCase();
-}
-
-function valorMetrica(key, v) {
-  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.'));
-  if (!Number.isFinite(n)) return v == null || v === '' ? '–' : String(v);
-  if (n === 0 && METRICA_GUION_EN_CERO.has(key)) return '–';
-  return fmtInt.format(Math.round(n));
-}
-
-/** Sección colapsada por dataset: header con vigencia + detalle lazy por yvy_id. */
-function seccionDataset(obj, ds) {
-  const d = seccion(tituloTipo(ds.tipo));
+// --------------------------------------------------------------
+// Acordeón generico (estilo dossier): plegable, con contador
+// --------------------------------------------------------------
+function crearSeccion(titulo, conteo, abierto) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dossier-acc';
   const head = document.createElement('button');
   head.type = 'button';
-  head.className = 'objeto-dataset-btn';
-  const f = fuenteHumana(ds.fuente);
-  const vig = [f.corto, ds.fecha_vigencia].filter(Boolean).join(' · ');
-  head.textContent = vig ? `${tituloTipo(ds.tipo)} · ${vig}` : tituloTipo(ds.tipo);
+  head.className = 'dossier-acc__head';
+  head.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+  const t = document.createElement('span');
+  t.className = 'dossier-acc__titulo';
+  t.textContent = titulo;
+  head.appendChild(t);
+  if (conteo != null) {
+    const c = document.createElement('span');
+    c.className = 'dossier-acc__conteo';
+    c.textContent = String(conteo);
+    head.appendChild(c);
+  }
+  const chev = document.createElement('span');
+  chev.className = 'dossier-acc__chevron';
+  chev.setAttribute('aria-hidden', 'true');
+  head.appendChild(chev);
   const body = document.createElement('div');
-  body.className = 'objeto-dataset-body';
-  body.hidden = true;
-  let cargado = false;
-  head.addEventListener('click', async () => {
+  body.className = 'dossier-acc__body';
+  body.hidden = !abierto;
+  head.addEventListener('click', () => {
     body.hidden = !body.hidden;
     head.setAttribute('aria-expanded', String(!body.hidden));
-    if (body.hidden || cargado) return;
-    cargado = true;
-    const ag = await getAgregado(ds.tipo, obj.yvy_id);
-    body.innerHTML = '';
-    if (!ag || !ag.metricas) {
-      const p = document.createElement('p');
-      p.className = 'objeto-empty-state';
-      p.textContent = 'Sin datos registrados todavía.';
-      body.appendChild(p);
-      return;
-    }
-    const keys = Object.keys(ag.metricas);
-    const top = keys.filter((k) => METRICA_TOP.includes(k));
-    const resto = keys.filter((k) => !METRICA_TOP.includes(k));
-    const grid = document.createElement('div');
-    grid.className = 'objeto-metricas-grid';
-    for (const k of top) grid.appendChild(metrica(valorMetrica(k, ag.metricas[k]), etiquetaMetrica(k)));
-    body.appendChild(grid);
-    if (resto.length > 0) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'objeto-more-btn';
-      btn.textContent = 'Ver todas las métricas →';
-      const gridResto = document.createElement('div');
-      gridResto.className = 'objeto-metricas-grid';
-      gridResto.hidden = true;
-      for (const k of resto) gridResto.appendChild(metrica(valorMetrica(k, ag.metricas[k]), etiquetaMetrica(k), { small: true }));
-      btn.addEventListener('click', () => {
-        gridResto.hidden = !gridResto.hidden;
-        btn.textContent = gridResto.hidden ? 'Ver todas las métricas →' : 'Ver menos';
-      });
-      body.appendChild(btn);
-      body.appendChild(gridResto);
-    }
-    const foot = document.createElement('div');
-    foot.className = 'objeto-fuente';
-    const af = fuenteHumana(ag.fuente);
-    foot.textContent = '';
-    const fl = document.createElement('span');
-    fl.textContent = `Fuente: ${af.nombre}${ag.fecha_vigencia ? ` · Vigencia: ${ag.fecha_vigencia}` : ''}`;
-    foot.appendChild(fl);
-    if (af.url) {
-      const sp = document.createElement('span');
-      sp.textContent = ' · ';
-      foot.appendChild(sp);
-      const a = document.createElement('a');
-      a.href = af.url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = 'sitio oficial';
-      foot.appendChild(a);
-    }
-    body.appendChild(foot);
   });
-  d.appendChild(head);
-  d.appendChild(body);
-  return d;
+  wrap.appendChild(head);
+  wrap.appendChild(body);
+  return { wrap, body, head };
 }
 
-// Detalle por dataset (acordeones): solo donde el tipo aplica al nivel.
-function renderDatasetsAplicables(contenedor, obj) {
-  const aplicables = getDatasets().filter((ds) => (ds.niveles || []).includes(obj.nivel));
-  for (const ds of aplicables) {
-    contenedor.appendChild(seccionDataset(obj, ds));
+function itemNavegable(o) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'dossier-nav-item';
+  const nombre = document.createElement('span');
+  nombre.className = 'dossier-nav-item__nombre';
+  nombre.textContent = o.nombre_oficial;
+  const tipo = document.createElement('span');
+  tipo.className = 'dossier-nav-item__tipo';
+  tipo.textContent = etiquetaNivel(o.nivel);
+  b.appendChild(nombre);
+  b.appendChild(tipo);
+  b.addEventListener('click', () => navegarA(o.yvy_id));
+  return b;
+}
+
+// --------------------------------------------------------------
+// CONTIENE — hijos agrupados por nivel, 8 visibles + "Ver los N →"
+// --------------------------------------------------------------
+const LIMITE_HIJOS = 8;
+
+function gruposHijos(obj) {
+  const orden = ['provincia', 'depto', 'municipio', 'barrio'];
+  const grupos = [];
+  for (const nivel of orden) {
+    const items = getHijos(obj.yvy_id).filter((h) => h.nivel === nivel);
+    if (items.length > 0) grupos.push({ nivel, items });
   }
-  return aplicables.length;
+  return grupos;
 }
 
-export { renderDatasetsAplicables };
+// Municipios reales de la provincia: hijos de los deptos (tree decorrido).
+function todosMunicipios(obj) {
+  if (obj.nivel !== 'provincia') return [];
+  const out = [];
+  for (const d of getHijos(obj.yvy_id)) {
+    if (d.nivel === 'depto') out.push(...getHijos(d.yvy_id).filter((m) => m.nivel === 'municipio'));
+  }
+  return out;
+}
+
+function grupoHijosEnBody(body, nivel, items, tituloForzado) {
+  const [, plur] = ETIQUETA_HIJO[nivel] || [nivel, `${nivel}s`];
+  const label = document.createElement('div');
+  label.className = 'dossier-acc__grupo';
+  label.textContent = (tituloForzado || `${plur} · ${items.length}`).toUpperCase();
+  body.appendChild(label);
+  // Todos los ítems viven en el DOM en orden; los que pasan el tope quedan
+  // ocultos hasta el "Ver los N →" (determinista, sin re-render).
+  for (const h of items) {
+    const btn = itemNavegable(h);
+    btn.hidden = items.indexOf(h) >= LIMITE_HIJOS;
+    body.appendChild(btn);
+  }
+  if (items.length > LIMITE_HIJOS) {
+    const accion = document.createElement('button');
+    accion.type = 'button';
+    accion.className = 'dossier-more';
+    accion.textContent = `Ver los ${items.length} →`;
+    accion.addEventListener('click', () => {
+      const ocultos = [...body.querySelectorAll('.dossier-nav-item')].filter((el) => el.hidden);
+      const desplegable = ocultos.length > 0;
+      ocultos.forEach((el) => { el.hidden = !desplegable; });
+      accion.textContent = desplegable ? 'Ver menos ↑' : `Ver los ${items.length} →`;
+    });
+    body.appendChild(accion);
+  }
+}
+
+// Devuelve null si el nodo no tiene hijos que mostrar.
+function seccionContiene(obj) {
+  const grupos = gruposHijos(obj);
+  const extras = [];
+  if (obj.nivel === 'provincia') {
+    // Municipios de la provincia: los colgados de deptos + los directos,
+    // unificados (el manifiesto reparado puede dejarlos en ambos lados).
+    const munis = todosMunicipios(obj);
+    if (munis.length > 0) extras.push({ nivel: 'municipio', items: munis });
+  }
+  if (grupos.length === 0 && extras.length === 0) return null;
+  // Fusionar el grupo directo de municipios con el extras (dedup por id):
+  // una sola sección "MUNICIPIOS · N", nunca dos grupos iguales.
+  if (obj.nivel === 'provincia') {
+    const grupoDirecto = grupos.find((g) => g.nivel === 'municipio');
+    const extra = extras.find((g) => g.nivel === 'municipio');
+    if (grupoDirecto && extra) {
+      const vistos = new Set(grupoDirecto.items.map((h) => h.yvy_id));
+      for (const m of extra.items) {
+        if (!vistos.has(m.yvy_id)) { grupoDirecto.items.push(m); vistos.add(m.yvy_id); }
+      }
+      grupoDirecto.items.sort((a, b) => a.nombre_oficial.localeCompare(b.nombre_oficial, 'es'));
+      extras.splice(extras.indexOf(extra), 1);
+    }
+  }
+  const total = grupos.reduce((a, g) => a + g.items.length, 0)
+    + extras.reduce((a, g) => a + g.items.length, 0);
+  // Micro-copy humana: "23 departamentos" / "23 departamentos · 64 municipios".
+  const partes = [];
+  for (const g of grupos) partes.push(`${g.items.length} ${ETIQUETA_HIJO[g.nivel][1]}`);
+  for (const g of extras) partes.push(`${g.items.length} ${ETIQUETA_HIJO[g.nivel][1]}`);
+  const conteoTexto = partes.join(' · ');
+  const { wrap, body } = crearSeccion('Contiene', conteoTexto, false); // cerrado: la invitación silenciosa
+  wrap.dataset.grupo = 'contiene'; // destino del clic en nodo grupo "+ N más"
+  for (const g of grupos) grupoHijosEnBody(body, g.nivel, g.items);
+  for (const g of extras) grupoHijosEnBody(body, g.nivel, g.items, g.titulo);
+  return wrap;
+}
+
+// --------------------------------------------------------------
+// RELACIONES LATERALES — Limita con (lindero) / Cerca de
+// Plegadas por defecto (decisión cerrada).
+// --------------------------------------------------------------
+function seccionesVecinos(obj) {
+  const rels = getRelaciones(obj.yvy_id);
+  const secciones = [];
+  for (const tipo of ['lindero', 'cerca_de']) {
+    const vecinos = [];
+    const vistos = new Set();
+    for (const r of rels) {
+      if (r.tipo !== tipo) continue;
+      const dest = getObjeto(r.destino_yvy_id);
+      if (!dest || vistos.has(dest.yvy_id)) continue;
+      vistos.add(dest.yvy_id);
+      vecinos.push(dest);
+    }
+    if (vecinos.length === 0) continue;
+    const titulo = tipo === 'lindero' ? 'Limita con' : 'Cerca de';
+    // Micro-copy humana: "6 provincias" / "1 provincia · 2 departamentos".
+    const porNivel = new Map();
+    for (const v of vecinos) porNivel.set(v.nivel, (porNivel.get(v.nivel) || 0) + 1);
+    const conteo = [...porNivel.entries()]
+      .map(([n, c]) => `${c} ${(ETIQUETA_HIJO[n] || [null, `${n}s`])[1]}`)
+      .join(' · ');
+    const { wrap, body } = crearSeccion(titulo, conteo, false); // plegado
+    wrap.dataset.grupo = tipo === 'lindero' ? 'limita' : 'cerca'; // destino del nodo grupo
+    vecinos.forEach((v) => body.appendChild(itemNavegable(v)));
+    secciones.push(wrap);
+  }
+  return secciones;
+}
+
+// --------------------------------------------------------------
+// DATASETS — catastro / minería donde aplica, con dct:source visible
+// --------------------------------------------------------------
+// Catálogo → etiqueta cabecera
+const TITULO_DATASET = { catastro: 'Catastro', mineria: 'Minería' };
+
+function parseMapaJson(s) {
+  try {
+    const o = JSON.parse(s);
+    return Object.entries(o).map(([k, v]) => ({ k, v: Number(v) || 0 }));
+  } catch {
+    return [];
+  }
+}
+
+// --------------------------------------------------------------
+// SKELETON — pulso mientras getAgregado resuelve (fetch lazy).
+// -----------------------
+function bloquePulso(claseExtra) {
+  const b = document.createElement('div');
+  b.className = `skeleton-bloque${claseExtra ? ` ${claseExtra}` : ''}`;
+  return b;
+}
+
+/** N bloques grises que pulsan (el reemplazo del panel vacío). */
+function bloqueSkeleton(n) {
+  const g = document.createElement('div');
+  g.className = 'dossier-grupo-skeleton';
+  for (let i = 0; i < n; i++) g.appendChild(bloquePulso());
+  return g;
+}
+
+/** Hero en esqueleto: pulso donde va el número; etiqueta fija y honesta. */
+function bloqueHeroSkeleton() {
+  const hero = document.createElement('div');
+  hero.className = 'dossier-hero dossier-hero--cargando';
+  hero.appendChild(bloquePulso('skeleton-bloque--num'));
+  const lab = document.createElement('div');
+  lab.className = 'dossier-hero-label';
+  lab.textContent = 'Habitantes';
+  hero.appendChild(lab);
+  return hero;
+}
+
+// Badge [Oficial]: la fuente viene del catálogo (verificable). La
+// fecha SOLO se muestra si el manifest la declara (fecha_vigencia);
+// sin fecha, el badge queda corto y no se inventa "Actualizado".
+function badgeOficial(dsMeta) {
+  const b = document.createElement('span');
+  b.className = 'dossier-acc__badge';
+  const fecha = dsMeta && dsMeta.fecha_vigencia ? String(dsMeta.fecha_vigencia).trim() : null;
+  b.textContent = fecha ? `Oficial · ${fecha}` : 'Oficial';
+  b.title = fecha ? 'Fuente oficial · vigencia declarada en el catálogo' : 'Fuente oficial (sin fecha declarada en el catálogo)';
+  return b;
+}
+
+// Acordeón de dataset en carga: se pinta al toque con pulso, se llena
+// cuando responde (o se elimina en 404 = sin datos, nunca se grita).
+function seccionDatasetSkeleton(ds) {
+  const titulo = TITULO_DATASET[ds.tipo] || ds.tipo;
+  const f = fuenteHumana(ds.fuente);
+  const { wrap, body, head } = crearSeccion(titulo, null, false);
+  wrap.dataset.tipo = ds.tipo; // acceso directo start screen (enfocarDataset)
+  const headT = wrap.querySelector('.dossier-acc__titulo');
+  if (headT) headT.textContent = `${titulo} · ${f.corto}`;
+  head.appendChild(badgeOficial(ds));
+  body.appendChild(bloqueSkeleton(3));
+  return wrap;
+}
+
+// Acordeón de un dataset con su agregado ya resuelto (o null si 404).
+function seccionDataset(ds, ag) {
+  const titulo = TITULO_DATASET[ds.tipo] || ds.tipo;
+  const f = fuenteHumana(ag && ag.fuente ? ag.fuente : ds.fuente);
+  // dct:source visible en el header (nunca solo en el cuerpo).
+  const { wrap, body, head } = crearSeccion(titulo, null, false);
+  wrap.dataset.tipo = ds.tipo; // acceso directo start screen (enfocarDataset)
+  const headT = wrap.querySelector('.dossier-acc__titulo');
+  headT.textContent = `${titulo} · ${f.corto}`;
+  head.appendChild(badgeOficial(ds));
+
+  if (!ag || !ag.metricas) {
+    const p = document.createElement('p');
+    p.className = 'dossier-acc__vacio';
+    p.textContent = 'Sin datos registrados todavía.';
+    body.appendChild(p);
+    return wrap;
+  }
+  const m = ag.metricas;
+  const grid = document.createElement('div');
+  grid.className = 'dossier-grid';
+  if (ds.tipo === 'catastro') {
+    const n = Number(m.total_parcelas) || 0;
+    grid.appendChild(metrica(n ? fmtInt.format(n) : '–', 'Parcelas'));
+    const ha = fmtHa(m.area_total_ha);
+    grid.appendChild(metrica(ha || '–', 'Área catastrada'));
+    const cats = parseMapaJson(m.por_categoria);
+    for (const { k, v } of cats) {
+      grid.appendChild(metrica(fmtInt.format(v), `Parcelas en ${String(k).toLowerCase()}`));
+    }
+  } else if (ds.tipo === 'mineria') {
+    const n = Number(m.total_concesiones) || 0;
+    grid.appendChild(metrica(n ? fmtInt.format(n) : '–', 'Concesiones'));
+    const ha = fmtHa(m.area_total_ha);
+    grid.appendChild(metrica(ha || '–', 'Área concesionada'));
+  } else {
+    // Dataset futuro: métricas genéricas con etiqueta humana.
+    for (const [k, v] of Object.entries(m)) {
+      const n = Number(v);
+      grid.appendChild(metrica(Number.isFinite(n) ? fmtInt.format(n) : String(v), k.replace(/_/g, ' ')));
+    }
+  }
+  body.appendChild(grid);
+
+  // Fuente (dct:source) al pie del cuerpo, con link si la hay.
+  const foot = document.createElement('div');
+  foot.className = 'dossier-fuente';
+  agregarFuentePie(foot, f);
+  body.appendChild(foot);
+  return wrap;
+}
+
+function agregarFuentePie(foot, f) {
+  const fl = document.createElement('span');
+  fl.textContent = `Fuente: ${f.nombre}`;
+  fl.title = titleFuente(f);
+  foot.appendChild(fl);
+  if (f.url) {
+    const a = document.createElement('a');
+    a.href = f.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = ' · sitio oficial';
+    foot.appendChild(a);
+  }
+}
+
+// --------------------------------------------------------------
+// Grafo de relaciones (EL nodo como pieza del grafo, estilo Obsidian)
+// Vista visual: nodo central + padre + hijos + vecinos con d3-force.
+// Clic en un nodo → navegar. Sin JSON-LD en la UI (decisión producto:
+// el dato crudo vive en data/manifest.jsonld + context.jsonld, servido
+// para consumo programático, no para personas).
+// --------------------------------------------------------------
+
+/**
+ * Bloque del grafo: SIEMPRE visible (bloque compacto de 220px, sin
+ * acordeón). Se re-monta en cada render (el nodo central es nuevo) con
+ * selección humanizada: central + padre + primeros 6 relacionados +
+ * grupo "+ N más" cuyo clic abre el acordeón correspondiente.
+ */
+function bloqueGrafo(obj, navegar) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dossier-grafo-bloque';
+  const cont = document.createElement('div');
+  cont.className = 'dossier-grafo';
+  const montar = () => {
+    const ancho = Math.max(360, cont.clientWidth || 460);
+    import('./grafo.js')
+      .then((m) => m.crearGrafoRelaciones(obj, { navegar, abreGrupo: abrirGrupoAcordeon, ancho }))
+      .then((el) => { cont.appendChild(el); })
+      .catch((e) => {
+        cont.hidden = true;
+        console.warn('[yvy] grafo no montado:', e?.message);
+      });
+  };
+  // Monta al toque con ancho estimado; el ResizeObserver del SVG corrige
+  // el viewBox con el ancho real del panel (clamp 500–650px).
+  montar();
+  wrap.appendChild(cont);
+  return wrap;
+}
+
+/**
+ * Clic en nodo grupo ("+ N más" / "+ M vecinos"): abre el acordeón
+ * correspondiente y lo resalta + scrollea (misma mecánica que el foco
+ * del start screen, determinista).
+ */
+function abrirGrupoAcordeon(grupo) {
+  const cont = contenedorFicha();
+  if (!cont) return;
+  const sec = cont.querySelector(`.dossier-acc[data-grupo="${grupo}"]`)
+    || (grupo === 'limita' ? cont.querySelector('.dossier-acc[data-grupo="cerca"]') : null);
+  if (!sec) return;
+  const head = sec.querySelector('.dossier-acc__head');
+  if (head && head.getAttribute('aria-expanded') !== 'true') head.click();
+  sec.classList.add('dossier-acc--foco');
+  head.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+// --------------------------------------------------------------
+// Orquestación: fetch de agregados aplicables + composición del nodo
+// --------------------------------------------------------------
+/**
+ * Pinta el dossier del objeto. Async: los agregados vienen por fetch (lazy),
+ * y el token descarta la respuesta si el usuario ya navegó a otro objeto.
+ */
+export async function renderFicha(obj) {
+  const contenedor = contenedorFicha();
+  if (!contenedor) return;
+  const token = ++renderToken;
+  contenedor.innerHTML = '';
+
+  if (!obj) {
+    contenedor.innerHTML = '<div class="objeto-empty-state"><p>Sin jurisdicción seleccionada.</p></div>';
+    return;
+  }
+
+  const bc = breadcrumbNodo(obj);
+  if (bc) contenedor.appendChild(bc); // el país no lleva breadcrumb
+  contenedor.appendChild(bloqueHeader(obj));
+
+  // Pinta YA lo estructural con skeleton donde hay datos lazy y, al
+  // resolver cada agregado, llena su lugar: tiempo percibido mínimo,
+  // y el token descarta respuestas de un objeto que ya no está activo.
+  const ds = Object.fromEntries(getDatasets().map((d) => [d.tipo, d]));
+  const limita = fraseLimita(obj);
+
+  // Estado mutable que lee "Copiar dossier" AL CLICKEAR (refleja lo
+  // visible) y extras para síntesis, copia y referencias (nada inventado).
+  const estadoAg = { m: null };
+  const extras = { contiene: null, limita: limita, limitaNombres: null, refs: [], datasetLineas: [] };
+  if (obj.sup_oficial_km2 != null) extras.refs.push({ nombre: obj.sup_fuente ? `Superficie (${obj.sup_fuente})` : 'Superficie' });
+
+  // Hero + grid: pulso mientras responde el censo (fetch lazy).
+  const heroEl = bloqueHeroSkeleton();
+  const gridSkeleton = bloqueSkeleton(3);
+  contenedor.appendChild(heroEl);
+  contenedor.appendChild(gridSkeleton);
+
+  // La síntesis ya no depende del censo: habla del lugar del nodo en
+  // el grafo (padre, contiene, vecinos) aunque falte el dato demográfico.
+  contenedor.appendChild(bloqueSintesis(obj, null, limita));
+
+  // ---- Grafo de relaciones: acordeón de relaciones, junto a "Contiene" ----
+  contenedor.appendChild(bloqueGrafo(obj, navegarA));
+
+  // ---- Contiene ----
+  const cont = seccionContiene(obj);
+  if (cont) {
+    contenedor.appendChild(cont);
+    const partes = [];
+    const grupos = gruposHijos(obj);
+    for (const g of grupos) {
+      const [, plur] = ETIQUETA_HIJO[g.nivel];
+      partes.push(`${g.items.length} ${plur}`);
+    }
+    if (obj.nivel === 'provincia') {
+      const munis = todosMunicipios(obj);
+      if (munis.length > 0) partes.push(`${munis.length} municipios`);
+    }
+    if (partes.length > 0) extras.contiene = partes.join(' · ');
+  }
+
+  // ---- Vecinos (lindero / cerca de) ----
+  for (const s of seccionesVecinos(obj)) contenedor.appendChild(s);
+  if (limita) {
+    const nombres = [];
+    const vistos = new Set();
+    for (const r of getRelaciones(obj.yvy_id)) {
+      if (r.tipo !== 'lindero') continue;
+      const dest = getObjeto(r.destino_yvy_id);
+      if (!dest || vistos.has(dest.yvy_id)) continue;
+      vistos.add(dest.yvy_id);
+      nombres.push(dest.nombre_oficial);
+    }
+    extras.limitaNombres = nombres.join(', ');
+  }
+
+  // ---- Agregados (catastro / minería): skeleton al toque, fill async ----
+  // En provincia solo si existe agregado rollup; en depto según catálogo.
+  // provincia: el rollup puede existir aunque el nivel no lo declare.
+  let focoHecho = false;
+  const foco = focoDatasetPendiente;
+  focoDatasetPendiente = null;
+
+  // Foco pos-navegación del start screen ("Minería en Salta"): se aplica
+  // solo cuando el acordeón tiene datos reales (nunca sobre el skeleton,
+  // que se rebota al llenarse). Si 404 lo eliminó, no hay foco (como hoy).
+  const aplicarFoco = () => {
+    if (!foco || focoHecho) return;
+    const s = contenedor.querySelector(`.dossier-acc[data-tipo="${foco}"]`);
+    if (!s || s.querySelector('.skeleton-bloque')) return;
+    const head = s.querySelector('.dossier-acc__head');
+    if (head) head.click();
+    s.classList.add('dossier-acc--foco');
+    s.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    focoHecho = true;
+  };
+
+  for (const tipoD of ['catastro', 'mineria']) {
+    const dsMeta = ds[tipoD];
+    if (!dsMeta) continue;
+    const aplicableNivel = (dsMeta.niveles || []).includes(obj.nivel);
+    if (!aplicableNivel && obj.nivel !== 'provincia') continue;
+    contenedor.appendChild(seccionDatasetSkeleton(dsMeta));
+  }
+
+  const refsEl = bloqueReferencias(extras.refs);
+  contenedor.appendChild(refsEl);
+  // Pie: acción primaria (copiar) + invitación silenciosa a las fuentes.
+  contenedor.appendChild(bloqueCopiarFooter(refsEl, obj, estadoAg, extras));
+
+  // ---- Resolución async por agregado (token guarda contra cambio de activo) ----
+
+  // Demografía → hero y grid reales + primera referencia (al frente).
+  getAgregado('demografia', obj.yvy_id).then((ag) => {
+    if (token !== renderToken) return;
+    if (ag && ag.metricas) {
+      estadoAg.m = ag.metricas;
+      const m = ag.metricas;
+      heroEl.replaceWith(bloqueHero(m, densidad(obj, Number(m.poblacion))));
+      gridSkeleton.replaceWith(bloqueGrid(obj, m));
+      if (ag.fuente) insertarRefItem(refsEl, fuenteHumana(ag.fuente));
+    } else {
+      // Censo sin datos: el pulso sale y la huella honesta queda.
+      heroEl.replaceWith(bloqueHero(null, null));
+      gridSkeleton.replaceWith(bloqueGrid(obj, null));
+    }
+  });
+
+  // Datasets → el skeleton se llena con el acordeón real (o se elimina).
+  for (const tipoD of ['catastro', 'mineria']) {
+    const dsMeta = ds[tipoD];
+    if (!dsMeta) continue;
+    const aplicableNivel = (dsMeta.niveles || []).includes(obj.nivel);
+    if (!aplicableNivel && obj.nivel !== 'provincia') continue;
+    getAgregado(tipoD, obj.yvy_id).then((ag) => {
+      if (token !== renderToken) return;
+      const sk = contenedor.querySelector(`.dossier-acc[data-tipo="${tipoD}"]`);
+      if (!ag) {
+        if (sk) sk.remove(); // 404: sin datos, no se muestra (no se grita)
+        return;
+      }
+      const real = seccionDataset(dsMeta, ag);
+      if (sk && real) sk.replaceWith(real);
+      else if (real) contenedor.appendChild(real);
+      const f = fuenteHumana(ag.fuente || dsMeta.fuente);
+      agregarRefItem(refsEl, { nombre: `${TITULO_DATASET[tipoD]}: ${f.nombre}` });
+      const mA = ag.metricas || {};
+      if (tipoD === 'catastro' && Number(mA.total_parcelas)) {
+        extras.datasetLineas.push(`CATASTRO: ${fmtInt.format(Number(mA.total_parcelas))} parcelas${fmtHa(mA.area_total_ha) ? ` (${fmtHa(mA.area_total_ha)})` : ''}`);
+      }
+      if (tipoD === 'mineria' && Number(mA.total_concesiones)) {
+        extras.datasetLineas.push(`MINERÍA: ${fmtInt.format(Number(mA.total_concesiones))} concesiones${fmtHa(mA.area_total_ha) ? ` (${fmtHa(mA.area_total_ha)})` : ''}`);
+      }
+      aplicarFoco();
+    });
+  }
+}

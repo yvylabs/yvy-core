@@ -80,7 +80,7 @@ jobs:
       - name: gate-d functions
         run: |
           grep -q "onRequestGet" "functions/tiles/[[path]].js" || { echo "gate-d: tiles sin método explícito"; exit 1; }
-          grep -q "onRequestGet" "functions/data/[[fgb]].js" || { echo "gate-d: data sin método explícito"; exit 1; }
+          grep -q "onRequestGet" "functions/data/[[path]].js" || { echo "gate-d: data sin método explícito"; exit 1; }
           grep -q "KEY_RE" "functions/tiles/[[path]].js" || { echo "gate-d: tiles sin allowlist"; exit 1; }
           grep -q "MAX_BODY" functions/api/event.js || { echo "gate-d: event sin límite de body"; exit 1; }
           echo "gate-d ok"

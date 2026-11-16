@@ -44,6 +44,10 @@
     "bounds_objeto": {
       "@id": "geo:hasBoundingBox",
       "@type": "geo:wktLiteral"
+    },
+    "capital_centro": {
+      "@id": "yvyont:capitalCentro",
+      "@type": "geo:wktLiteral"
     }
   }
 }

@@ -11,13 +11,15 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as pmtiles from 'pmtiles';
 
-import { cargarDatos, getObjeto, getPadre, setObjetoActivo, setNavegador } from './manifest.js';
-import { agregarCapaObjeto, setVisibilidadObjeto } from './layers.js';
-import { inicializarUIPaneles } from './ui.js';
+import { cargarDatos, getObjeto, getPadre, getObjetoActivo, setObjetoActivo, setNavegador } from './manifest.js';
+import { agregarCapaObjeto, silenciarTextosBase, setEtiquetasBase, setVisibilidadObjeto, rutaPmtiles } from './layers.js';
+import { inicializarUIPaneles, inicializarTabsMobile } from './ui.js';
 import { mostrarObjeto, limpiarFicha } from './objeto.js';
 import { inicializarBarraTecnica, setObjetoBarra } from './statusbar.js';
 import { inicializarCompartirVista, setObjetoActual } from './share.js';
-import { inicializarBienvenida } from './welcome.js';
+import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './welcome.js';
+import { inicializarPanelGrafo, refrescarGrafo, setEstadoCatalogo } from './grafo-panel.js';
+import { inicializarTema } from './tema.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -32,8 +34,11 @@ function aplicarEstiloBase(map) {
   map.once('styledata', () => {
     try {
       if (!globeFallback && map.setProjection) map.setProjection({ type: 'globe' });
+      // Texto del basemap fuera: el único texto del mapa es el de la
+      // ontología (una etiqueta por nodo, en esmeralda — layers.js).
+      silenciarTextosBase(map);
     } catch (e) {
-      console.warn('[yvy] proyección no aplicada:', e?.message);
+      console.warn('[yvy] proyección o silenciado no aplicado:', e?.message);
     }
   });
   try {
@@ -97,8 +102,10 @@ function crearMapa(projectionType) {
       projection: { type: projectionType },
     },
     locale: LOCALE_ES,
-    center: [-60, -24],
-    zoom: 2.2,
+    // Bicontinental: continente + Malvinas/Georgias/Sandwich + Antártida
+    // (el sector antártico 25°W–74°W llega al polo: cover por geometría).
+    center: [-64, -56],
+    zoom: 2.4,
     attributionControl: true,
     failIfMajorPerformanceCaveat: false,
   });
@@ -141,22 +148,128 @@ if (mapCanvas) {
   });
 }
 
-// Controles nativos (toolbar derecho)
-map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
-map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), 'top-right');
-if (!globeFallback) map.addControl(new maplibregl.GlobeControl(), 'top-right');
-map.addControl(new maplibregl.FullscreenControl(), 'top-right');
-map.addControl(new maplibregl.ScaleControl({ unit: 'metric', maxWidth: 120 }), 'bottom-right');
+// --------------------------------------------------------------
+// Controles de la izquierda (zoom in/out + ubicación)
+// --------------------------------------------------------------
+function agregarControlIzquierda() {
+  const btnIn = document.getElementById('btn-zoom-in');
+  const btnOut = document.getElementById('btn-zoom-out');
+  const btnLoc = document.getElementById('btn-location');
+
+  if (btnIn) btnIn.addEventListener('click', () => map.zoomIn());
+  if (btnOut) btnOut.addEventListener('click', () => map.zoomOut());
+  if (btnLoc) btnLoc.addEventListener('click', () => {
+    if (!navigator.geolocation) return alert('Geolocalización no disponible');
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude, longitude } = pos.coords;
+      map.flyTo({ center: [longitude, latitude], zoom: 13, duration: 1400 });
+    }, (err) => {
+      console.warn('Geolocalización denegada o no disponible:', err);
+    });
+  });
+}
 
 // --------------------------------------------------------------
+// Mapa incrustado (R1): tira superior del dossier.
+// La tira nunca roba el scroll del dossier: sin scrollZoom ni doble
+// click ni teclado; al expandir (⤢) se activa la navegación completa.
+// --------------------------------------------------------------
+function inicializarModoMapa() {
+  const btnFull = document.getElementById('btn-mapa-full');
+  const btnCerrar = document.getElementById('btn-mapa-cerrar');
+  if (!btnFull) return;
+
+  const gestos = (full) => {
+    const modo = full ? 'enable' : 'disable';
+    try { map.scrollZoom[modo](); } catch { /* sin handler */ }
+    try { map.keyboard[modo](); } catch { /* sin handler */ }
+    try { map.doubleClickZoom[modo](); } catch { /* sin handler */ }
+  };
+
+  function aplicarModo(full) {
+    gestos(full);
+    document.documentElement.toggleAttribute('data-mapa-full', full);
+    btnFull.setAttribute('aria-expanded', String(full));
+    if (btnCerrar) btnCerrar.hidden = !full;
+    // Encuadre por estado (R5-c/R5-d): mapa lleno = bicontinental sin
+    // etiquetas de basemap; tira = fit del objeto activo + etiquetas ON.
+    if (full) {
+      encuadrarLleno();
+      setEtiquetasBase(map, false);
+    } else {
+      encuadrarDossier();
+      setEtiquetasBase(map, true);
+    }
+  }
+
+  btnFull.addEventListener('click', () => {
+    // Expandir cierra welcome si estuviera abierto (nunca ambos activos).
+    cerrarBienvenida();
+    aplicarModo(!document.documentElement.hasAttribute('data-mapa-full'));
+  });
+  if (btnCerrar) btnCerrar.addEventListener('click', () => aplicarModo(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.documentElement.hasAttribute('data-mapa-full')) aplicarModo(false);
+  });
+  gestos(false); // estado incrustado desde el arranque
+}
+
+// --------------------------------------------------------------
+// Swap ⇄ (R1): dossier y grafo alternan lados (persistente en
+// localStorage; FOUC evitado por el script inicial del head).
+// --------------------------------------------------------------
+function inicializarSwap() {
+  const btn = document.getElementById('btn-swap');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const swap = !document.documentElement.classList.contains('layout--swap');
+    document.documentElement.classList.toggle('layout--swap', swap);
+    btn.setAttribute('aria-pressed', String(swap));
+    try { localStorage.setItem('yvy:swap', swap ? '1' : '0'); } catch { /* storage bloqueado */ }
+  });
+  btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('layout--swap')));
+  // Affordance de primera vez (R7): la pill se expande sola 2.6s para
+  // que TODO usuario descubra el swap. Una sola vez, desktop, sin
+  // reduced-motion (persistencia honesta en localStorage).
+  try {
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!localStorage.getItem('yvy:swap-hint') && !reduce && innerWidth > 768) {
+      localStorage.setItem('yvy:swap-hint', '1');
+      btn.classList.add('swap-pill--hint');
+      setTimeout(() => btn.classList.remove('swap-pill--hint'), 2600);
+    }
+  } catch { /* storage bloqueado */ }
+}
+
+// --------------------------------------------------------------
+// Carga de objetos Yvy — load once, dibujar siempre
 // Carga de objetos Yvy — load once, dibujar siempre
 // --------------------------------------------------------------
 const cargados = new Set(); // yvy_ids con geometría ya en el mapa
 
+// Punto de capital (R7): dato real del manifest (capital_centro), DOM
+// marker — la tira muestra dónde vive el gobierno de la jurisdicción.
+let marcadorCapital = null;
+function pintarCapital(obj) {
+  if (marcadorCapital) { try { marcadorCapital.remove(); } catch { /* mapa reciclado */ } marcadorCapital = null; }
+  if (!map || !obj || !Array.isArray(obj.capital_centro) || obj.capital_centro.length !== 2) return;
+  try {
+    const el = document.createElement('div');
+    el.className = 'yvy-capital';
+    marcadorCapital = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([Number(obj.capital_centro[0]), Number(obj.capital_centro[1])])
+      .addTo(map);
+  } catch (e) {
+    console.warn('[yvy] marcador de capital no creado:', e?.message);
+  }
+}
+
 function cargarConContexto(obj) {
   // Solo el objeto elegido pinta. Los ancestros viven en el breadcrumb,
   // no en el mapa. Un addLayer nunca aborta la navegación.
-  if (obj.pmtiles && !cargados.has(obj.yvy_id)) {
+  // La geometría puede venir de Pages (obj.pmtiles) o de R2 (fallback
+  // por nivel en rutaPmtiles): el gate usa el resolver, no el campo crudo.
+  if (rutaPmtiles(obj) && !cargados.has(obj.yvy_id)) {
     try {
       agregarCapaObjeto(map, obj);
     } catch (e) {
@@ -184,36 +297,45 @@ async function irAYvyId(yvyId) {
   if (yvyId == null) {
     // Deseleccionar: ocultar todo el contexto y limpiar la UI
     setObjetoActual(null);
+    setObjetoActivo(null);
     aplicarBandaVisible(null);
     setObjetoBarra(null);
     limpiarFicha();
+    refrescarGrafo();
+    pintarCapital(null);
+    // Sin ficha el mapa llena la columna (oculto): encuadre bicontinental.
+    encuadrarLleno();
     return;
   }
   const obj = getObjeto(yvyId);
   if (!obj) return;
   setObjetoActivo(obj);
   setObjetoActual(yvyId);
+  cerrarBienvenida();
   setObjetoBarra(obj);
   cargarConContexto(obj);
   aplicarBandaVisible(yvyId);
+  pintarCapital(obj);
 
-  // Vuelo: si el build calculó los límites reales del objeto, se ajusta
-  // el zoom para que entre entero (con padding); si no, centro/zoom fijos
+  // Vuelo país (R6-b): bicontinental — continente + islas + Antártida
+  // (el usuario elige "Argentina", no solo la parte continental).
+  if (obj.nivel === 'pais') {
+    map.flyTo({ ...VISTA_INICIAL, duration: 1400 });
+    mostrarObjeto(yvyId);
+    return;
+  }
+
+  // Vuelo normal para provincias, departamentos y municipios.
+  // Sin padding de MapLibre: el contenedor del mapa ES el área visible
+  // (flex), el centro del canvas es el centro de lo que se ve.
   let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
   let zoomObjetivo = obj.zoom ?? 7;
   try {
     if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
       const b = obj.bounds_objeto;
       const cam = map.cameraForBounds(
-        [
-          [b[0], b[1]],
-          [b[2], b[3]],
-        ],
-        {
-          padding: 80,
-          maxZoom: (obj.maxzoom ?? 22) + 3,
-          minZoom: Math.min(obj.minzoom ?? 0, 6),
-        }
+        [[b[0], b[1]], [b[2], b[3]]],
+        { padding: { top: 80, bottom: 80, right: 80, left: 80 }, maxZoom: (obj.maxzoom ?? 22) + 3, minZoom: Math.min(obj.minzoom ?? 0, 6) }
       );
       if (cam) {
         centro = cam.center;
@@ -221,28 +343,12 @@ async function irAYvyId(yvyId) {
       }
     }
   } catch {
-    // bounds degenerados: se vuela a centro/zoom fijos, nunca se aborta la ficha
+    // bounds degenerados: se vuela a centro/zoom fijos
   }
   map.flyTo({ center: centro, zoom: zoomObjetivo, duration: 1400 });
 
-  // La ficha es fija a la izquierda. Si el objeto queda debajo del panel
-  // (zona izquierda), se desplaza el mapa suavemente hacia la derecha lo
-  // justo para que nunca quede tapado. Solo se aplica a los que quedarían
-  // bajo la ficha; el resto no se mueve.
-  map.once('moveend', () => {
-    if (!obj || !Array.isArray(obj.centro)) return;
-    try {
-      const pt = map.project(obj.centro);
-      const panel = document.getElementById('panel-explorador');
-      const panelLimit = (panel && !panel.hidden ? panel.offsetWidth : 320) + 24;
-      if (pt.x < panelLimit) {
-        const nc = map.unproject([pt.x + (panelLimit - pt.x), pt.y]);
-        map.easeTo({ center: [nc.lng, nc.lat], duration: 700 });
-      }
-    } catch { /* no desplaza si falla la proyección */ }
-  });
-
   mostrarObjeto(yvyId);
+  refrescarGrafo(); // halo + chip "DATOS CARGADOS" siguen al objeto activo
 }
 
 // El navegador de la ficha (padre/hijos/chips) usa la misma ruta
@@ -262,16 +368,83 @@ async function garantizarDatos() {
 
 // --------------------------------------------------------------
 // Volver al globo: el logo/brand restablece la vista inicial
+// (bicontinental: continente + sector antártico; sin ficha → mapa lleno).
+const VISTA_INICIAL = { center: [-64, -56], zoom: 2.4, pitch: 0, bearing: 0 };
+
 // --------------------------------------------------------------
-const VISTA_INICIAL = { center: [-60, -24], zoom: 2.2, pitch: 0, bearing: 0 };
+// Encuadre por estado (R5): la tira (dossier) SIEMPRE fitBounds del
+// objeto activo; el mapa lleno (oculto, welcome sin objeto, fullscreen ⤢)
+// SIEMPRE la vista bicontinental. El boot Welcome no navega: el mapa
+// nace en VISTA_INICIAL y ningún estado inicial pisa ese encuadre.
+// R12-b: `animar=false` permite re-encuadrar tras un cambio de caja
+// (ResizeObserver) sin volar de nuevo. `encuadreManual` protege al
+// usuario: si movió el mapa a mano, el layout no se lo pisa.
+// --------------------------------------------------------------
+let encuadreManual = false;
+
+function volarA(center, zoom, animar) {
+  const opts = { center, zoom, duration: animar ? 1200 : 0 };
+  if (animar) map.flyTo(opts);
+  else map.jumpTo(opts);
+}
+
+function encuadrarLleno(animar = true) {
+  if (!map || !map.flyTo) return;
+  encuadreManual = false;
+  map.stop();
+  volarA(VISTA_INICIAL.center, VISTA_INICIAL.zoom, animar);
+}
+
+function encuadrarDossier(animar = true) {
+  if (!map || !map.flyTo) return;
+  encuadreManual = false;
+  const obj = getObjetoActivo();
+  if (!obj) return;
+  // País: bicontinental también en la tira (honesto, aunque compacto)
+  if (obj.nivel === 'pais') {
+    volarA(VISTA_INICIAL.center, VISTA_INICIAL.zoom, animar);
+    return;
+  }
+  let centro = obj.centro || (getPadre(obj)?.centro) || [-60, -20];
+  let zoomObjetivo = obj.zoom ?? 7;
+  try {
+    if (Array.isArray(obj.bounds_objeto) && obj.bounds_objeto.length === 4) {
+      const b = obj.bounds_objeto;
+      const cam = map.cameraForBounds(
+        [[b[0], b[1]], [b[2], b[3]]],
+        { padding: { top: 80, bottom: 80, right: 80, left: 80 }, maxZoom: (obj.maxzoom ?? 22) + 3, minZoom: Math.min(obj.minzoom ?? 0, 6) }
+      );
+      if (cam) {
+        centro = cam.center;
+        zoomObjetivo = cam.zoom;
+      }
+    }
+  } catch {
+    // bounds degenerados: se vuela a centro/zoom fijos
+  }
+  volarA(centro, zoomObjetivo, animar);
+}
+
+/** Re-encuadre del estado vigente (para cambios de caja, sin animación). */
+function encuadreVigente(animar) {
+  const vista = document.getElementById('dock')?.dataset.vista;
+  const full = document.documentElement.hasAttribute('data-mapa-full');
+  if (full || vista !== 'dossier') encuadrarLleno(animar);
+  else encuadrarDossier(animar);
+}
 
 function volverAlInicio() {
   setObjetoActual(null);
+  setObjetoActivo(null);
   setObjetoBarra(null);
   limpiarFicha();
   aplicarBandaVisible(null);
+  refrescarGrafo();
+  pintarCapital(null);
   map.stop();
   map.flyTo({ ...VISTA_INICIAL, duration: 2600 });
+  // limpiarFicha deja el panel oculto: el mapa llena la columna (oculto).
+  // El welcome solo se abre por Ctrl+K o botón buscar (ya no al arrancar).
 }
 
 const brandEl = document.querySelector('.topbar__brand');
@@ -279,13 +452,32 @@ if (brandEl) {
   brandEl.addEventListener('click', (e) => {
     e.preventDefault();
     volverAlInicio();
+    mostrarBienvenida(); // portada: el globo + la tarjeta de consulta
   });
 }
+
+// Encuadre por estado (R5): cada cambio de vista del dock releva la cámara.
+// dossier (tira) → fit del objeto activo + etiquetas del basemap ON;
+// oculto (mapa lleno) → bicontinental + etiquetas OFF (el único texto
+// del globo es el de la ontología). welcome → no toca la cámara.
+document.addEventListener('yvy:dock', (e) => {
+  const vista = e.detail?.vista;
+  const lleno = document.documentElement.hasAttribute('data-mapa-full') || vista !== 'dossier';
+  if (vista === 'oculto') encuadrarLleno();
+  else if (vista === 'dossier' && !document.documentElement.hasAttribute('data-mapa-full')) encuadrarDossier();
+  setEtiquetasBase(map, !lleno);
+  // R12-b: el vuelo se calculó con la caja de ese instante; al terminar la
+  // transición de layout, re-encuadrar para la caja final (sin animación).
+  setTimeout(reencuadrarPorCaja, 380);
+});
 
 // --------------------------------------------------------------
 // Evento load del mapa
 // --------------------------------------------------------------
 inicializarUIPaneles();
+
+// Tema claro/oscuro (persistente; el globo permanece widget dark)
+inicializarTema();
 
 map.on('load', async () => {
   map.resize();
@@ -297,9 +489,24 @@ map.on('load', async () => {
   // ninguna capa ni bloquea el globo. El árbol se arma bajo demanda.
   try {
     await garantizarDatos();
+    setEstadoCatalogo('ok');
   } catch (err) {
     console.error('No se pudo cargar el manifiesto territorial:', err);
+    setEstadoCatalogo('error');
   }
+
+  // Controles de la izquierda (zoom in/out + ubicación)
+  agregarControlIzquierda();
+
+  // Mapa incrustado (tira del dossier, ⤢ expandible) + swap de lados
+  inicializarModoMapa();
+  inicializarSwap();
+
+  // PANEL GRAFO (R2): la lente por defecto (24 capitales + drill).
+  inicializarPanelGrafo();
+
+  // TABS MOBILE (R4): [Dossier | Grafo] en <=768px.
+  inicializarTabsMobile();
 
   // Bienvenida: buscar jurisdicción o elegir sugerida.
   // Al elegir navega (vuelo + ficha con hijos y padres). No tapa el globo.
@@ -307,6 +514,24 @@ map.on('load', async () => {
 
   // Compartir vista (permalink por yvy_id)
   inicializarCompartirVista(map, irAYvyId);
+
+  // PORTADA PAÍS (R6-b): sin permalink el arranque ES Argentina — globo
+  // bicontinental (Sudamérica + Antártida) + tarjeta con sus números
+  // reales + grafo país denso. El dossier NO existe hasta que el
+  // cliente elige una jurisdicción (cero espacio vacío). Con permalink,
+  // share.js navega directo (irAYvyId cierra la tarjeta y abre ficha).
+  if (!location.hash) {
+    try {
+      const obj = getObjeto(0);
+      if (obj) {
+        setObjetoActivo(obj);
+        setObjetoBarra(obj); // "Argentina · 3.669.710,7 km²"
+        refrescarGrafo();
+      }
+    } catch (err) {
+      console.warn('[yvy] portada país falló:', err?.message || err);
+    }
+  }
 
   // Barra de producto
   inicializarBarraTecnica(map);
@@ -316,6 +541,50 @@ map.on('load', async () => {
   // El botón de búsqueda del toolbar reabre la bienvenida (manejado en welcome.js).
 });
 
-window.addEventListener('resize', () => {
-  map.resize();
-});
+// R12-b: si el usuario mueve el mapa a mano, el layout no le pisa la cámara.
+for (const ev of ['dragstart', 'rotatestart', 'pitchstart']) {
+  map.on(ev, () => { encuadreManual = true; });
+}
+map.on('zoomstart', (e) => { if (e && e.originalEvent) encuadreManual = true; });
+
+// Re-encuadre tras cambios de caja: resize() solo reajusta el canvas; sin
+// re-encuadrar, el país queda pegado a un borde al achicarse por el grafo
+// (el centro viejo ya no coincide con la caja nueva). Debounce para no
+// re-encuadrar en cada frame de la transición de layout.
+let roTimer = 0;
+let roPendiente = false;
+function reencuadrarPorCaja() {
+  clearTimeout(roTimer);
+  roTimer = setTimeout(() => {
+    try { map.resize(); } catch { /* mapa sin canvas */ }
+    if (encuadreManual) return;
+    try {
+      if (!map.isStyleLoaded || !map.isStyleLoaded()) return; // aún cargando
+      if (map.isMoving && map.isMoving()) {
+        // Vuelo en curso: esperar a que aterrice y re-encuadrar para la caja final.
+        if (roPendiente) return;
+        roPendiente = true;
+        map.once('moveend', () => {
+          roPendiente = false;
+          if (!encuadreManual) encuadreVigente(false);
+        });
+        return;
+      }
+      encuadreVigente(false);
+    } catch { /* estilo a medio cargar */ }
+  }, 90);
+}
+
+window.addEventListener('resize', reencuadrarPorCaja);
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(reencuadrarPorCaja).observe(document.getElementById('map'));
+}
+// Red de seguridad: las transiciones de layout (dock/panel) pueden no
+// disparar el RO en el frame final. Al terminar la transición, una
+// pasada más de resize + re-encuadre (debounce incluido).
+for (const el of [document.getElementById('mapa-col'), document.getElementById('dock')]) {
+  if (!el) continue;
+  el.addEventListener('transitionend', (e) => {
+    if (['width', 'height', 'flex-basis', 'bottom', 'inset'].includes(e.propertyName)) reencuadrarPorCaja();
+  });
+}
