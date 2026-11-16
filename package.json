@@ -1,7 +1,7 @@
 {
-  "name": "yvy-explorer",
+  "name": "yvy-core",
   "version": "0.2.0",
-  "description": "Yvy Explorer: grafo de entidades para la acción. Free forever, sin login, 100% en el cliente.",
+  "description": "Yvy Core: infraestructura de datos territoriales con linaje auditable. Dossiers por entidad, 100% en el cliente.",
   "type": "module",
   "packageManager": "pnpm@12.4.2",
   "engines": {

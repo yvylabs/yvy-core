@@ -21,7 +21,7 @@ function importarDecodificadorMVT() {
 }
 
 // ==============================================================
-// Yvy Explorer v3 — Manifest derivado
+// Yvy Core v3 — Manifest derivado
 // Fuente de verdad: data/registry/<nivel>.parquet
 //   (un parquet por nivel: paises, provincias, departamentos, municipios…)
 // Geometría:        public/data/<nivel>.pmtiles

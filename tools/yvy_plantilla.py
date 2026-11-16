@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-# yvy_plantilla.py — Plantilla de curación Yvy Explorer
+# yvy_plantilla.py — Plantilla de curación Yvy Core
 # ------------------------------------------------------------
 # Convierte un GIS (GPKG) o tabla (CSV) en artefactos listos
 # según SPEC §10: registry parquets + agregados + PMTiles.
