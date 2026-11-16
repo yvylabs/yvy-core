@@ -468,6 +468,27 @@ Ahora cada lugar muestra su provincia (`Capital (Salta)`, `Capital
 re-consultar por la frase. Se excluye solo la entidad activa por `yvy_id`:
 las homónimas de otras provincias son la respuesta honesta (§5.2.4).
 
+### S1.4 — ontología, validador y certificado (16-nov-2026)
+
+`data/ontologia.json` es el contrato: tipos (con `padre` declarado),
+métricas con `unidad` y `tipo`, relaciones con `fuente` y reglas. El build
+lo publica en `public/data/ontologia.json` y referencia desde el manifest.
+
+**Validador** (`vite.config.js`): corta el build (`ErrorDeContrato`) si un
+objeto usa un nivel no declarado, si el padre real no está admitido, si una
+métrica no está declarada o no tiene unidad, si un agregado o dataset queda
+sin fuente, o si aparece una relación no declarada. Las advertencias siguen
+siendo advertencias; una violación de contrato no.
+
+**Certificado** (`src/js/canonico.js`): `hash_entidad` (métricas + linaje
+de datos) y `hash_linaje` (relaciones + documentos) sobre JSON canónico
+RFC 8785 con SHA-256, calculados en build y re-calculables en el cliente con
+el mismo módulo (WebCrypto, sin dependencias). Determinismo verificado: dos
+builds seguidos dan hashes idénticos.
+
+Estado actual del linaje: 16.858 relaciones (`lindero`, `cerca_de`), 2.429
+entidades con relaciones; documentos todavía 0.
+
 ### Pendiente inmediato
 - CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
 - Repo a privado (después de confirmar que el CNAME funciona).
