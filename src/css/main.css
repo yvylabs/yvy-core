@@ -905,6 +905,12 @@ html[data-theme="light"] .welcome__go { background: rgba(4, 120, 87, 0.08); bord
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Jurisdicción en la lista: "Capital (Salta)". No es un grito, es el dato
+   que evita elegir la Capital equivocada (plan §5.2.4). */
+.welcome-result__juris {
+  color: var(--w-dim);
+  font-weight: 400;
+}
 .welcome-result__go { font-size: 13px; color: var(--w-faint); flex-shrink: 0; }
 .welcome-result--dato .welcome-result__nombre { display: inline-flex; align-items: center; gap: 8px; }
 .welcome-dot {

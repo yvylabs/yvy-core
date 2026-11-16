@@ -6,10 +6,10 @@
 // Sin jerga de dev en la primera impresión (SPEC §4: cero alucinación).
 // ==============================================================
 
-import { getObjetos, getInfoCarga } from './manifest.js';
+import { getObjeto, getObjetos, getInfoCarga } from './manifest.js';
 import { abrirPanelObjeto, sincronizarLayout } from './ui.js';
 import { enfocarDataset } from './objeto.js';
-import { normalizar, buscarLugares, parsear, datosDe, capacidades, fuenteCorta, fmtNum } from './intencion.js';
+import { buscarLugares, parsear, datosDe, capacidades, fuenteCorta, fmtNum } from './intencion.js';
 import { track } from './telemetry.js';
 
 let navegarHandler = null;
@@ -52,6 +52,23 @@ function metaLugar(o) {
   return partes.join(' · ');
 }
 
+/**
+ * Provincia de la entidad (1-3 saltos) o null si no aplica.
+ * Resuelve la ambigüedad en la lista: "Capital (Salta)" vs "Capital (Mendoza)".
+ * Plan §5.2.4 — nunca un modal, siempre el listado con jurisdicción.
+ */
+function jurisdiccionDe(o) {
+  if (!o || o.nivel === 'pais' || o.nivel === 'provincia') return null;
+  let cur = o;
+  for (let i = 0; i < 4 && cur; i++) {
+    const padre = getObjeto(cur.parent_yvy_id);
+    if (!padre) return null;
+    if (padre.nivel === 'provincia') return padre.nombre_oficial;
+    cur = padre;
+  }
+  return null;
+}
+
 function fila(html, onClick, extraClass = '') {
   const el = document.createElement('button');
   el.type = 'button';
@@ -62,9 +79,10 @@ function fila(html, onClick, extraClass = '') {
 }
 
 function filaLugar(o) {
+  const juris = jurisdiccionDe(o);
   return fila(`
     <span class="welcome-result__main">
-      <span class="welcome-result__nombre">${escapar(o.nombre_oficial)}</span>
+      <span class="welcome-result__nombre">${escapar(o.nombre_oficial)}${juris ? ` <span class="welcome-result__juris">(${escapar(juris)})</span>` : ''}</span>
       <span class="welcome-result__meta">${escapar(metaLugar(o))}</span>
     </span>
     <span class="welcome-result__go" aria-hidden="true">↵</span>
@@ -256,17 +274,17 @@ export function inicializarBienvenida(fnNavegar) {
     results.hidden = false;
 
     const p = parsear(limpio);
-    const lugares = buscarLugares(p.frase || limpio, 6);
+    // Los candidatos ya vienen filtrados por provincia y ordenados por el
+    // parser: re-consultar por `p.frase` perdía la desambiguación.
+    const lugares = p.candidatos?.length ? p.candidatos : buscarLugares(p.frase || limpio, 6);
     const entidad = p.entidad || lugares[0] || null;
     const datos = entidad ? await datosDe(entidad) : [];
     if (token !== renderToken) return; // otra tecla ganó
 
-    // Lugares: sin repetir la entidad ya usada como contexto (mismo id o
-    // mismo nombre: provincia y municipio homónimos son objetos distintos).
-    // Sin intención de dato, la entidad va PRIMERO: Enter abre el lugar,
-    // no un dataset (escribir "salta" y caer en Demografía era un bug).
-    const nEnt = entidad ? normalizar(entidad.nombre_oficial) : '';
-    const otros = lugares.filter((o) => o.yvy_id !== entidad?.yvy_id && normalizar(o.nombre_oficial) !== nEnt);
+    // Lugares: se excluye la entidad ya usada como contexto (por id). Las
+    // homónimas de otras provincias SÍ se muestran: eso es la respuesta
+    // determinista ("Capital (Salta)" ≠ "Capital (Mendoza)").
+    const otros = lugares.filter((o) => o.yvy_id !== entidad?.yvy_id);
     const lugaresVisibles = p.dataset || p.relacion
       ? otros.slice(0, 2)
       : (entidad ? [entidad, ...otros] : otros).slice(0, 6);
