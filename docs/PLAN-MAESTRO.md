@@ -458,6 +458,16 @@ Reglas: la provincia nombrada en la frase califica (y se saca de la
 búsqueda); `capital` + provincia = ese departamento Capital o `null`;
 tolera un typo de una letra en palabras de ≥6 letras.
 
+### S1.2b — desambiguación visible (16-nov-2026)
+
+El parser ya desambiguaba; la lista de resultados lo perdía. Escribir
+`capital` devolvía once filas idénticas con el texto "Capital".
+
+Ahora cada lugar muestra su provincia (`Capital (Salta)`, `Capital
+(Mendoza)`) y la lista usa `p.candidatos` (ya filtrados) en vez de
+re-consultar por la frase. Se excluye solo la entidad activa por `yvy_id`:
+las homónimas de otras provincias son la respuesta honesta (§5.2.4).
+
 ### Pendiente inmediato
 - CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
 - Repo a privado (después de confirmar que el CNAME funciona).
