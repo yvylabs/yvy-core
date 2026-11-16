@@ -1,7 +1,7 @@
 {
-  "name": "Yvy Explorer",
+  "name": "Yvy Core",
   "short_name": "Yvy",
-  "description": "Grafo de entidades del territorio argentino. Dossier por jurisdicción con datos oficiales (Censo 2022, IGN): población, viviendas y superficie. Sin registro.",
+  "description": "Infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022, IGN, DGI Salta): cada cifra con su fuente y fecha. Sin registro.",
   "lang": "es-AR",
   "start_url": "./",
   "scope": "./",

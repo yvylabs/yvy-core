@@ -4,17 +4,17 @@
   <script>try{if(localStorage.getItem('yvy:tema')==='light')document.documentElement.setAttribute('data-theme','light');if(localStorage.getItem('yvy:swap')==='1')document.documentElement.classList.add('layout--swap')}catch(e){}</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Yvy Explorer — Linaje de datos oficiales para decisiones auditables.</title>
-  <meta name="description" content="Yvy Explorer: linaje de datos oficiales para decisiones auditables. Dossier por jurisdicción (Censo 2022 · IGN · DGI Salta · Minería): cada cifra con su fuente, su fecha de corte y salida en Markdown/JSON-LD. Acceso abierto, en tu navegador." />
+  <title>Yvy Core | Infraestructura de Datos</title>
+  <meta name="description" content="Yvy Core: infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022 · IGN · DGI Salta · Minería): cada cifra con su fuente, su fecha de corte y salida en Markdown/JSON-LD. Acceso abierto, en tu navegador." />
   <meta name="theme-color" content="#0B0E14" />
   <link rel="manifest" href="./manifest.webmanifest" />
 
   <!-- Open Graph / Twitter -->
-  <meta property="og:title" content="Yvy Explorer" />
-  <meta property="og:description" content="Grafo de entidades del territorio argentino. Dossier por jurisdicción con datos oficiales (Censo 2022, IGN): población, viviendas y superficie. En el navegador, sin login, gratis." />
+  <meta property="og:title" content="Yvy Core" />
+  <meta property="og:description" content="Infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022, IGN, DGI Salta): cada cifra con su fuente y su fecha de corte. En el navegador, sin login, gratis." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://explorer.yvylabs.com" />
-  <meta property="og:site_name" content="Yvy Explorer" />
+  <meta property="og:site_name" content="Yvy Core" />
   <meta property="og:locale" content="es_AR" />
   <!-- Imagen OG (R9): generada con la geometría real del grafo (24 provincias
        + 541 deptos del Censo 2022) — el preview de un link compartido ES
@@ -23,7 +23,7 @@
   <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Yvy Explorer: grafo de las 24 provincias y 529 departamentos de Argentina" />
+  <meta property="og:image:alt" content="Yvy Core: grafo de las 24 provincias y 529 departamentos de Argentina" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://explorer.yvylabs.com/assets/og-yvy.jpg" />
 
@@ -31,10 +31,10 @@
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "Yvy Explorer",
+    "name": "Yvy Core",
     "applicationCategory": "DataCatalog",
     "operatingSystem": "Web Browser",
-    "description": "Yvy Explorer: linaje de datos oficiales para decisiones auditables. Dossier por jurisdicción (Censo 2022 · IGN · DGI Salta · Minería): cada cifra con su fuente, su fecha de corte y salida en Markdown/JSON-LD. Acceso abierto, en tu navegador.",
+    "description": "Yvy Core: infraestructura de datos territoriales con linaje auditable. Dossier por entidad (Censo 2022 · IGN · DGI Salta · Minería): cada cifra con su fuente, su fecha de corte y salida en Markdown/JSON-LD. Acceso abierto, en tu navegador.",
     "author": {
       "@type": "Organization",
       "name": "Yvy Labs",
@@ -58,10 +58,10 @@
   <!-- TOPBAR -->
   <!-- ============================================================ -->
   <header class="topbar" id="topbar">
-    <a href="./" class="topbar__brand" aria-label="Yvy Explorer — Volver al inicio">
+    <a href="./" class="topbar__brand" aria-label="Yvy Core — Volver al inicio">
       <img src="./assets/yvy_logo.png" alt="" class="topbar__logo" />
       <span class="topbar__brand-text">
-        <span class="topbar__name">Yvy Explorer</span>
+        <span class="topbar__name">Yvy Core</span>
         <span class="topbar__tagline">Soporte a la acción</span>
       </span>
     </a>
@@ -167,7 +167,7 @@
     <header class="welcome__top">
       <div class="welcome__brand">
         <svg class="welcome__logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 20.66 7v10L12 22 3.34 17V7Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-        <span class="welcome__brand-name">Yvy Explorer</span>
+        <span class="welcome__brand-name">Yvy Core</span>
         <span class="welcome__brand-tag">· Soporte a la acción</span>
       </div>
       <a class="welcome__labs" href="https://yvylabs.com" target="_blank" rel="noopener">Labs <span>(Beta)</span> →</a>

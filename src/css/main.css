@@ -624,6 +624,8 @@ html[data-theme="light"] .topbar { background: rgba(243, 244, 246, 0.78); }
   --w-faint: #8A8A93;
   --w-sage: #6EE7B7;
   --w-sage-dim: rgba(110, 231, 183, 0.15);
+  /* R13-d: scrim translúcido — deja ver el mapa/grafo animado del fondo */
+  --w-scrim: rgba(14, 15, 18, 0.62);
 }
 html[data-theme="light"] .welcome {
   --w-bg: #FFFFFF;
@@ -636,19 +638,20 @@ html[data-theme="light"] .welcome {
   --w-faint: #6B7280;
   --w-sage: #047857;
   --w-sage-dim: rgba(4, 120, 87, 0.12);
+  --w-scrim: rgba(248, 250, 252, 0.60);
 }
 .welcome[hidden] { display: none; }
 .welcome__scrim {
   position: absolute;
   inset: 0;
   pointer-events: auto;
-  background: radial-gradient(60% 60% at 50% 40%, transparent 0%, var(--w-edge) 100%);
+  background: radial-gradient(72% 72% at 50% 42%, transparent 0%, var(--w-scrim) 100%);
 }
 /* Mientras la portada está abierta, mapa y grafo son textura (no compiten) */
 html[data-welcome="portada"] .mapa-col,
 html[data-welcome="portada"] .panel-grafo,
 html[data-welcome="portada"] .status-bar {
-  opacity: 0.19;
+  opacity: 0.24;
   filter: blur(0.5px);
   transition: opacity 320ms var(--ease-out), filter 320ms var(--ease-out);
 }
@@ -658,17 +661,23 @@ html[data-welcome="portada"] .topbar { opacity: 0; pointer-events: none; transit
    Duraciones distintas por capa para parallax (mapa lento, grafo más vivo).
    transform-origin arriba: el scale crece hacia el borde superior y cubre
    el inferior cuando la capa sube (los overflow:hidden de .layout/.dock
-   recortan solo el exceso, invisible a .19 de opacidad + blur). */
+   recortan solo el exceso, invisible a .24 de opacidad + blur). */
 @keyframes yvyFloat {
   0% { transform: translateY(0) scale(1); }
   100% { transform: translateY(-12px) scale(1.02); }
 }
-html[data-welcome="portada"] .mapa-col { animation: yvyFloat 9s ease-in-out infinite alternate; transform-origin: 50% 0; }
-html[data-welcome="portada"] .panel-grafo { animation: yvyFloat 6.5s ease-in-out infinite alternate; transform-origin: 50% 0; }
-/* Nodos del grafo: respiración lenta (translate compone con el transform SVG). */
-html[data-welcome="portada"] .gp-nodo { animation: gpFloat 7s ease-in-out infinite alternate; }
-html[data-welcome="portada"] .gp-nodo:nth-child(3n) { animation-duration: 6s; animation-delay: -1.4s; }
-html[data-welcome="portada"] .gp-nodo:nth-child(4n) { animation-duration: 8s; animation-delay: -2.6s; }
+html[data-welcome="portada"] .mapa-col,
+html[data-welcome="portada"] .panel-grafo { transform-origin: 50% 0; }
+/* R13-d: el movimiento SOLO se declara con no-preference. Así `animation: none`
+   del bloque reduce no puede pisarlo cuando el usuario no pidió reducir motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-welcome="portada"] .mapa-col { animation: yvyFloat 9s ease-in-out infinite alternate; }
+  html[data-welcome="portada"] .panel-grafo { animation: yvyFloat 6.5s ease-in-out infinite alternate; }
+  /* Nodos del grafo: respiración lenta (translate compone con el transform SVG). */
+  html[data-welcome="portada"] .gp-nodo { animation: gpFloat 7s ease-in-out infinite alternate; }
+  html[data-welcome="portada"] .gp-nodo:nth-child(3n) { animation-duration: 6s; animation-delay: -1.4s; }
+  html[data-welcome="portada"] .gp-nodo:nth-child(4n) { animation-duration: 8s; animation-delay: -2.6s; }
+}
 @keyframes gpFloat {
   from { translate: 0 0; }
   to { translate: 0 -4px; }
