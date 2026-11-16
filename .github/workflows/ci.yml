@@ -9,10 +9,16 @@ on:
 permissions:
   contents: read
 
+# Un push nuevo a la misma rama mata la corrida anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: build + gates
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -87,3 +93,22 @@ jobs:
           grep -q "KEY_RE" "functions/tiles/[[path]].js" || { echo "gate-d: tiles sin allowlist"; exit 1; }
           grep -q "MAX_BODY" functions/api/event.js || { echo "gate-d: event sin límite de body"; exit 1; }
           echo "gate-d ok"
+
+      - name: artefacto dist/
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist
+          retention-days: 7
+
+  # Dependencias nuevas con vulnerabilidades conocidas no entran a master.
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

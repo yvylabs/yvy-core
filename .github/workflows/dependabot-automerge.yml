@@ -1,0 +1,45 @@
+name: dependabot automerge
+
+# Auto-merge con valla: SOLO devDependencies y SOLO minor/patch.
+# Runtime (maplibre, pmtiles, d3-force, fonts) y majors requieren revisión
+# humana: el mapa es lo que se rompe silenciosamente.
+# El merge real lo ejecuta GitHub cuando `build + gates` está verde.
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  enable:
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: auto-merge si aplica
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const titulo = pr.title || '';
+            const esDev = /deps-dev/.test(titulo);
+            const m = titulo.match(/bump .+ from (\d+)\.\d+\.\d+ to (\d+)\.\d+\.\d+/);
+            const esMayor = m ? Number(m[1]) !== Number(m[2]) : false;
+
+            if (!esDev || esMayor) {
+              core.info(`Sin auto-merge (dev=${esDev}, mayor=${esMayor}): ${titulo}`);
+              return;
+            }
+            await github.graphql(
+              `mutation ($id: ID!) {
+                enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH }) {
+                  pullRequest { number }
+                }
+              }`,
+              { id: pr.node_id },
+            );
+            core.info(`Auto-merge (squash) activado para #${pr.number}: ${titulo}`);
