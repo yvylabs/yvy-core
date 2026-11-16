@@ -877,9 +877,23 @@ const AGREGACION_TIPO = {
 const NO_METRICA = new Set(['yvy_id', 'id', 'nivel', 'parent_yvy_id', 'yvy_id_contenedor', 'cod_indec', 'georef_id', 'nombre_oficial', 'nombre', 'fuente', 'fuente_url', 'fecha_vigencia', 'version', 'categoria', 'tipo']);
 
 /**
+ * Estado de un agregado según sus métricas: `ok` (todas con valor),
+ * `parcial` (algunas en `null`) o `missing` (ninguna). Va siempre junto a
+ * los `null`: un dato que no existe no se representa con 0.
+ */
+function estadoDeMetricas(metricas) {
+  const claves = Object.keys(metricas || {});
+  const faltan = claves.filter((k) => metricas[k] == null);
+  const estado = !claves.length || faltan.length === claves.length
+    ? 'missing'
+    : (faltan.length ? 'parcial' : 'ok');
+  return { estado, metricas_missing: faltan };
+}
+
+/**
  * Datasets: {tipo}_{version}.parquet → versión activa + agregados por yvy_id.
  * Escribe public/data/agregados/{tipo}/{yvy_id}.json y devuelve el índice
- * para el manifest. Null/'' en métricas = 0 (no hay), nunca missing.
+ * para el manifest. Métrica sin dato = null + estado (nunca 0 de relleno).
  * Rollup: cada agregado suma sus métricas numéricas a sus ancestros
  * (municipio→depto→provincia); el directo manda si ya existe.
  */
@@ -940,7 +954,9 @@ async function construirDatasets(objetos, advertencias) {
       grupos.get(yvyId).push(f);
     }
     const metricaDeCelda = (raw) => {
-      if (raw == null || raw === '') return 0;
+      // Contrato Yvy Core: dato faltante = null (+ estado en el agregado).
+      // Nunca 0 de relleno — un 0 inventado es un dato falso.
+      if (raw == null || raw === '') return null;
       const n = num(raw);
       return n == null ? raw : (Number.isInteger(n) ? n : Math.round(n * 100) / 100);
     };
@@ -961,8 +977,9 @@ async function construirDatasets(objetos, advertencias) {
         for (let i = 0; i < encabezados.length; i++) colIdx[normalizar(encabezados[i])] = i;
         for (const [col, out] of Object.entries(regla.sumas || {})) {
           if (!(col in colIdx)) continue;
-          const s = gf.map((r) => num(r[colIdx[col]])).filter((n) => n != null)
-            .reduce((a, b) => a + b, 0);
+          const vals = gf.map((r) => num(r[colIdx[col]])).filter((n) => n != null);
+          if (!vals.length) { metricas[out] = null; continue; }
+          const s = vals.reduce((a, b) => a + b, 0);
           metricas[out] = Number.isInteger(s) ? s : Math.round(s * 100) / 100;
         }
         for (const [col, out] of Object.entries(regla.top || {})) {
@@ -974,6 +991,7 @@ async function construirDatasets(objetos, advertencias) {
             const k = String(v);
             vc.set(k, (vc.get(k) || 0) + 1);
           }
+          if (!vc.size) { metricas[out] = null; continue; }
           const top = [...vc.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
           metricas[out] = JSON.stringify(Object.fromEntries(top));
         }
@@ -987,6 +1005,7 @@ async function construirDatasets(objetos, advertencias) {
         fecha_vigencia: iFecha >= 0 && f0[iFecha] ? f0[iFecha] : null,
         version: (iVersion >= 0 && f0[iVersion] ? f0[iVersion] : null) || version,
         metricas,
+        ...estadoDeMetricas(metricas),
       };
       if (ag.fuente && !fuente) fuente = ag.fuente;
       if (ag.fecha_vigencia && !fecha) fecha = ag.fecha_vigencia;
@@ -1025,6 +1044,7 @@ async function construirDatasets(objetos, advertencias) {
         fecha_vigencia: primero.fecha_vigencia,
         version: primero.version,
         metricas,
+        ...estadoDeMetricas(metricas),
         rollup: true,
       };
       await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');

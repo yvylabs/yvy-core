@@ -29,8 +29,10 @@ jobs:
 
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test
+      # El build primero: los tests de contrato validan los agregados
+      # recién generados (null + estado), no los de un checkout viejo.
       - run: pnpm run build
+      - run: pnpm run test
 
       - name: gate-a anti-raw
         run: |
