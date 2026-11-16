@@ -1534,6 +1534,59 @@ html[data-theme="light"] .tema-ico--luna { display: block; }
   opacity: 0.45;
 }
 
+/* CERTIFICADO DE LINAJE (S1.4): dos hashes por dataset, verificados en el
+   navegador. El badge vive en el head del acordeón; el cuerpo lista
+   dataset + hash corto + resultado de la verificación. */
+.dossier-cert__badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+.dossier-cert__badge--ok { color: var(--accent); }
+.dossier-cert__badge--mal { color: var(--danger); }
+
+.dossier-cert__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dossier-cert__fila {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.dossier-cert__nombre {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+.dossier-cert__hash {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dossier-cert__estado {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-weight: 600;
+}
+.dossier-cert__estado--ok { color: var(--accent); }
+.dossier-cert__estado--mal { color: var(--danger); }
+
+.dossier-cert__nota {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.dossier-cert .dossier-copy { margin-top: 8px; }
+
 /* Badge [Oficial]: fuente del catálogo, verifiable. Pequeño, no grita. */
 .dossier-acc__badge {
   flex: 0 0 auto;

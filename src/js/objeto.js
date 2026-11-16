@@ -19,6 +19,7 @@ import {
   navegarA,
 } from './manifest.js';
 import { abrirPanelObjeto, sincronizarLayout } from './ui.js';
+import { hashCanonico, payloadEntidad, payloadLinaje } from './canonico.js';
 import { track } from './telemetry.js';
 
 // Foco pos-navegación del start screen ("Minería en Salta"): el tipo
@@ -489,6 +490,136 @@ function bloqueCopiarJsonLd(obj) {
     setTimeout(() => { b.textContent = 'Copiar JSON-LD'; }, 2000);
   });
   return b;
+}
+
+// --------------------------------------------------------------
+// CERTIFICADO — dos hashes por dataset, verificados en el cliente
+// --------------------------------------------------------------
+// El build publica hash_entidad (métricas + linaje de datos) y
+// hash_linaje (relaciones + documentos) con JSON canónico RFC 8785.
+// Acá se RECALCULAN con el mismo módulo: si no cierra, se dice.
+// Un certificado que solo se muestra nunca se verificó.
+
+/** Payload de linaje reconstruido igual que en el build (orden determinista). */
+function linajeDelCliente(obj) {
+  const rels = getRelaciones(obj.yvy_id)
+    .map((r) => {
+      const item = { tipo: r.tipo, destino: Number(r.destino_yvy_id) };
+      if (r.dist_m != null) item.dist_m = r.dist_m;
+      return item;
+    })
+    .sort((a, b) => (a.tipo === b.tipo ? a.destino - b.destino : a.tipo < b.tipo ? -1 : 1));
+  return payloadLinaje(obj.yvy_id, rels, []);
+}
+
+/**
+ * Sección colapsada "Certificado de linaje". `registrar(ag)` se llama
+ * cuando cada agregado resuelve; recalcula y actualiza el badge del head.
+ */
+function bloqueCertificado(obj, token, contenedor) {
+  const { wrap, body, head } = crearSeccion('Certificado de linaje', null, false);
+  wrap.classList.add('dossier-cert');
+  const badge = document.createElement('span');
+  badge.className = 'dossier-cert__badge';
+  badge.textContent = 'verificando…';
+  head.appendChild(badge);
+
+  const estado = { total: 0, ok: 0, filas: [] };
+  const lista = document.createElement('div');
+  lista.className = 'dossier-cert__lista';
+  body.appendChild(lista);
+
+  const nota = document.createElement('p');
+  nota.className = 'dossier-cert__nota';
+  nota.textContent = 'SHA-256 sobre JSON canónico (RFC 8785), recalculado en tu navegador. Si el dato cambia, el hash cambia.';
+  body.appendChild(nota);
+
+  const copiar = document.createElement('button');
+  copiar.type = 'button';
+  copiar.className = 'dossier-copy dossier-copy--fuentes';
+  copiar.textContent = 'Copiar certificado';
+  copiar.hidden = true;
+  copiar.addEventListener('click', async () => {
+    const txt = JSON.stringify({ yvy_id: obj.yvy_id, datasets: estado.filas }, null, 2);
+    try {
+      await navigator.clipboard.writeText(txt);
+      copiar.textContent = 'Copiado';
+    } catch {
+      window.prompt('Copiá este certificado:', txt);
+    }
+    track('report_copy', { yvy_id: obj.yvy_id, nivel: obj.nivel, formato: 'certificado' });
+    setTimeout(() => { copiar.textContent = 'Copiar certificado'; }, 2000);
+  });
+  body.appendChild(copiar);
+
+  function pintar() {
+    if (!estado.total) return;
+    if (estado.ok === estado.total) {
+      badge.textContent = `✓ ${estado.total} verificado${estado.total === 1 ? '' : 's'}`;
+      badge.classList.add('dossier-cert__badge--ok');
+      badge.classList.remove('dossier-cert__badge--mal');
+    } else {
+      badge.textContent = `⚠ ${estado.ok}/${estado.total} verificados`;
+      badge.classList.add('dossier-cert__badge--mal');
+      badge.classList.remove('dossier-cert__badge--ok');
+    }
+    copiar.hidden = false;
+  }
+
+  async function registrar(ag) {
+    if (!ag || !ag.certificado) return;
+    if (token !== renderToken) return;
+    const f = fuenteHumana(ag.fuente);
+    const fila = document.createElement('div');
+    fila.className = 'dossier-cert__fila';
+
+    const nombre = document.createElement('span');
+    nombre.className = 'dossier-cert__nombre';
+    nombre.textContent = f.corto;
+    fila.appendChild(nombre);
+
+    const hashes = document.createElement('span');
+    hashes.className = 'dossier-cert__hash';
+    hashes.textContent = `${String(ag.certificado.hash_entidad).slice(0, 12)}… · ${String(ag.certificado.hash_linaje).slice(0, 12)}…`;
+    hashes.title = `hash_entidad ${ag.certificado.hash_entidad}\nhash_linaje ${ag.certificado.hash_linaje}`;
+    fila.appendChild(hashes);
+
+    const marca = document.createElement('span');
+    marca.className = 'dossier-cert__estado';
+    fila.appendChild(marca);
+    lista.appendChild(fila);
+
+    estado.total += 1;
+    const [he, hl] = await Promise.all([
+      hashCanonico(payloadEntidad(ag)),
+      hashCanonico(linajeDelCliente(obj)),
+    ]);
+    if (token !== renderToken) return;
+    const cierra = he === ag.certificado.hash_entidad && hl === ag.certificado.hash_linaje;
+    marca.textContent = cierra ? '✓' : '⚠';
+    marca.title = cierra
+      ? 'Recalculado en el navegador: coincide con el publicado'
+      : `No coincide. Publicado ${ag.certificado.hash_entidad} · recalculado ${he}`;
+    marca.classList.add(cierra ? 'dossier-cert__estado--ok' : 'dossier-cert__estado--mal');
+    if (cierra) estado.ok += 1;
+    estado.filas.push({
+      dataset: ag.tipo,
+      fuente: ag.fuente ?? null,
+      fecha: ag.fecha_vigencia ?? null,
+      hash_entidad: ag.certificado.hash_entidad,
+      hash_linaje: ag.certificado.hash_linaje,
+      verificado: cierra,
+    });
+    pintar();
+  }
+
+  // Sin ningún dataset con certificado: el bloque no existe (no se grita).
+  const cerrarSiVacio = () => {
+    if (!estado.total && wrap.isConnected) wrap.remove();
+  };
+
+  if (contenedor) contenedor.appendChild(wrap);
+  return { el: wrap, registrar, cerrarSiVacio };
 }
 
 function bloqueCopiar(obj, estadoAg, extras, refsEl) {
@@ -1045,6 +1176,10 @@ export async function renderFicha(obj) {
   // Pie: acción primaria (copiar) + invitación silenciosa a las fuentes.
   contenedor.appendChild(bloqueCopiarFooter(refsEl, obj, estadoAg, extras));
 
+  // Certificado: se crea colapsado y se verifica solo a medida que los
+  // agregados resuelven. Si ninguno trae certificado, se elimina.
+  const cert = bloqueCertificado(obj, token, contenedor);
+
   // ---- Resolución async por agregado (token guarda contra cambio de activo) ----
 
   // Demografía → hero y grid reales + primera referencia (al frente).
@@ -1061,6 +1196,8 @@ export async function renderFicha(obj) {
       heroEl.replaceWith(bloqueHero(null, null));
       gridSkeleton.replaceWith(bloqueGrid(obj, null));
     }
+    cert.registrar(ag).catch(() => {});
+    cert.cerrarSiVacio();
   });
 
   // Datasets → el skeleton se llena con el acordeón real (o se elimina).
@@ -1088,6 +1225,7 @@ export async function renderFicha(obj) {
       if (tipoD === 'mineria' && Number(mA.total_concesiones)) {
         extras.datasetLineas.push(`MINERÍA: ${fmtInt.format(Number(mA.total_concesiones))} concesiones${fmtHa(mA.area_total_ha) ? ` (${fmtHa(mA.area_total_ha)})` : ''}`);
       }
+      cert.registrar(ag).catch(() => {});
       aplicarFoco();
     });
   }
