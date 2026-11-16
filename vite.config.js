@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { gunzipSync } from 'node:zlib';
 import { PMTiles } from 'pmtiles';
 import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
+import { hashCanonico, payloadEntidad, payloadLinaje } from './src/js/canonico.js';
 
 const require = createRequire(import.meta.url);
 let VectorTile = null;
@@ -49,6 +50,8 @@ function importarDecodificadorMVT() {
 
 const DATA_DIR = path.resolve('public/data');
 const REGISTRY_DIR = path.resolve('data/registry');
+const ONTOLOGIA_SRC = path.resolve('data/ontologia.json');
+const RELACIONES_SRC = path.join(DATA_DIR, 'relaciones.json');
 
 const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
 const ZOOM_DEFAULT = { pais: 3.5, provincia: 7, depto: 11, municipio: 13, barrio: 15, concesion: 14 };
@@ -890,6 +893,129 @@ function estadoDeMetricas(metricas) {
   return { estado, metricas_missing: faltan };
 }
 
+// ==============================================================
+// Ontología + validador de contrato + certificado
+// ==============================================================
+
+/** Violación del contrato de datos: corta el build, no se degrada a aviso. */
+class ErrorDeContrato extends Error {}
+
+/** Acumulador de violaciones de una corrida del build. */
+let violaciones = [];
+
+/** Ontología activa (data/ontologia.json) y linaje indexado, cargados por build. */
+let ontologia = null;
+let linaje = { porOrigen: new Map(), crudas: [] };
+
+function exigir(cond, mensaje) {
+  if (!cond) violaciones.push(mensaje);
+}
+
+/** Lee la ontología (tipos, métricas, relaciones). Si falta, el build sigue sin contrato. */
+async function cargarOntologia(advertencias) {
+  try {
+    const ontologia = JSON.parse(await fs.readFile(ONTOLOGIA_SRC, 'utf8'));
+    if (!ontologia.tipos || !ontologia.metricas) {
+      advertencias.push('ontologia.json sin "tipos" o sin "metricas": no se valida el contrato.');
+      return null;
+    }
+    return ontologia;
+  } catch (err) {
+    advertencias.push(`ontologia.json no se pudo leer (${err?.code || err?.message}): sin validación de contrato.`);
+    return null;
+  }
+}
+
+/**
+ * Índice de relaciones por origen para el hash_linaje. Orden determinista:
+ * el mismo archivo tiene que dar el mismo hash siempre.
+ */
+async function cargarLinaje() {
+  const vacio = new Map();
+  try {
+    const raw = JSON.parse(await fs.readFile(RELACIONES_SRC, 'utf8'));
+    const porOrigen = new Map();
+    for (const r of raw.relaciones || []) {
+      const item = { tipo: r.tipo, destino: r.destino_yvy_id };
+      if (r.dist_m != null) item.dist_m = r.dist_m;
+      const k = Number(r.origen_yvy_id);
+      if (!porOrigen.has(k)) porOrigen.set(k, []);
+      porOrigen.get(k).push(item);
+    }
+    for (const lista of porOrigen.values()) {
+      lista.sort((a, b) => (a.tipo === b.tipo ? a.destino - b.destino : a.tipo < b.tipo ? -1 : 1));
+    }
+    return { porOrigen, crudas: raw.relaciones || [] };
+  } catch {
+    return { porOrigen: vacio, crudas: [] };
+  }
+}
+
+/** Certificado de una entidad: dos hashes, payload completo (no lo visible). */
+async function certificar(ag, linaje) {
+  const rels = linaje.porOrigen.get(ag.yvy_id) || [];
+  const documentos = [];
+  return {
+    hash_entidad: await hashCanonico(payloadEntidad(ag)),
+    hash_linaje: await hashCanonico(payloadLinaje(ag.yvy_id, rels, documentos)),
+    canonico: 'RFC8785',
+    algoritmo: 'sha256',
+  };
+}
+
+/**
+ * Valida el contrato completo ANTES de publicar:
+ * tipos declarados, métricas con unidad, fuente obligatoria, relaciones
+ * declaradas y tipos como campo. Devuelve la lista de violaciones.
+ */
+function validarContrato({ objetos, datasets, ontologia, relaciones, agregadosMuestra }) {
+  if (!ontologia) return [];
+  const tipos = ontologia.tipos || {};
+  const metricasOnt = ontologia.metricas || {};
+  const relacionesOnt = ontologia.relaciones || {};
+  const out = [];
+
+  for (const o of objetos) {
+    if (!tipos[o.nivel]) out.push(`objeto ${o.yvy_id}: nivel "${o.nivel}" no declarado en ontologia.tipos`);
+    if (!Number.isInteger(Number(o.yvy_id))) out.push(`objeto ${o.nombre_oficial}: yvy_id no entero`);
+    const t = tipos[o.nivel];
+    if (t && Array.isArray(t.padre) && t.padre.length && o.parent_yvy_id != null) {
+      const padre = objetos.find((x) => Number(x.yvy_id) === Number(o.parent_yvy_id));
+      if (padre && !t.padre.includes(padre.nivel)) {
+        out.push(`objeto ${o.yvy_id}: padre es "${padre.nivel}" y la ontología admite ${JSON.stringify(t.padre)}`);
+      }
+    }
+  }
+
+  for (const d of datasets) {
+    if (!d.fuente) out.push(`dataset "${d.tipo}": sin fuente (no entra)`);
+  }
+
+  for (const ag of agregadosMuestra) {
+    if (!ag.tipo) out.push(`agregado ${ag.yvy_id}: sin tipo`);
+    if (!ag.fuente) out.push(`agregado ${ag.tipo}/${ag.yvy_id}: sin fuente (no entra)`);
+    for (const k of Object.keys(ag.metricas || {})) {
+      const def = metricasOnt[k];
+      if (!def) { out.push(`métrica "${k}" no declarada en ontologia.metricas (${ag.tipo}/${ag.yvy_id})`); continue; }
+      if (!def.unidad) out.push(`métrica "${k}": sin unidad en la ontología`);
+    }
+  }
+
+  for (const r of relaciones) {
+    if (!relacionesOnt[r.tipo]) out.push(`relación "${r.tipo}" no declarada en ontologia.relaciones`);
+    else if (!relacionesOnt[r.tipo].fuente) out.push(`relación "${r.tipo}": sin fuente en la ontología`);
+  }
+
+  return out;
+}
+
+/** Publica la ontología junto al manifest: el cliente la necesita para interpretar. */
+async function publicarOntologia(ontologia) {
+  if (!ontologia) return;
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(path.join(DATA_DIR, 'ontologia.json'), JSON.stringify(ontologia, null, 2), 'utf8');
+}
+
 /**
  * Datasets: {tipo}_{version}.parquet → versión activa + agregados por yvy_id.
  * Escribe public/data/agregados/{tipo}/{yvy_id}.json y devuelve el índice
@@ -1007,6 +1133,7 @@ async function construirDatasets(objetos, advertencias) {
         metricas,
         ...estadoDeMetricas(metricas),
       };
+      ag.certificado = await certificar(ag, linaje);
       if (ag.fuente && !fuente) fuente = ag.fuente;
       if (ag.fecha_vigencia && !fecha) fecha = ag.fecha_vigencia;
       if (ag.version && !version) version = ag.version;
@@ -1047,6 +1174,7 @@ async function construirDatasets(objetos, advertencias) {
         ...estadoDeMetricas(metricas),
         rollup: true,
       };
+      ag.certificado = await certificar(ag, linaje);
       await fs.writeFile(path.join(dirOut, `${yvyId}.json`), JSON.stringify(ag), 'utf8');
       rolled++;
     }
@@ -1060,10 +1188,46 @@ async function construirDatasets(objetos, advertencias) {
 // Escritura de los archivos
 // --------------------------------------------------------------
 async function escribirManifest() {
+  violaciones = [];
+  const avisosOntologia = [];
+  ontologia = await cargarOntologia(avisosOntologia);
+  linaje = await cargarLinaje();
   const { fuentes, objetos, datasets, advertencias } = await construirManifest();
+  advertencias.push(...avisosOntologia);
+
+  // Contrato: si algo no está declarado (tipo, métrica, unidad, fuente,
+  // relación) el build falla. Un dato sin contrato no se publica.
+  const muestra = [];
+  for (const tipo of ['demografia', 'catastro', 'mineria']) {
+    const dir = path.join(DATA_DIR, 'agregados', tipo);
+    for (const f of await fs.readdir(dir).catch(() => [])) {
+      if (!f.endsWith('.json')) continue;
+      const ag = JSON.parse(await fs.readFile(path.join(dir, f), 'utf8'));
+      muestra.push(ag);
+    }
+  }
+  violaciones = validarContrato({
+    objetos,
+    datasets,
+    ontologia,
+    relaciones: linaje.crudas,
+    agregadosMuestra: muestra,
+  });
+  if (violaciones.length) {
+    const resumen = violaciones.slice(0, 12).map((v) => `  - ${v}`).join('\n');
+    throw new ErrorDeContrato(
+      `[yvy-contrato] ${violaciones.length} violación(es) del contrato de datos:\n${resumen}`
+      + (violaciones.length > 12 ? `\n  … y ${violaciones.length - 12} más` : '')
+      + '\nCorregí data/ontologia.json o el registry antes de publicar.',
+    );
+  }
+
+  await publicarOntologia(ontologia);
+
   const manifest = {
     generado: Date.now(),
     schema: 'yvy-manifest-v3',
+    ontologia: ontologia ? { schema: ontologia.schema, version: ontologia.version, archivo: 'data/ontologia.json' } : null,
     fuentes,
     objetos,
     datasets,
@@ -1138,6 +1302,8 @@ function yvyManifest() {
       try {
         await escribirManifest();
       } catch (err) {
+        // Una violación del contrato no es un aviso: corta el build.
+        if (err instanceof ErrorDeContrato) throw err;
         console.error('[yvy-manifest] error:', err);
       }
     },

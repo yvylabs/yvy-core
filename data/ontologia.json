@@ -1,0 +1,235 @@
+{
+  "schema": "yvy-ontologia-v1",
+  "version": "2026-11",
+  "descripcion": "Tipos, métricas, unidades y relaciones de Yvy Core. Vive separado del manifest: el manifest son instancias, esto es el contrato.",
+  "tipos": {
+    "pais": {
+      "nivel": 0,
+      "padre": [],
+      "contiene": [
+        "provincia"
+      ],
+      "geometria": true
+    },
+    "provincia": {
+      "nivel": 1,
+      "padre": [
+        "pais"
+      ],
+      "contiene": [
+        "depto"
+      ],
+      "geometria": true
+    },
+    "depto": {
+      "nivel": 2,
+      "padre": [
+        "provincia"
+      ],
+      "contiene": [
+        "municipio"
+      ],
+      "geometria": true
+    },
+    "municipio": {
+      "nivel": 3,
+      "padre": [
+        "depto",
+        "provincia"
+      ],
+      "contiene": [
+        "barrio"
+      ],
+      "geometria": true
+    },
+    "barrio": {
+      "nivel": 4,
+      "padre": [
+        "municipio",
+        "depto"
+      ],
+      "contiene": [],
+      "geometria": true
+    },
+    "region": {
+      "nivel": 1,
+      "padre": [],
+      "contiene": [
+        "provincia",
+        "depto"
+      ],
+      "geometria": false,
+      "previsto": true
+    },
+    "cuenca": {
+      "nivel": 2,
+      "padre": [],
+      "contiene": [
+        "depto",
+        "municipio"
+      ],
+      "geometria": false,
+      "previsto": true
+    },
+    "radio_censal": {
+      "nivel": 4,
+      "padre": [],
+      "contiene": [],
+      "geometria": false,
+      "previsto": true
+    },
+    "documento": {
+      "nivel": null,
+      "padre": [],
+      "contiene": [],
+      "geometria": false,
+      "previsto": true
+    }
+  },
+  "metricas": {
+    "poblacion": {
+      "unidad": "habitantes",
+      "tipo": "entero",
+      "etiqueta": "Población",
+      "dataset": "demografia"
+    },
+    "viviendas": {
+      "unidad": "viviendas",
+      "tipo": "entero",
+      "etiqueta": "Viviendas",
+      "dataset": "demografia"
+    },
+    "viv_particulares": {
+      "unidad": "viviendas",
+      "tipo": "entero",
+      "etiqueta": "Viviendas particulares",
+      "dataset": "demografia"
+    },
+    "pob_particulares": {
+      "unidad": "habitantes",
+      "tipo": "entero",
+      "etiqueta": "Población en viviendas particulares",
+      "dataset": "demografia"
+    },
+    "viv_colectivas": {
+      "unidad": "viviendas",
+      "tipo": "entero",
+      "etiqueta": "Viviendas colectivas",
+      "dataset": "demografia"
+    },
+    "pob_colectivas": {
+      "unidad": "habitantes",
+      "tipo": "entero",
+      "etiqueta": "Población en viviendas colectivas",
+      "dataset": "demografia"
+    },
+    "pob_calle": {
+      "unidad": "habitantes",
+      "tipo": "entero",
+      "etiqueta": "Población en situación de calle",
+      "dataset": "demografia"
+    },
+    "total_parcelas": {
+      "unidad": "parcelas",
+      "tipo": "entero",
+      "etiqueta": "Parcelas",
+      "dataset": "catastro"
+    },
+    "area_total_m2": {
+      "unidad": "m2",
+      "tipo": "decimal",
+      "etiqueta": "Área catastrada",
+      "dataset": "catastro"
+    },
+    "area_total_ha": {
+      "unidad": "ha",
+      "tipo": "decimal",
+      "etiqueta": "Área",
+      "dataset": null
+    },
+    "por_categoria": {
+      "unidad": "parcelas",
+      "tipo": "mapa",
+      "etiqueta": "Parcelas por categoría",
+      "dataset": "catastro"
+    },
+    "por_localidad": {
+      "unidad": "parcelas",
+      "tipo": "mapa",
+      "etiqueta": "Parcelas por localidad",
+      "dataset": "catastro"
+    },
+    "total_concesiones": {
+      "unidad": "concesiones",
+      "tipo": "entero",
+      "etiqueta": "Concesiones",
+      "dataset": "mineria"
+    },
+    "por_estado": {
+      "unidad": "concesiones",
+      "tipo": "mapa",
+      "etiqueta": "Concesiones por estado",
+      "dataset": "mineria"
+    },
+    "por_mineral": {
+      "unidad": "concesiones",
+      "tipo": "mapa",
+      "etiqueta": "Concesiones por mineral",
+      "dataset": "mineria"
+    }
+  },
+  "relaciones": {
+    "parte_de": {
+      "fuente": "IGN",
+      "fecha": "2025-09",
+      "derivada_de": "parent_yvy_id",
+      "simetrica": false,
+      "descripcion": "La entidad es parte de otra (árbol administrativo, ya vive en el manifest)."
+    },
+    "contiene": {
+      "fuente": "IGN",
+      "fecha": "2025-09",
+      "derivada_de": "parent_yvy_id",
+      "simetrica": false,
+      "descripcion": "Inversa de parte_de; se deriva, nunca se duplica."
+    },
+    "lindero": {
+      "fuente": "IGN",
+      "fecha": "2025-09",
+      "derivada_de": "geometria",
+      "simetrica": true,
+      "descripcion": "Límites compartidos, calculados de la geometría oficial."
+    },
+    "cerca_de": {
+      "fuente": "IGN",
+      "fecha": "2025-09",
+      "derivada_de": "centroides",
+      "simetrica": true,
+      "descripcion": "Proximidad entre centroides; no implica límite compartido."
+    },
+    "interseca": {
+      "fuente": "IGN",
+      "fecha": "2025-09",
+      "derivada_de": "geometria",
+      "simetrica": true,
+      "descripcion": "Solapamiento parcial entre entidades (cuencas, radios). No todo es árbol.",
+      "previsto": true
+    },
+    "regula": {
+      "fuente": null,
+      "fecha": null,
+      "derivada_de": "documento",
+      "simetrica": false,
+      "descripcion": "Un documento regula una entidad. La fuente es el propio documento.",
+      "previsto": true
+    }
+  },
+  "reglas": {
+    "dato_faltante": "Métrica sin valor = null + estado (ok|parcial|missing). Nunca 0 de relleno.",
+    "fuente_obligatoria": "Sin fuente no entra: aplica a métricas y a relaciones.",
+    "unidad_obligatoria": "Toda métrica declara unidad en esta ontología.",
+    "visibilidad": "public | tenant | private, por entidad, métrica y documento.",
+    "tipo_fuera_del_id": "El tipo es un campo; nunca va embebido en el yvy_id.",
+    "certificado": "hash_entidad (métricas + linaje de datos) y hash_linaje (relaciones + documentos), JSON canónico RFC 8785, SHA-256, calculados en build."
+  }
+}
