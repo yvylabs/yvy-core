@@ -324,7 +324,7 @@ export function parsearCon(indice, q) {
       !esPalabraDelCatalogo(indice, t),
   );
 
-  return { entidad, dataset, relacion, sobrantes, frase, provincia, ambiguos };
+  return { entidad, dataset, relacion, sobrantes, frase, provincia, ambiguos, candidatos: candidatos.slice(0, 8) };
 }
 
 /** ¿La palabra aparece en algún nombre del catálogo? (evita falsos "no tengo"). */
