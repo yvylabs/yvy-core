@@ -1,5 +1,5 @@
 // ==============================================================
-// main.js — Yvy Explorer v3 (objeto-céntrico)
+// main.js — Yvy Core v3 (objeto-céntrico)
 // Visor globular con PMTiles 3.x + MapLibre GL 5.x
 // Cargar ≠ Dibujar: cada yvy_id se carga una sola vez (caché
 // en memoria) y el pan/zoom solo dibuja. El catálogo (manifest)

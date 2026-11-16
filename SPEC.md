@@ -1,11 +1,40 @@
-# Yvy Explorer — SPEC v2 (fuente de verdad)
+# Yvy Core — SPEC (fuente de verdad)
 
-> Grafo de decisiones conectadas. El territorio es un insumo más, no el eje.
-> Empezamos por lo que más importa: territorio, jurisdicción, conocimiento y acción.
+> Infraestructura de datos territoriales con linaje auditable.
+> El producto es el dossier de una entidad, no el mapa.
 > Todo en navegador, instantáneo, sin servidores, listo para marca blanca.
 
 **No es:** visor GIS, IDE, dashboard, OSINT, Google Maps/Earth/Engine.
 No apila capas. No tiene query builder. No scrapea. No compite por "ver el territorio".
+
+---
+
+## Actualización nov-2026 — modelo de entidades
+
+> Este bloque **prevalece** sobre el resto del documento donde haya conflicto,
+> hasta la reescritura completa como SPEC v3. Plan y decisiones:
+> `docs/PLAN-MAESTRO.md`.
+
+Seis piezas: **entidad · tipo · métrica · relación · documento · linaje**.
+
+- La unidad del producto es la **entidad**, no el nivel administrativo. Un municipio
+  es un tipo entre varios (barrio, cuenca, región, documento).
+- El **tipo** define el contrato (métricas, unidades, relaciones, cardinalidad) y vive
+  en `ontologia.json`, **no** en el manifest.
+- Dato faltante = `null` + `estado: missing`. **Nunca `0`.** La UI no renderiza
+  bloques sin dato.
+- `fuente` obligatoria en métricas **y relaciones**. Sin fuente no entra.
+- `unidad` y `visibilidad` (`public | tenant | private`) obligatorias.
+- Relaciones N:M (`interseca`) para cuencas y radios censales: el modelo no es un árbol.
+- Certificado con **dos hashes** (RFC 8785, calculados en build):
+  `hash_entidad` (métricas + linaje) y `hash_linaje` (relaciones + documentos).
+- `yvy_id` numérico es la clave interna; el tipo nunca va dentro del ID.
+- Multi-tenant: un cliente es configuración (namespace + R2 prefijo), no infraestructura.
+
+**Nuevos tipos previstos:** `cuenca`, `region`, `radio_censal`, `documento`.
+Se agregan al `ontologia.json` sin migrar lo existente.
+
+---
 
 ## 0. Modelo conceptual (crítico)
 
