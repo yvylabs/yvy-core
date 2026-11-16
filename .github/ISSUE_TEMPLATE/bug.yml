@@ -1,0 +1,50 @@
+name: Bug
+description: Algo no funciona o muestra un dato falso
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Un dato falso es el bug más grave de este repo: si ves un `0` donde no hay dato, o una entidad de otra provincia, ese es el reporte que más importa.
+  - type: input
+    id: yvy_id
+    attributes:
+      label: yvy_id
+      description: "Identidad de la entidad afectada (ej. 166028 = Capital, Salta). Si son varias, la principal."
+      placeholder: "166028"
+    validations:
+      required: true
+  - type: dropdown
+    id: severidad
+    attributes:
+      label: Severidad
+      options:
+        - dato falso (cero de relleno, entidad equivocada, fuente ausente)
+        - no funciona (error visible, algo no carga)
+        - se ve mal (layout/estilo)
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducir
+      placeholder: |
+        1. Buscar "capital chaqueña"
+        2. Ver que devuelve…
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué debería pasar
+      validations:
+        required: true
+  - type: input
+    id: url
+    attributes:
+      label: URL o permalink
+      placeholder: "https://explorer.yvylabs.com/#y=166028"
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto (navegador, dispositivo, fecha)
