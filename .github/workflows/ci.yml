@@ -2,9 +2,9 @@ name: ci
 
 on:
   push:
-    branches: [master, develop]
+    branches: [master]
   pull_request:
-    branches: [master, develop]
+    branches: [master]
 
 permissions:
   contents: read
@@ -29,6 +29,7 @@ jobs:
 
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run test
       - run: pnpm run build
 
       - name: gate-a anti-raw

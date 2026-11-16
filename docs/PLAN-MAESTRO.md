@@ -437,6 +437,27 @@ Milestone `v0.4.0 — Yvy Core`, release al mergear S1 con hash del build.
 | Repo renombrado a `yvylabs/yvy-core` | ✅ (Pages sigue deployando) |
 | README / AGENTS / SPEC / CONTRIBUTING / NOTICE | ✅ |
 
+### S1.2 — buscador determinista (16-nov-2026)
+
+`src/js/parser.js` es el núcleo puro (sin red, sin manifest); `intencion.js`
+lo conecta al catálogo. `tests/parser.test.mjs` corre con `pnpm run test`
+en el CI, antes del build (22 frases doradas sobre un fixture de 52 entidades).
+
+Lo que resolvió, medido contra el catálogo real (3.334 entidades):
+
+| Antes | Ahora |
+|---|---|
+| `capital de mendoza` → Capital de Catamarca | depto Capital de Mendoza |
+| `general guemes salta` → General Alvarado (Buenos Aires) | depto General Güemes de Salta |
+| `barrios de salta` → municipio Barrios (Jujuy) | provincia Salta, relación `contiene` |
+| `capital federal` / `caba` → Capital de Catamarca | CABA |
+| `cerillos` (typo) → nada | depto Cerrillos |
+| `capital chaqueña` → Capital de otra provincia | `null` (Chaco no tiene Capital) |
+
+Reglas: la provincia nombrada en la frase califica (y se saca de la
+búsqueda); `capital` + provincia = ese departamento Capital o `null`;
+tolera un typo de una letra en palabras de ≥6 letras.
+
 ### Pendiente inmediato
 - CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
 - Repo a privado (después de confirmar que el CNAME funciona).

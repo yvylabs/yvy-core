@@ -1,0 +1,314 @@
+[
+{
+"yvy_id": 0,
+"nivel": "pais",
+"nombre_oficial": "Argentina",
+"parent_yvy_id": null
+},
+{
+"yvy_id": 1002,
+"nivel": "provincia",
+"nombre_oficial": "Ciudad Autónoma de Buenos Aires",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1006,
+"nivel": "provincia",
+"nombre_oficial": "Buenos Aires",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1010,
+"nivel": "provincia",
+"nombre_oficial": "Catamarca",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1014,
+"nivel": "provincia",
+"nombre_oficial": "Córdoba",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1018,
+"nivel": "provincia",
+"nombre_oficial": "Corrientes",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1022,
+"nivel": "provincia",
+"nombre_oficial": "Chaco",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1026,
+"nivel": "provincia",
+"nombre_oficial": "Chubut",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1030,
+"nivel": "provincia",
+"nombre_oficial": "Entre Ríos",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1034,
+"nivel": "provincia",
+"nombre_oficial": "Formosa",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1038,
+"nivel": "provincia",
+"nombre_oficial": "Jujuy",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1042,
+"nivel": "provincia",
+"nombre_oficial": "La Pampa",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1046,
+"nivel": "provincia",
+"nombre_oficial": "La Rioja",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1050,
+"nivel": "provincia",
+"nombre_oficial": "Mendoza",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1054,
+"nivel": "provincia",
+"nombre_oficial": "Misiones",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1058,
+"nivel": "provincia",
+"nombre_oficial": "Neuquén",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1062,
+"nivel": "provincia",
+"nombre_oficial": "Río Negro",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1066,
+"nivel": "provincia",
+"nombre_oficial": "Salta",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1070,
+"nivel": "provincia",
+"nombre_oficial": "San Juan",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1074,
+"nivel": "provincia",
+"nombre_oficial": "San Luis",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1078,
+"nivel": "provincia",
+"nombre_oficial": "Santa Cruz",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1082,
+"nivel": "provincia",
+"nombre_oficial": "Santa Fe",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1086,
+"nivel": "provincia",
+"nombre_oficial": "Santiago del Estero",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1090,
+"nivel": "provincia",
+"nombre_oficial": "Tucumán",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 1094,
+"nivel": "provincia",
+"nombre_oficial": "Tierra del Fuego, Antártida e Islas del Atlántico Sur",
+"parent_yvy_id": 0
+},
+{
+"yvy_id": 110049,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1010
+},
+{
+"yvy_id": 114014,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1014
+},
+{
+"yvy_id": 114063,
+"nivel": "depto",
+"nombre_oficial": "Marcos Juárez",
+"parent_yvy_id": 1014
+},
+{
+"yvy_id": 118021,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1018
+},
+{
+"yvy_id": 122063,
+"nivel": "depto",
+"nombre_oficial": "General Güemes",
+"parent_yvy_id": 1022
+},
+{
+"yvy_id": 142021,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1042
+},
+{
+"yvy_id": 146014,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1046
+},
+{
+"yvy_id": 150007,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1050
+},
+{
+"yvy_id": 154028,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1054
+},
+{
+"yvy_id": 166028,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1066
+},
+{
+"yvy_id": 166035,
+"nivel": "depto",
+"nombre_oficial": "Cerrillos",
+"parent_yvy_id": 1066
+},
+{
+"yvy_id": 166049,
+"nivel": "depto",
+"nombre_oficial": "General Güemes",
+"parent_yvy_id": 1066
+},
+{
+"yvy_id": 166056,
+"nivel": "depto",
+"nombre_oficial": "General José de San Martín",
+"parent_yvy_id": 1066
+},
+{
+"yvy_id": 166112,
+"nivel": "depto",
+"nombre_oficial": "Metán",
+"parent_yvy_id": 1066
+},
+{
+"yvy_id": 166126,
+"nivel": "depto",
+"nombre_oficial": "Orán",
+"parent_yvy_id": 1066
+},
+{
+"yvy_id": 170028,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1070
+},
+{
+"yvy_id": 182063,
+"nivel": "depto",
+"nombre_oficial": "La Capital",
+"parent_yvy_id": 1082
+},
+{
+"yvy_id": 182133,
+"nivel": "depto",
+"nombre_oficial": "Vera",
+"parent_yvy_id": 1082
+},
+{
+"yvy_id": 186049,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1086
+},
+{
+"yvy_id": 190084,
+"nivel": "depto",
+"nombre_oficial": "Capital",
+"parent_yvy_id": 1090
+},
+{
+"yvy_id": 1140574,
+"nivel": "municipio",
+"nombre_oficial": "Los Surgentes",
+"parent_yvy_id": 114063
+},
+{
+"yvy_id": 1660063,
+"nivel": "municipio",
+"nombre_oficial": "Salta",
+"parent_yvy_id": 166028
+},
+{
+"yvy_id": 1660077,
+"nivel": "municipio",
+"nombre_oficial": "San José de los Cerrillos",
+"parent_yvy_id": 166035
+},
+{
+"yvy_id": 1660119,
+"nivel": "municipio",
+"nombre_oficial": "General Güemes",
+"parent_yvy_id": 166049
+},
+{
+"yvy_id": 1660161,
+"nivel": "municipio",
+"nombre_oficial": "Tartagal",
+"parent_yvy_id": 166056
+},
+{
+"yvy_id": 1660266,
+"nivel": "municipio",
+"nombre_oficial": "San José de Metán",
+"parent_yvy_id": 166112
+},
+{
+"yvy_id": 1824198,
+"nivel": "municipio",
+"nombre_oficial": "Tartagal",
+"parent_yvy_id": 182133
+}
+]
