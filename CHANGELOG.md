@@ -1,37 +1,51 @@
 # Changelog
 
-Formato [Keep a Changelog](https://keepachangelog.com/). Tags `v0.x`.
+Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
+versionado SemVer. Las fechas son de merge a `master`.
 
-## [Unreleased]
+## [0.4.0] — 2026-11-16
+
+Contrato de datos con dientes: ontología publicada, validador que corta el
+build y certificado de linaje verificado en el navegador.
+
 ### Added
-- Ficha reporte textual: narrativa en prosa (población, viviendas, resto),
-  hijos linkeados con vista detalle, frase "Limita con", densidad (hab/km²),
-  referencias al pie, copiar con narrativa.
-- Superficies (`sup_oficial_km2` + `sup_fuente`): IGN oficial + cálculo propio;
-  en blanco = sin dato. Barrios se muestran en ha.
-- `relaciones.json` limpio (16858, 0 puntas rotas) y visible en ficha.
-- `tools/sheet_a_parquet.py`: flujo Sheet → CSV → parquet validado (sin Colab).
-- Notebook Colab `tools/yvy_pmtiles_colab.ipynb`: GPKG → PMTiles en sesión
-  (tippecanoe 2.79.0, ids por nivel, join de barrios al catálogo).
-- Cobertura nacional: 3334 nodos (1 + 24 + 529 + 2348 + 432),
-  demografía Censo 2022 pre-agregada por nivel (2843 filas).
+- **Buscador determinista** (`src/js/parser.js`): núcleo puro con sinónimos,
+  gentilicios y desambiguación por provincia. 22 frases doradas en CI.
+  `capital de mendoza` ya no devuelve la Capital de Catamarca; `capital
+  chaqueña` devuelve `null` (honesto); `cerillos` tolera el typo.
+- **Jurisdicción visible en la lista**: `Capital (Salta)` ≠ `Capital (Mendoza)`.
+- **`null` + `estado` en el contrato**: 4.411 ceros de relleno eliminados de
+  los agregados publicados; cada uno declara `estado` (`ok|parcial|missing`)
+  y `metricas_missing`.
+- **`data/ontologia.json`**: tipos (con padre admitido), métricas con
+  `unidad`, relaciones con `fuente`, reglas del contrato. Publicada junto al
+  manifest y referenciada por él.
+- **Validador de contrato en el build**: nivel no declarado, métrica sin
+  unidad, agregado sin fuente o relación sin declarar **cortan el build**.
+- **Certificado de linaje**: `hash_entidad` y `hash_linaje` (SHA-256 sobre
+  JSON canónico RFC 8785) por agregado, calculados en build y
+  **recalculados en el navegador** en la ficha (✓ verde si cierra, ⚠ si no).
+- Tests: 43 (parser, contrato, canonización, certificado). Corren después
+  del build en CI.
+- G4: templates de PR e issues (`yvy_id` en el reporte), `SECURITY.md`.
+
 ### Changed
-- Registry jurisdiccional en un solo `jurisdicciones.parquet` (manda sobre
-  por-nivel); etiquetas `departamento`/`gobierno_local` mapeadas en build.
-- Agregación curada por SPEC §10 (conteo + sumas + top-20): fin del last-wins
-  y de las sumas de códigos en minería/catastro.
-- Jargon-strip visible: sin `yvy:`, títulos en español, fuentes expandidas.
-- Basemap aclarado (fork OpenFreeMap); paneles sin código muerto
-  (asistente/medición/árbol fuera de HTML+CSS+JS).
+- CI: `build → test` (los tests de contrato validan el árbol recién
+  generado); triggers sin `develop` (eliminada).
+- Rebranding a **Yvy Core** (README, SPEC, AGENTS, NOTICE, metadatos).
+- Repo renombrado a `yvylabs/yvy-core`.
+
 ### Fixed
-- Cruce depto/municipio (parents reales INDEC); provincias `1000+in1`;
-  país renderiza (`paises.pmtiles`); vuelo no aborta con bounds degenerados;
-  ficha no tapa jurisdicción (ancho dinámico).
+- `gate-d` del CI apuntaba a `functions/data/[[fgb]].js` (eliminado).
+- Ruleset de protección de `master` con la condición rota
+  (`refs/heads/master y develop`).
 
-## [0.2.0] - 2026-09-19
-### Changed
-- Lenguaje: grafo de entidades, `Soporte a la acción`.
+## [0.3.0] — 2026-10
 
-## [0.1.0] - 2026-09-19
-### Added
-- Import privado inicial: esqueleto, SPEC v1, repo + CI (ver tag `v0.1.0`).
+Portada R13 (una pantalla, una acción), grafo de decisiones, favicon/OG
+generados con la geometría real, telemetría agregada opt-out.
+
+## [0.2.0] — 2026-09
+
+Manifest v3 (`yvy-manifest-v3`), PMTiles en modo tile vía Functions + R2
+privado, ficha del objeto con `Copiar resumen` y JSON-LD.
