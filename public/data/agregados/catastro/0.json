@@ -1,1 +1,1 @@
-{"tipo":"catastro","categoria":"URBANO","yvy_id":0,"yvy_id_contenedor":0,"fuente":"DGI Salta","fecha_vigencia":"2026-06","version":"1.0","metricas":{"total_parcelas":309403,"area_total_m2":144459100243.05,"area_total_ha":14445910.010000002},"rollup":true}
+{"tipo":"catastro","categoria":"URBANO","yvy_id":0,"yvy_id_contenedor":0,"fuente":"DGI Salta","fecha_vigencia":"2026-06","version":"1.0","metricas":{"total_parcelas":309403,"area_total_m2":144459100243.05,"area_total_ha":14445910.010000002},"estado":"ok","metricas_missing":[],"rollup":true}

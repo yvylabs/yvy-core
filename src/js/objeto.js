@@ -849,6 +849,7 @@ function seccionDataset(ds, ag) {
   } else {
     // Dataset futuro: métricas genéricas con etiqueta humana.
     for (const [k, v] of Object.entries(m)) {
+      if (v == null) continue; // missing: el bloque no existe (no es un 0)
       const n = Number(v);
       grid.appendChild(metrica(Number.isFinite(n) ? fmtInt.format(n) : String(v), k.replace(/_/g, ' ')));
     }
