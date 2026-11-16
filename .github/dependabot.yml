@@ -5,6 +5,14 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Minor/patch de devDependencies agrupados: un PR por semana, no diez.
+    # Los de runtime (maplibre, pmtiles) van uno a uno: se prueban a mano.
+    groups:
+      dev-minor-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
     # Majors manuales (Fase 2 / track propio). Security updates sí pasan.
     ignore:
       - dependency-name: "*"
