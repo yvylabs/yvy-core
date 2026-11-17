@@ -489,7 +489,35 @@ builds seguidos dan hashes idénticos.
 Estado actual del linaje: 16.858 relaciones (`lindero`, `cerca_de`), 2.429
 entidades con relaciones; documentos todavía 0.
 
+### S1.5 — Certificado en la ficha (16-nov-2026)
+
+La sección `Certificado de linaje` (colapsada, al pie del dossier) lista
+cada dataset con su `hash_entidad` / `hash_linaje` y los **verifica en el
+navegador**: recalcula ambos con `canonico.js` (mismo módulo del build,
+WebCrypto) y muestra ✓ verde si cierra, ⚠ rojo con el hash esperado si no.
+`Copiar certificado` exporta el JSON completo. Si ningún dataset trae
+certificado, el bloque no existe.
+
+### GitHub (G3, G4) — completado (16-nov-2026)
+
+| Ítem | Estado |
+|---|---|
+| G4: PR template con checklist de contrato | ✅ |
+| G4: issue templates (`yvy_id`, severidad "dato falso") | ✅ |
+| G4: SECURITY.md + CHANGELOG.md 0.4.0 | ✅ |
+| G3: concurrencia + `timeout-minutes: 15` + artefacto `dist/` | ✅ |
+| G3: `dependency-review` (CVE high+ no entra) | ✅ |
+| G3: CodeQL `security-extended`, semanal, workflow separado | ✅ |
+| G3: dependabot con grupos + auto-merge acotado a `deps-dev` minor/patch | ✅ |
+| Dependabot #16 (hyparquet 1.33.0) y #17 (vite 6.4.6) mergeados | ✅ |
+
+**Deuda de G3 anotada:** verificación post-deploy del commit vivo en
+Actions. Pages deploya async después del workflow; hacerlo desde CI
+implica sondear y acoplar CI a Pages. Hoy se verifica a mano con `curl`.
+
 ### Pendiente inmediato
 - CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
 - Repo a privado (después de confirmar que el CNAME funciona).
-- `fix/tiles-r2-cors`: rama vieja no mergeada — revisar antes de borrar.
+- `fix/tiles-r2-cors`: rama vieja no mergeada — decidir (borrar o rescatar).
+- S1 restante: dossier de 5 categorías, fuente Lora, cargar Capital **a
+  través de la receta** (es el primer caso del pipeline, S2).
