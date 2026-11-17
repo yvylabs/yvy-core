@@ -1,0 +1,19 @@
+# Requisitos opcionales para la ingesta (paso 0)
+
+Solo se necesitan para `scripts/ingesta.py --construir`. El build de Yvy
+Core (Vite/Node) **no** los usa.
+
+```
+pypdf==7.1.0
+openpyxl==3.1.5
+pyarrow==26.0.0
+pmtiles==3.8.1
+mapbox_vector_tile==2.2.0
+```
+
+```bash
+python3 -m venv /tmp/venv-ingesta
+/tmp/venv-ingesta/bin/python -m pip install -r requirements-ingesta.txt
+```
+
+`pnpm run build` y `pnpm run test` no dependen de estos paquetes.

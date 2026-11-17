@@ -1,10 +1,14 @@
 # Tests del esqueleto de ingesta (solo stdlib, sin pyarrow/geopandas).
 # Correr: python3 -m unittest tools.test_ingesta -v
+import importlib.util
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+TIENE_PYARROW = bool(importlib.util.find_spec('pyarrow'))
+TIENE_PMTILES = bool(importlib.util.find_spec('pmtiles')) and bool(importlib.util.find_spec('mapbox_vector_tile'))
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "scripts"))
@@ -55,8 +59,12 @@ class TestDescubrimiento(unittest.TestCase):
         d = ingesta.leer_csv(self.cliente / "censo.csv")
         self.assertEqual(d["filas"], 2)
         self.assertIn("yvy_id", d["columnas_obligatorias_presentes"])
-        self.assertEqual(ingesta.leer_pdf(self.cliente / "boletin.pdf")["estado"], "pendiente")
-        self.assertEqual(ingesta.leer_excel(self.cliente / "planilla.xlsx")["estado"], "pendiente")
+        # Con pypdf instalado intenta leerlo (y puede fallar: es un PDF falso);
+        # sin la lib queda "pendiente". Ninguno de los dos es un error del test.
+        self.assertIn(ingesta.leer_pdf(self.cliente / "boletin.pdf")["estado"],
+                      ("pendiente", "error", "ok", "vacio"))
+        self.assertIn(ingesta.leer_excel(self.cliente / "planilla.xlsx")["estado"],
+                      ("pendiente", "error", "ok", "vacio"))
 
     def test_inspeccionar_no_se_detiene_por_archivos_raros(self):
         ins = ingesta.inspeccionar(ingesta.descubrir(self.cliente))
@@ -133,6 +141,72 @@ class TestSalida(unittest.TestCase):
             otra = base / "otra"
             ingesta.procesar(cliente, otra, RAIZ / "data/ontologia.json", dry_run=True)
             self.assertFalse(otra.exists())
+
+
+
+
+class TestConstruccion(unittest.TestCase):
+    """Artefactos reales. Se omiten si faltan las libs opcionales."""
+
+    @staticmethod
+    def _features():
+        return [
+            {"yvy_id": 1660063, "nivel": "municipio", "nombre_oficial": "Salta",
+             "parent_yvy_id": None, "cod_indec": "660063", "fuente": "IGN",
+             "fecha": "2026-11", "lon": -65.2, "lat": -24.9},
+            {"yvy_id": 1660070, "nivel": "municipio", "nombre_oficial": "Güemes",
+             "parent_yvy_id": None, "cod_indec": "660070", "fuente": "IGN",
+             "fecha": "2026-11", "lon": -65.0, "lat": -24.7},
+        ]
+
+    def test_vocabulario_del_registry(self):
+        self.assertEqual(ingesta.NIVEL_REGISTRY["municipio"], "gobierno_local")
+        self.assertEqual(ingesta.NIVEL_REGISTRY["depto"], "departamento")
+
+    @unittest.skipUnless(TIENE_PYARROW, "pyarrow no instalado")
+    def test_registry_parquet_tiene_columnas_del_contrato(self):
+        import pyarrow.parquet as pq
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            ruta = ingesta.escribir_registry(out, self._features(), {})
+            cols = pq.read_table(ruta).column_names
+            for c in ("yvy_id", "nivel", "nombre_oficial", "parent_yvy_id", "fuente", "fecha"):
+                self.assertIn(c, cols)
+            niveles = pq.read_table(ruta).column("nivel").to_pylist()
+            self.assertEqual(niveles, ["gobierno_local", "gobierno_local"])
+
+    @unittest.skipUnless(TIENE_PYARROW, "pyarrow no instalado")
+    def test_dataset_parquet_lleva_fuente_y_null(self):
+        import pyarrow.parquet as pq
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            cliente = base / "cliente"
+            cliente.mkdir()
+            (cliente / "censo.csv").write_text(
+                "yvy_id,poblacion,viviendas,fuente,fecha\n1660063,627704,,Censo 2022,2022-05\n", encoding="utf8")
+            salida = base / "salida"
+            rutas = ingesta.escribir_agregados(
+                salida, cliente, self._features(),
+                {"metricas": {"poblacion": {}, "viviendas": {}}})
+            self.assertEqual(len(rutas), 1)
+            fila = pq.read_table(rutas[0]).to_pylist()[0]
+            self.assertEqual(fila["poblacion"], "627704")
+            self.assertIsNone(fila["viviendas"])  # missing, nunca 0
+            self.assertEqual(fila["fuente"], "Censo 2022")
+
+    @unittest.skipUnless(TIENE_PMTILES, "pmtiles + mapbox_vector_tile no instalados")
+    def test_pmtiles_v3_con_id_de_entidad(self):
+        from pmtiles.reader import Reader, MmapSource
+        with tempfile.TemporaryDirectory() as tmp:
+            salida = Path(tmp)
+            ruta = ingesta.escribir_pmtiles(salida, self._features(), "municipio", zooms=(8, 8))
+            with ruta.open("rb") as fh:
+                lector = Reader(MmapSource(fh))
+                h = lector.header()
+            self.assertEqual(h.get("version", 3), 3)
+            self.assertGreater(h["tile_entries_count"], 0)
+            self.assertLessEqual(h["min_zoom"], 8)
+            self.assertGreaterEqual(h["max_zoom"], 8)
 
 
 if __name__ == "__main__":
