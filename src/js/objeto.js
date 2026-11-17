@@ -21,6 +21,7 @@ import {
 import { abrirPanelObjeto, sincronizarLayout } from './ui.js';
 import { hashCanonico, payloadEntidad, payloadLinaje } from './canonico.js';
 import { track } from './telemetry.js';
+import { cargarOntologia, metricasDeclaradas, relacionesDeclaradas, tipoDe } from './ontologia.js';
 
 // Foco pos-navegación del start screen ("Minería en Salta"): el tipo
 // pedirá abrirse y resaltarse en la próxima ficha renderizada.
@@ -197,7 +198,7 @@ function fuenteDemografia() {
   return { fuente: fuenteHumana(d.fuente).corto || d.fuente || null, fecha: d.fecha_vigencia || null };
 }
 
-function metrica(valor, label, origen) {
+function metrica(valor, label, origen, yvyId) {
   const item = document.createElement('div');
   item.className = 'dossier-metrica';
   const v = document.createElement('div');
@@ -213,6 +214,36 @@ function metrica(valor, label, origen) {
     src.className = 'dossier-metrica__source';
     src.textContent = origen;
     item.appendChild(src);
+    // Linaje de campo: fuente → métrica → hash, sin salir del dossier.
+    if (yvyId != null) {
+      const det = document.createElement('details');
+      det.className = 'dossier-metrica__linaje';
+      const sum = document.createElement('summary');
+      sum.textContent = 'ver origen';
+      det.appendChild(sum);
+      const cuerpo = document.createElement('div');
+      cuerpo.className = 'dossier-metrica__linaje-cuerpo';
+      cuerpo.textContent = 'consultando…';
+      det.appendChild(cuerpo);
+      det.addEventListener('toggle', async () => {
+        if (!det.open || cuerpo.dataset.cargado) return;
+        cuerpo.dataset.cargado = '1';
+        try {
+          const ag = await getAgregado('demografia', yvyId);
+          const c = ag?.certificado;
+          cuerpo.textContent = [
+            `Dataset: ${ag?.tipo || 'demografia'}${ag?.version ? ` v${ag.version}` : ''}`,
+            `Fuente: ${ag?.fuente || 'sin fuente'}`,
+            `Fecha de corte: ${ag?.fecha_vigencia || 'no declarada'}`,
+            c ? `hash_entidad: ${c.hash_entidad}` : 'sin certificado',
+            c ? `hash_linaje: ${c.hash_linaje}` : '',
+          ].filter(Boolean).join(' · ');
+        } catch (err) {
+          cuerpo.textContent = `No se pudo cargar el linaje: ${err?.message || err}`;
+        }
+      });
+      item.appendChild(det);
+    }
   }
   return item;
 }
@@ -260,14 +291,50 @@ function bloqueGrid(obj, m) {
   const origen = fuenteDemografia();
   const src = origen ? `Fuente: ${origen.fuente}${origen.fecha ? ` · ${origen.fecha}` : ''}` : null;
   const hijos = resumenHijos(obj);
-  grid.appendChild(metrica(num(m && m.poblacion), 'Población', src));
-  grid.appendChild(metrica(num(m && m.viviendas), 'Viviendas', src));
+  grid.appendChild(metrica(num(m && m.poblacion), 'Población', src, obj.yvy_id));
+  grid.appendChild(metrica(num(m && m.viviendas), 'Viviendas', src, obj.yvy_id));
   const dens = m && m.poblacion != null ? densidad(obj, Number(m.poblacion)) : null;
-  grid.appendChild(metrica(dens ? `${dens} hab/km²` : sinDato, 'Densidad', dens && obj.sup_fuente ? `Cálculo propio sobre superficie ${obj.sup_fuente}` : src));
-  grid.appendChild(metrica(num(m && m.pob_colectivas), 'Población en viviendas colectivas', src));
-  grid.appendChild(metrica(num(m && m.pob_calle), 'Población en situación de calle', src));
-  grid.appendChild(metrica(hijos ? hijos.texto : sinDato, 'Jurisdicción', 'Fuente: registro de jurisdicciones'));
+  grid.appendChild(metrica(dens ? `${dens} hab/km²` : sinDato, 'Densidad', dens && obj.sup_fuente ? `Cálculo propio sobre superficie ${obj.sup_fuente}` : src, obj.yvy_id));
+  grid.appendChild(metrica(num(m && m.pob_colectivas), 'Población en viviendas colectivas', src, obj.yvy_id));
+  grid.appendChild(metrica(num(m && m.pob_calle), 'Población en situación de calle', src, obj.yvy_id));
+  grid.appendChild(metrica(hijos ? hijos.texto : sinDato, 'Jurisdicción', 'Fuente: registro de jurisdicciones', obj.yvy_id));
   return grid;
+}
+
+/**
+ * Modelo de datos de la entidad: tipo, posición en el árbol, relaciones
+ * declaradas y unidades. La ontología es dato público del producto, no
+ * un archivo de desarrollador escondido.
+ */
+function bloqueModelo(obj) {
+  const sec = document.createElement('section');
+  sec.className = 'dossier-modelo';
+  sec.innerHTML = '<h3>Modelo de datos</h3><p class="dossier-modelo__cargando">cargando esquema…</p>';
+  cargarOntologia().then((ont) => {
+    const tipo = tipoDe(ont, obj.nivel);
+    const padre = getPadre(obj);
+    const hijos = getHijos(obj.yvy_id);
+    const rels = relacionesDeclaradas(ont);
+    const metrics = metricasDeclaradas(ont).filter((m) => !m.previsto).slice(0, 8);
+    const fila = (k, v) => `<div class="dossier-modelo__fila"><span>${k}</span><strong>${v}</strong></div>`;
+    sec.innerHTML = [
+      '<h3>Modelo de datos</h3>',
+      '<div class="dossier-modelo__grid">',
+      fila('Tipo', tipo?.nivel != null ? `nivel ${tipo.nivel}` : etiquetaNivel(obj.nivel)),
+      fila('Padre', padre ? padre.nombre_oficial : 'ninguno (raíz)'),
+      fila('Contiene', hijos.length ? `${hijos.length} entidades hijas` : 'sin hijos'),
+      fila('Visibilidad', tipo?.visibilidad || 'public'),
+      '</div>',
+      `<p class="dossier-modelo__titulo">Relaciones declaradas <span>${rels.length}</span></p>`,
+      `<p class="dossier-modelo__texto">${rels.map((r) => `${r.clave}${r.fuente ? ` (${r.fuente}${r.fecha ? `, ${r.fecha}` : ''})` : ''}`).join(' · ')}</p>`,
+      `<p class="dossier-modelo__titulo">Métricas y unidad <span>${metrics.length}</span></p>`,
+      `<p class="dossier-modelo__texto">${metrics.map((m) => `${m.etiqueta}: ${m.unidad || 'sin unidad'}`).join(' · ')}</p>`,
+      '<p class="dossier-modelo__nota">Esquema publicado en <code>data/ontologia.json</code> · el mismo modelo que consume el Dossier.</p>',
+    ].join('');
+  }).catch((err) => {
+    sec.innerHTML = `<h3>Modelo de datos</h3><p class="dossier-modelo__nota">No se pudo cargar el esquema: ${err?.message || err}</p>`;
+  });
+  return sec;
 }
 
 // --------------------------------------------------------------
@@ -1151,6 +1218,7 @@ export async function renderFicha(obj) {
   const gridSkeleton = bloqueSkeleton(3);
   contenedor.appendChild(heroEl);
   contenedor.appendChild(gridSkeleton);
+  contenedor.appendChild(bloqueModelo(obj));
 
   // La síntesis ya no depende del censo: habla del lugar del nodo en
   // el grafo (padre, contiene, vecinos) aunque falte el dato demográfico.

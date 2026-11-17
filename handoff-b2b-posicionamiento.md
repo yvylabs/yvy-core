@@ -46,6 +46,7 @@ Estos activos ya existen y son la base sobre la que hay que re-escribir el discu
 ### 2.4 Infraestructura y límites deliberados
 - **100% estático**: hosting de assets estáticos + funciones solo GET con allowlist para tiles/catálogo; datos públicos de Parquet en_BUCKET privado servidos por rutas controladas.
 - Sin registro, sin cookies identificativas; telemetría anónima y agregada con opt-out (`pick`, `search_miss`, etc.), nunca el texto de búsqueda del usuario.
+- **Ontología visible = producto AI-ready (17-nov-2026):** el Dossier muestra el modelo (tipos, relaciones, unidades, reglas) y el linaje campo por campo; el explorador "Modelo" lo hace navegable. Esa misma claridad es la que un conector de Labs (MCP con BYOK) consumiría: la IA no necesita adivinar el esquema porque el humano ya puede verlo y auditarlo. Core no implementa MCP; Core lo hace evidente.
 - Core gratis para siempre (non- goals: no MCP en core, no dump, no download binario). **Labs** (marca separada) es el espacio premium futuro: MCP con BYOK, LLM, export.
 - Accesibilidad y determinismo como patron: focus trap, reduced-motion, estados `ok/empty/missing` en vez de pantallas vacías mudas.
 

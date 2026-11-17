@@ -2401,7 +2401,8 @@ html[data-theme="light"] {
 /* Sin panel fijo: el grafo y el mapa esperan en el drawer (fuera de pantalla
    pero con tamaño real, para que MapLibre no arranque con 0x0). */
 html:not([data-drawer="linaje"]) .panel-grafo,
-html:not([data-drawer="mapa"]) .mapa-col {
+html:not([data-drawer="mapa"]) .mapa-col,
+html:not([data-drawer="modelo"]) #panel-modelo {
   position: fixed !important;
   top: -12000px;
   left: -12000px;
@@ -2462,7 +2463,8 @@ html[data-drawer] .dock { padding-right: min(620px, 100vw) !important; }
 }
 .drawer__slot { flex: 1; min-height: 0; overflow: hidden; padding: 12px; background: #EAEAEA; }
 .drawer__slot > .panel-grafo,
-.drawer__slot > .mapa-col {
+.drawer__slot > .mapa-col,
+.drawer__slot > #panel-modelo {
   position: static !important;
   width: 100% !important; height: 100% !important;
   opacity: 1 !important; pointer-events: auto !important;
@@ -2569,6 +2571,80 @@ html[data-dock="dossier"] .floating-panel__body { padding: 0; overflow: visible;
   .dossier--report .dossier-sintesis,
   .dossier--report .dossier-acc,
   .dossier--report .dossier-grafo-bloque { padding-left: 24px; padding-right: 24px; }
+}
+
+
+/* ---- Modelo visible en el dossier ---- */
+.dossier--report .dossier-modelo {
+  margin: 0 52px 40px; padding: 24px 0 0;
+  border-top: 1px solid #EAEAEA;
+}
+.dossier--report .dossier-modelo h3 {
+  font-family: var(--font-report); font-size: 1.25rem; font-weight: 600;
+  color: #1A1A1A; margin-bottom: 14px;
+}
+.dossier-modelo__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; }
+.dossier-modelo__fila {
+  display: flex; justify-content: space-between; gap: 16px;
+  padding: 8px 0; border-bottom: 1px solid #F1F1F1;
+  font-size: 0.85rem; color: #5A5A5A;
+}
+.dossier-modelo__fila strong { color: #0F5132; font-weight: 600; text-align: right; }
+.dossier-modelo__titulo {
+  margin: 18px 0 6px; font-size: 0.76rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em; color: #5A5A5A;
+}
+.dossier-modelo__titulo span { color: #0F5132; }
+.dossier-modelo__texto { font-size: 0.85rem; line-height: 1.6; color: #1A1A1A; }
+.dossier-modelo__nota, .dossier-modelo__cargando {
+  margin-top: 14px; font-size: 0.78rem; color: #5A5A5A; font-style: italic;
+}
+.dossier-modelo code { font-family: var(--font-mono); font-size: 0.75rem; }
+
+/* Linaje por campo: fuente → métrica → hash */
+.dossier-metrica__linaje { margin-top: 6px; font-size: 0.75rem; }
+.dossier-metrica__linaje summary {
+  cursor: pointer; color: #0F5132; list-style: none; display: inline-flex; gap: 5px;
+}
+.dossier-metrica__linaje summary::before { content: '↳'; opacity: 0.7; }
+.dossier-metrica__linaje-cuerpo {
+  margin-top: 6px; padding: 8px 10px; background: #F4F9F5;
+  border: 1px solid rgba(15,81,50,0.12); border-radius: 3px;
+  font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.6;
+  color: #0F5132; overflow-wrap: anywhere;
+}
+
+/* Explorador de ontología en el drawer */
+#panel-modelo { background: #FFFFFF; display: flex; flex-direction: column; }
+.panel-modelo__top { padding: 0; border-bottom: 1px solid #EAEAEA; background: #FFFFFF; }
+.panel-modelo__top .panel-grafo__label { color: #0F5132; }
+.panel-modelo__body { flex: 1; overflow-y: auto; padding: 18px; background: #FFFFFF; }
+.modelo-grupo { margin-bottom: 24px; }
+.modelo-grupo h4 {
+  font: 600 0.74rem var(--font); text-transform: uppercase;
+  letter-spacing: 0.12em; color: #5A5A5A; margin-bottom: 8px;
+}
+.modelo-item {
+  display: flex; justify-content: space-between; gap: 16px;
+  padding: 7px 0; border-bottom: 1px solid #F1F1F1;
+  font-size: 0.82rem; color: #1A1A1A;
+}
+.modelo-item__k { font-weight: 500; }
+.modelo-item span:last-child {
+  font-family: var(--font-mono); font-size: 0.7rem; color: #0F5132; text-align: right;
+}
+.modelo-nota { margin-top: 8px; font-size: 0.75rem; color: #5A5A5A; font-style: italic; }
+
+/* Grafo tipado: cada relación se reconoce por color */
+.gp-enlace--cerca_de { stroke: #B7791F; stroke-dasharray: 2 3; opacity: 0.6; }
+.gp-enlace--regula { stroke: #2563EB; stroke-width: 1.6; opacity: 0.75; }
+.gp-key__line--lindero { border-color: #46566D; }
+.gp-key__line--cerca { border-color: #B7791F; border-top-style: dashed; }
+.gp-key__line--regula { border-color: #2563EB; }
+
+@media (max-width: 768px) {
+  .dossier--report .dossier-modelo { margin: 0 24px 32px; }
+  .dossier-modelo__grid { grid-template-columns: 1fr; }
 }
 
 /* Exportar Reporte = Guardar como PDF desde el navegador */
