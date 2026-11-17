@@ -90,17 +90,45 @@ test('cada objeto declara el estado de su geometría, sin contradicciones', { sk
   }
 });
 
-test('municipios: geometría remota declarada, cero faltantes', { skip }, () => {
+test('municipios: faltantes declarados, con motivo y sin inventar cámara', { skip }, () => {
   const municipios = manifest.objetos.filter((o) => o.nivel === 'municipio');
   assert.ok(municipios.length > 0);
 
   const faltantes = municipios.filter((o) => o.geometria.estado === 'missing');
-  assert.equal(faltantes.length, 0, `municipios sin geometría: ${faltantes.slice(0, 5).map((o) => o.yvy_id).join(', ')}`);
+  for (const o of faltantes) {
+    assert.equal(o.geometria.motivo, 'sin_feature_en_artefacto', `objeto ${o.yvy_id}: falta motivo`);
+    assert.equal(o.tiene_geometria, false);
+    assert.equal(o.pmtiles, null);
+    assert.equal(o.centro, null, `objeto ${o.yvy_id}: sin feature no puede tener centro`);
+  }
 
   const fuente = manifest.fuentes.find((f) => f.nivel === 'municipio');
-  assert.equal(fuente.faltantes, 0);
+  assert.equal(fuente.faltantes, faltantes.length);
+  assert.equal(fuente.pmtiles, municipios.length - faltantes.length);
   assert.equal(fuente.geometria, 'remota');
-  assert.equal(fuente.pmtiles, fuente.filas);
+
+  // El registro tiene que decir lo mismo que los objetos: nada de "0 faltantes".
+  const artefacto = manifest.geometria.artefactos.find((a) => a.nivel === 'municipio');
+  assert.ok(artefacto?.cobertura, 'el artefacto no publica cobertura');
+  assert.equal(artefacto.cobertura.entidades_sin_feature, faltantes.length);
+});
+
+test('cobertura del artefacto: cada feature tiene entidad o está declarada huérfana', { skip }, () => {
+  for (const a of manifest.geometria?.artefactos || []) {
+    const c = a.cobertura;
+    if (!c) continue;
+    const nivel = manifest.objetos.filter((o) => o.nivel === a.nivel);
+    const ids = new Set(nivel.flatMap((o) => [o.yvy_id, ...(o.centro_id_origen ? [o.centro_id_origen] : [])]));
+    // features = entidades con feature + huérfanas, sin solapamiento.
+    assert.equal(c.features_con_id, c.entidades_con_feature + c.ids_huerfanos.length, `${a.archivo}: la cuenta de cobertura no cierra`);
+    for (const id of c.ids_huerfanos) {
+      assert.ok(!ids.has(id), `${a.archivo}: el "huérfano" ${id} sí es una entidad del catálogo`);
+    }
+    for (const o of nivel) {
+      if (o.geometria.estado !== 'missing') continue;
+      assert.equal(c.entidades_sin_feature > 0, true, `${a.archivo}: declara faltantes pero la cobertura dice 0`);
+    }
+  }
 });
 
 test('los centroides no salen del artefacto que los contiene', { skip }, () => {

@@ -30,10 +30,11 @@ const PINES_SRC = path.join(RAIZ, 'data/receta.verificacion.json');
 const DATA_DIR = path.join(RAIZ, 'public/data');
 
 function parseArgs(argv) {
-  const opciones = { verificar: [], json: false, regenerar: true, pines: PINES_SRC };
+  const opciones = { verificar: [], json: false, regenerar: true, sinReporte: false, pines: PINES_SRC };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--json') opciones.json = true;
+    else if (a === '--sin-reporte') opciones.sinReporte = true;
     else if (a === '--sin-regenerar') opciones.regenerar = false;
     else if (a === '--pines') {
       const archivo = argv[++i];
@@ -64,7 +65,7 @@ async function certificadoDe(yvyId, tipo) {
 async function main() {
   const opciones = parseArgs(process.argv);
   if (opciones.ayuda) {
-    console.log('Uso: node scripts/receta.mjs [--verificar <yvy_id>]... [--sin-regenerar] [--json]');
+    console.log('Uso: node scripts/receta.mjs [--verificar <yvy_id>]... [--sin-regenerar] [--sin-reporte] [--json]');
     return 0;
   }
 
@@ -133,9 +134,10 @@ async function main() {
     ok: fallidos.length === 0,
   };
 
-  // Reporte por archivo: queda como evidencia de cada corrida.
+  // Reporte por archivo: queda como evidencia de cada corrida. Una
+  // corrida con pines alternativos (tests) no pisa la evidencia real.
   const destino = path.join(DATA_DIR, 'receta.json');
-  await writeFile(destino, JSON.stringify(resumen, null, 2) + '\n', 'utf8');
+  if (!opciones.sinReporte) await writeFile(destino, JSON.stringify(resumen, null, 2) + '\n', 'utf8');
 
   if (opciones.json) {
     console.log(JSON.stringify(resumen, null, 2));
