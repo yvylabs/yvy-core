@@ -1,60 +1,91 @@
-# Ingesta de un cliente nuevo — Paso 0 (esqueleto)
+# Ingesta de un cliente — paso 0 (functional)
 
-`scripts/ingesta.py` es el primer paso del SLA de 72 h. **Hoy no genera
-Parquet ni PMTiles**: genera el *plan* para generarlos, con las decisiones
-de contrato ya tomadas. Eso es deliberado: generar un Parquet sin
-unidades ni fuente declaradas es la manera más rápida de publicar un
-dato falso.
+`scripts/ingesta.py` toma una carpeta `cliente/` con PDFs, Excels, GeoJSONs y
+CSVs y genera los artefactos que necesita `pnpm run receta`: **Parquet del
+registry, Parquet de datasets, PMTiles y ontología**. No toca los datos del
+repo: todo sale en `--out`.
+
+## Instalación (una vez)
+
+```bash
+python3 -m venv /tmp/venv-ingesta
+/tmp/venv-ingesta/bin/python -m pip install -r requirements-ingesta.txt
+```
+
+Sin esas librerías el esqueleto sigue funcionando en modo inspección y
+marca los pasos que no puede ejecutar (`pendiente`), nunca los finge.
 
 ## Uso
 
 ```bash
-python3 scripts/ingesta.py cliente/ --out salida/ingesta/ --dry-run
-python3 scripts/ingesta.py cliente/ --out salida/ingesta/
-python3 -m unittest tools.test_ingesta -v      # 10 tests, stdlib
+/tmp/venv-ingesta/bin/python scripts/ingesta.py cliente/ --out salida/
+/tmp/venv-ingesta/bin/python scripts/ingesta.py cliente/ --out salida/ --dry-run
+/tmp/venv-ingesta/bin/python -m unittest tools.test_ingesta -v   # 14 tests
 ```
-
-`cliente/` puede contener `.geojson`, `.csv`, `.xlsx`, `.xls`, `.pdf`.
-El escáner es recursivo y determinista (rutas ordenadas, JSON con
-`sort_keys`). Libre de dependencias: usa solo la stdlib de Python.
 
 ## Salidas
 
-| Archivo | Para qué |
-|---|---|
-| `inventario.json` | inventario + inspección + resumen; un archivo roto no detiene el proceso |
-| `ontologia.csv` | plantilla auditable que el cliente puede completar |
-| `ontologia.json` | conversión de la plantilla al formato que **sí** lee la receta |
-| `plan.json` | columnas obligatorias del Parquet y receta de PMTiles por nivel |
+```
+salida/
+  inventario.json                       qué había y qué se pudo leer
+  ontologia.csv                         plantilla para el cliente
+  ontologia.json                        la que lee la receta (CSV no alcanza)
+  plan.json                             columnas + comandos sugeridos
+  data/ontologia.json
+  data/registry/jurisdicciones.parquet  entidades → catálogo
+  data/registry/demografia.parquet      métricas → agregados certificados
+  public/data/<nivel>s.pmtiles          geometría MVT (id de feature = yvy_id)
+  public/data/relaciones.json
+```
 
-## Contrato que el esqueleto ya respeta
+## Contrato aplicado
 
-- **Ontología**: la fuente de verdad sigue siendo `data/ontologia.json`.
-  El CSV es una plantilla; `csv_a_ontologia()` preserva `schema`, `version`
-  y `reglas` y **no deja pasar una métrica sin `unidad`**.
-- **`yvy_id`**: `offset(nivel) + cod_indec`; el tipo va como columna, nunca
-  dentro del id. Los ids de relleno van a bloques reservados declarados en
-  `data/ids.excepciones.json`.
-- **Dato faltante**: `null` + `estado: missing`, nunca `0` de relleno.
-- **Fuente obligatoria** en métricas y relaciones; fecha explícita cuando
-  no está.
-- **Geometría**: el build filtra por `id` de feature MVT (o propiedad
-  `yvy_id`/`id`), por eso `plan_pmtiles()` sugiere `--use-attribute-for-id`.
-  Los bounds detectados en el GeoJSON se publican en el plan.
+- **Vocabulario del registry:** `nivel` usa el diccionario INDEC/IGN que
+  espera `src/lib/catalogo.js`: `municipio → gobierno_local`,
+  `depto → departamento`. Escribir `"municipio"` hace que el build
+  descarte las filas por "nivel desconocido".
+- **`yvy_id`**: se lee de la propiedad `yvy_id`/`id` del GeoJSON o de la
+  columna del CSV. Sin él, el archivo se reporta pero no se convierte.
+- **Geometría**: se generan MVT con un polígono pequeño alrededor del
+  centroide de cada feature, con `id` y `yvy_id` como propiedades. El
+  build filtra por feature-id (o propiedad), por eso funciona sin
+  `tippecanoe`. Es geometría de **demo**, no la oficial del cliente.
+- **Dato faltante**: celda vacía → `null` en el Parquet. Nunca `0`.
+- **Fuente y fecha** del CSV pasan al agregado y al `hash_entidad`.
+- **Certificados**: NO se escriben a mano. El build los calcula al derivar
+  los agregados desde `demografia.parquet`.
 
-## Lo que falta para completar el pipeline (SLA 72 h)
+## Demostración punta a punta (ya ejecutada)
 
-1. **PDF** (`leer_pdf`): extraer texto/tablas con `pypdf`/`pdfplumber`
-   *declarando fuente y fecha de corte*; hoy es TODO explícito.
-2. **Excel** (`leer_excel`): hoja → CSV con encabezado en fila 1 con
-   `openpyxl`; hoy es TODO explícito.
-3. **Parquet**: escribir `data/registry/jurisdicciones.parquet` con las
-   columnas de `plan.json` (requiere `pyarrow`, no instalado acá).
-4. **PMTiles**: ejecutar `tippecanoe` con el comando sugerido y registrar
-   el artefacto en `data/pmtiles.json` con `pnpm run pmtiles verificar`.
-5. Recién ahí: `pnpm run receta` y verificar los pines (Capital
-   `1660063`: `48812c29…` / `1dd79167…`).
+Con un fixture sintético de 3 municipios, un CSV, un XLSX y un PDF real:
 
-Nada de esto se ejecuta automáticamente: el esqueleto **describe** el
-trabajo y valida que la entrada tenga lo necesario para hacerlo sin
-improvisar el contrato.
+```
+[ingesta] 4 archivos · excel:1, geojson:1, pdf:1, tabular:1
+[ingesta] ontología: 30 filas · roundtrip OK
+[ingesta] ⚠ boletin.pdf: texto extraído: declarar fuente y fecha de corte…
+[ingesta] construido: 3 entidades, 1 agregados, 1 PMTiles
+```
+
+Copiando esos artefactos a un sandbox con `src/` y `scripts/` del repo:
+
+```
+[yvy-manifest] centros reales de municipios.pmtiles calculados: 3 features con id.
+[yvy-manifest] municipio jurisdicciones.parquet: 3 objetos, 3/3 con geometría
+[yvy-manifest] dataset demografia 0.1: 3 agregados (Censo 2022)
+[yvy-receta] 3 entidades en 3 municipio ... verificación OK
+```
+
+Un agregado generado trae `hash_entidad` / `hash_linaje` calculados por el
+build, no copiados.
+
+**regla de oro:** nunca correr la receta sobre `data/` y `public/data/` del
+repo con datos de un cliente. Usar `--out` y un sandbox; el contrato del
+producto se demuestra con fixture, se publica con dato oficial.
+
+## Límites
+
+- El PDF se extrae con `pypdf`; no se inventan tablas: si el archivo solo
+  tiene texto, queda como texto y avisa que hay que declarar fuente/fecha.
+- El Excel se lee con `openpyxl` (primera hoja).
+- La geometría sintética es para probar el pipeline; para producción se
+  usa la fuente oficial del cliente y se registra en `data/pmtiles.json`.

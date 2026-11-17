@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -54,6 +55,15 @@ COLUMNAS_OBLIGATORIAS = [
     "fuente",
     "fecha",
 ]
+# Vocabulario del registry (NIVEL_JURIS en src/lib/catalogo.js). El
+# nivel interno "municipio" se escribe "gobierno_local": si no, el
+# build descarta las filas por nivel desconocido.
+NIVEL_REGISTRY = {
+    "pais": "pais", "provincia": "provincia",
+    "depto": "departamento", "departamento": "departamento",
+    "municipio": "gobierno_local", "gobierno_local": "gobierno_local",
+    "barrio": "barrio", "concesion": "concesion",
+}
 COLUMNAS_ONTOLOGIA = [
     "seccion",
     "clave",
@@ -168,23 +178,51 @@ def leer_csv(ruta: Path) -> dict:
 
 
 def leer_excel(ruta: Path) -> dict:
-    # TODO(SLA-72h): con openpyxl leer hojas, detection de encabezado y
-    # exportar a CSV intermedio. No se instala nada en el esqueleto.
-    return {
-        "estado": "pendiente",
-        "archivo": str(ruta),
-        "aviso": "Excel detectado: convertir a CSV con encabezado en fila 1 antes de seguir (openpyxl NO está instalado en el esqueleto)",
-    }
+    """Primera hoja → encabezado + filas. Requiere openpyxl (opcional)."""
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        return {
+            "estado": "pendiente", "archivo": str(ruta),
+            "aviso": "openpyxl no instalado (pip install openpyxl)",
+        }
+    try:
+        wb = load_workbook(Path(ruta), read_only=True, data_only=True)
+        hoja = wb[wb.sheetnames[0]]
+        filas = list(hoja.iter_rows(values_only=True))
+        encabezado = [str(c).strip() if c is not None else "" for c in (filas[0] if filas else [])]
+        wb.close()
+        return {
+            "estado": "ok", "hoja": hoja.title,
+            "columnas": encabezado, "filas": max(0, len(filas) - 1),
+            "ids_detectados": sum(1 for f in filas[1:] if f and f[0] not in (None, "")),
+            "aviso": None if "yvy_id" in encabezado else "sin columna yvy_id: declarar el mapping",
+        }
+    except Exception as err:
+        return {"estado": "error", "archivo": str(ruta), "aviso": f"{type(err).__name__}: {err}"}
 
 
 def leer_pdf(ruta: Path) -> dict:
-    # TODO(SLA-72h): con pypdf/pdfplumber extraer texto y tabla; TODO el
-    # contenido es fuente declarada, nunca se copia sin fecha ni URL.
-    return {
-        "estado": "pendiente",
-        "archivo": str(ruta),
-        "aviso": "PDF detectado: extraer texto/tablas y declarar fuente + fecha de corte antes de cargar métricas",
-    }
+    """Extrae texto con pypdf (opcional). Nunca inventa fecha ni fuente."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return {
+            "estado": "pendiente", "archivo": str(ruta),
+            "aviso": "pypdf no instalado (pip install pypdf)",
+        }
+    try:
+        lector = PdfReader(str(ruta))
+        texto = "\n".join((p.extract_text() or "") for p in lector.pages[:12])
+        return {
+            "estado": "ok" if texto.strip() else "vacio",
+            "paginas": len(lector.pages),
+            "caracteres": len(texto),
+            "texto": texto[:4000],
+            "aviso": "texto extraído: declarar fuente y fecha de corte antes de cargar métricas",
+        }
+    except Exception as err:
+        return {"estado": "error", "archivo": str(ruta), "aviso": f"{type(err).__name__}: {err}"}
 
 
 def inspeccionar(inventario: dict) -> dict:
@@ -319,7 +357,8 @@ def plan_parquet(ontologia: dict) -> dict:
         "archivo": "data/registry/jurisdicciones.parquet",
         "formato": "parquet",
         "columnas_obligatorias": COLUMNAS_OBLIGATORIAS,
-        "niveles": list((ontologia.get("tipos") or {}).keys()),
+        "niveles": sorted(set(NIVEL_REGISTRY.values())),
+        "nota_nivel": "el registry usa el vocabulario INDEC/IGN: municipio → gobierno_local, depto → departamento",
         "metricas": sorted((ontologia.get("metricas") or {}).keys()),
         "reglas": [
             "yvy_id = offset(nivel) + cod_indec (cuando hay código oficial)",
@@ -328,7 +367,7 @@ def plan_parquet(ontologia: dict) -> dict:
             "el tipo va como columna, nunca dentro del yvy_id",
         ],
         "estado": "planificado",
-        "pendiente": "pyarrow no está instalado: escribir el parquet con el esquema de arriba",
+        "pendiente": "requiere pyarrow (ver requirements-ingesta.txt)",
     }
 
 
@@ -343,15 +382,212 @@ def plan_pmtiles(ontologia: dict, inspeccion: dict) -> list[dict]:
         planes.append({
             "nivel": clave,
             "archivo": f"public/data/{clave}s.pmtiles",
-            "comando_sugerido": (
-                f"tippecanoe -o {clave}s.pmtiles -Z8 -z14 "
-                f"--generate-ids --minimum-zoom=8 --maximum-zoom=14 entrada.geojson"
-            ),
+            "comando_sugerido": "--construir genera PMTiles con pmtiles+mapbox_vector_tile (demo); para producción: tippecanoe --use-attribute-for-id=yvy_id",
             "bounds_detectados": bounds,
             "nota": "--use-attribute-for-id=yvy_id si los features traen yvy_id; el build filtra por id MVT",
             "estado": "planificado",
         })
     return planes
+
+
+# --------------------------------------------------------------
+# Construcción de artefactos (opcional, --construir)
+# --------------------------------------------------------------
+def cargar_features(ruta: Path, nivel: str | None = None) -> list[dict]:
+    """Convierte un GeoJSON en filas mínimas del registry (sin adivinar)."""
+    datos = json.loads(Path(ruta).read_text(encoding="utf8"))
+    collection = datos.get("features", []) if datos.get("type") == "FeatureCollection" else [datos]
+    nivel = nivel or Path(ruta).stem.rstrip("s")
+    out = []
+    for f in collection:
+        props = f.get("properties") or {}
+        yvy = props.get("yvy_id", props.get("id"))
+        if yvy in (None, ""):
+            continue
+        geom = f.get("geometry") or {}
+        lon = lat = None
+        coords = geom.get("coordinates")
+        while isinstance(coords, (list, tuple)) and coords and isinstance(coords[0], (list, tuple)):
+            coords = coords[0]
+        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+            lon, lat = float(coords[0]), float(coords[1])
+        out.append({
+            "yvy_id": int(yvy),
+            "nivel": nivel,
+            "nombre_oficial": str(props.get("nombre_oficial") or props.get("nombre") or f"Objeto {yvy}"),
+            "parent_yvy_id": props.get("parent_yvy_id"),
+            "cod_indec": props.get("cod_indec"),
+            "fuente": props.get("fuente") or "Ingesta cliente",
+            "fecha": props.get("fecha") or "2026-11",
+            "lon": lon, "lat": lat,
+        })
+    return out
+
+
+def escribir_registry(salida: Path, features: list[dict], ontologia: dict) -> Path:
+    """Escribe el Parquet que lee el build (pyarrow, opcional)."""
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError as err:
+        raise RuntimeError("pyarrow no instalado: pip install pyarrow") from err
+    destino = salida / "data/registry"
+    destino.mkdir(parents=True, exist_ok=True)
+    filas = []
+    for f in features:
+        fila = {c: f.get(c) for c in COLUMNAS_OBLIGATORIAS}
+        fila["nivel"] = NIVEL_REGISTRY.get(f.get("nivel"), f.get("nivel"))
+        filas.append(fila)
+    esquema = pa.schema([
+        pa.field("yvy_id", pa.int64()),
+        pa.field("nivel", pa.string()),
+        pa.field("nombre_oficial", pa.string()),
+        pa.field("parent_yvy_id", pa.int64()),
+        pa.field("cod_indec", pa.string()),
+        pa.field("fuente", pa.string()),
+        pa.field("fecha", pa.string()),
+    ])
+    tabla = pa.Table.from_pylist(filas, schema=esquema)
+    ruta = destino / "jurisdicciones.parquet"
+    pq.write_table(tabla, ruta)
+    return ruta
+
+
+def escribir_agregados(salida: Path, carpeta: Path, features: list[dict], ontologia: dict) -> list[Path]:
+    """CSV tabular → data/registry/demografia.parquet (fuente del build).
+
+    El build NO certifica agregados sueltos en public/data: certifica los
+    agregados que él mismo deriva de los parquets de dataset. Por eso la
+    ingesta escribe el parquet, nunca el JSON certificado a mano.
+    """
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError as err:
+        raise RuntimeError("pyarrow no instalado: pip install pyarrow") from err
+    ids = {f["yvy_id"] for f in features}
+    metricas = set(ontologia.get("metricas") or {})
+    filas = []
+    for ruta in sorted(carpeta.rglob("*.csv")):
+        with ruta.open(newline="", encoding="utf-8-sig") as fh:
+            lector = csv.DictReader(fh)
+            columnas = {c.strip() for c in (lector.fieldnames or [])}
+            claves = sorted(columnas & metricas)
+            if "yvy_id" not in columnas or not claves:
+                continue
+            for fila in lector:
+                yvy = fila.get("yvy_id")
+                if yvy in (None, ""):
+                    continue
+                yvy = int(yvy)
+                if yvy not in ids:
+                    continue
+                registro = {
+                    "yvy_id": yvy,
+                    "fuente": fila.get("fuente") or fila.get("sup_fuente") or "sin fuente",
+                    "fecha_vigencia": fila.get("fecha_vigencia") or fila.get("fecha") or None,
+                    "version": fila.get("version") or "0.1",
+                }
+                for k in claves:
+                    v = fila.get(k)
+                    registro[k] = v if v not in (None, "") else None  # null, nunca 0 de relleno
+                filas.append(registro)
+    if not filas:
+        return []
+    campos = ["yvy_id"] + sorted({k for r in filas for k in r if k not in
+              ("yvy_id", "fuente", "fecha_vigencia", "version")}) +              ["fuente", "fecha_vigencia", "version"]
+    esquema = pa.schema([pa.field(c, pa.int64() if c == "yvy_id" else pa.string()) for c in campos])
+    destino = salida / "data/registry/demografia.parquet"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(filas, schema=esquema), destino)
+    return [destino]
+
+
+def escribir_pmtiles(salida: Path, features: list[dict], nivel: str, zooms=(8, 10)) -> Path | None:
+    """GeoJSON → PMTiles v3 con MVT, en Python puro (sin tippecanoe)."""
+    try:
+        import mapbox_vector_tile as mvt
+        from pmtiles.tile import Compression, TileType, zxy_to_tileid
+        from pmtiles.writer import Writer
+    except ImportError as err:
+        raise RuntimeError("faltan pmtiles/mapbox_vector_tile: pip install pmtiles mapbox_vector_tile") from err
+
+    validos = [f for f in features if f.get("lon") is not None and f.get("lat") is not None]
+    if not validos:
+        return None
+    bounds = [
+        min(f["lon"] for f in validos), min(f["lat"] for f in validos),
+        max(f["lon"] for f in validos), max(f["lat"] for f in validos),
+    ]
+    destino = salida / f"public/data/{nivel}s.pmtiles"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    writer = Writer(destino.open("wb"))
+    for z in range(zooms[0], zooms[1] + 1):
+        n = 2 ** z
+        por_tile = {}
+        for f in validos:
+            if f["nivel"] != nivel:
+                continue
+            lon, lat = f["lon"], f["lat"]
+            x = min(n - 1, max(0, int((lon + 180) / 360 * n)))
+            r = lat * math.pi / 180
+            yf = (1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2
+            y = min(n - 1, max(0, int(yf * n)))
+            fx = ((lon + 180) / 360 * n - x) * 4096
+            fy = (yf * n - y) * 4096
+            d = 60
+            poly = f"POLYGON (({fx-d:.1f} {fy-d:.1f}, {fx+d:.1f} {fy-d:.1f}, {fx+d:.1f} {fy+d:.1f}, {fx-d:.1f} {fy+d:.1f}, {fx-d:.1f} {fy-d:.1f}))"
+            por_tile.setdefault((x, y), []).append({
+                "geometry": poly,
+                "properties": {"id": f["yvy_id"], "yvy_id": f["yvy_id"], "nombre": f["nombre_oficial"]},
+                "id": f["yvy_id"],
+            })
+        for (x, y), feats in por_tile.items():
+            data = mvt.encode(
+                [{"name": nivel, "features": feats}],
+                default_options={"extents": 4096, "y_coord_down": True},
+            )
+            writer.write_tile(zxy_to_tileid(z, x, y), data)
+    header = {
+        "tile_type": TileType.MVT,
+        "tile_compression": Compression.NONE,
+        "min_lon_e7": int(bounds[0] * 1e7), "min_lat_e7": int(bounds[1] * 1e7),
+        "max_lon_e7": int(bounds[2] * 1e7), "max_lat_e7": int(bounds[3] * 1e7),
+    }
+    meta = {
+        "name": f"{nivel}s", "format": "pbf",
+        "bounds": bounds,
+        "center": [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2],
+        "vector_layers": [{"id": nivel, "fields": {"id": "Number", "yvy_id": "Number", "nombre": "String"}}],
+    }
+    writer.finalize(header, meta)
+    return destino
+
+
+def construir(carpeta: Path, salida: Path, ontologia: dict, inspeccion: dict) -> dict:
+    """Genera artefactos reales de ejemplo (no toca los datos del repo)."""
+    features = []
+    for a, detalle in inspeccion.items():
+        if detalle.get("tipo") != "geojson" or detalle.get("estado") != "ok":
+            continue
+        nivel = Path(a).stem.rstrip("s")
+        features.extend(cargar_features(carpeta / a, nivel))
+    if not features:
+        raise ValueError("ningún GeoJSON con yvy_id: no se puede construir el registry")
+    parquet = escribir_registry(salida, features, ontologia)
+    agregados = escribir_agregados(salida, carpeta, features, ontologia)
+    niveles = sorted({f["nivel"] for f in features})
+    pmtiles = [p for n in niveles if (p := escribir_pmtiles(salida, features, n))]
+    (salida / "public/data/relaciones.json").parent.mkdir(parents=True, exist_ok=True)
+    (salida / "public/data/relaciones.json").write_text('{"relaciones":[]}\n', encoding="utf8")
+    (salida / "data").mkdir(parents=True, exist_ok=True)
+    (salida / "data/ontologia.json").write_text(
+        json.dumps(ontologia, ensure_ascii=False, indent=2) + "\n", encoding="utf8")
+    return {
+        "registry": str(parquet), "entidades": len(features),
+        "agregados": len(agregados), "pmtiles": [str(p) for p in pmtiles],
+        "nota": "artefactos generados en --out; NO se copiaron a data/ ni public/data/ del repo",
+    }
 
 
 # --------------------------------------------------------------
@@ -369,7 +605,7 @@ def _escribir_csv(ruta: Path, filas: list[dict]) -> None:
             writer.writerow({c: f.get(c, "") for c in COLUMNAS_ONTOLOGIA})
 
 
-def procesar(carpeta: Path, salida: Path, ontologia_src: Path, dry_run: bool = False) -> dict:
+def procesar(carpeta: Path, salida: Path, ontologia_src: Path, dry_run: bool = False, construir_artefactos: bool = False) -> dict:
     inventario = descubrir(carpeta)
     inspeccion = inspeccionar(inventario)
     original = leer_ontologia(ontologia_src)
@@ -390,8 +626,12 @@ def procesar(carpeta: Path, salida: Path, ontologia_src: Path, dry_run: bool = F
             "parquet": plan_parquet(original),
             "pmtiles": plan_pmtiles(original, inspeccion),
         },
-        "siguiente_paso": "Completar PDF/Excel, escribir el Parquet y generar PMTiles; recién ahí pnpm run receta",
+        "siguiente_paso": "pnpm run receta sobre un sandbox con estos artefactos (nunca sobre data/ del repo)",
     }
+    if construir_artefactos:
+        if dry_run:
+            raise ValueError("--construir y --dry-run son incompatibles")
+        resumen["construccion"] = construir(carpeta, salida, original, inspeccion)
     if not dry_run:
         salida.mkdir(parents=True, exist_ok=True)
         _escribir_json(salida / "inventario.json", resumen)
@@ -407,9 +647,10 @@ def main(argv=None) -> int:
     p.add_argument("--out", type=Path, default=Path("salida/ingesta"), help="directorio de salida")
     p.add_argument("--ontologia", type=Path, default=Path("data/ontologia.json"), help="ontología fuente")
     p.add_argument("--dry-run", action="store_true", help="inspeccionar sin escribir archivos")
+    p.add_argument("--construir", action="store_true", help="generar Parquet, agregados JSON y PMTiles de ejemplo")
     args = p.parse_args(argv)
     try:
-        r = procesar(args.carpeta, args.out, args.ontologia, args.dry_run)
+        r = procesar(args.carpeta, args.out, args.ontologia, args.dry_run, args.construir)
     except (ValueError, OSError, json.JSONDecodeError) as err:
         print(f"[ingesta] error: {err}", file=sys.stderr)
         return 2
@@ -420,6 +661,9 @@ def main(argv=None) -> int:
     for archivo, d in r["inspeccion"].items():
         if d.get("aviso"):
             print(f"[ingesta] ⚠ {archivo}: {d['aviso']}")
+    if r.get("construccion"):
+        c = r["construccion"]
+        print(f"[ingesta] construido: {c['entidades']} entidades, {c['agregados']} agregados, {len(c['pmtiles'])} PMTiles")
     print("[ingesta] " + ("dry-run: no se escribió nada" if args.dry_run else f"salida: {args.out}"))
     return 0
 
