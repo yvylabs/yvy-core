@@ -1,0 +1,88 @@
+{
+  "schema": "yvy-ids-excepciones-v1",
+  "descripcion": "Excepciones de identidad. El yvy_id se deriva del código oficial; acá vive SOLO lo que el código no puede resolver: ids de relleno migrados a un rango reservado, continuidad de entidades sin código INDEC, y la política de barrios. Cada entrada es un hecho auditable, no un parche.",
+  "reglas": {
+    "no_reciclar": "Un yvy_id emitido nunca se reasigna a otra entidad.",
+    "no_renumerar": "Un id existente nunca cambia salvo migración declarada acá, con id_anterior.",
+    "reservados": "Dentro de un bloque reservado solo hay entidades declaradas en este archivo.",
+    "barrios": "Secuencia append-only (siguiente libre). Nunca posicional por orden alfabético."
+  },
+  "rangos_reservados": [
+    {
+      "nivel": "municipio",
+      "desde": 2000000,
+      "hasta": 2049999,
+      "motivo": "Municipios que INDEC publica sin cod_indec (indeterminados). Fuera del espacio derivable (1.000.000 + cod_indec de 6 dígitos llega hasta 1.999.999), así que no puede colisionar con ningún id calculado."
+    },
+    {
+      "nivel": "municipio",
+      "desde": 2050000,
+      "hasta": 2199999,
+      "motivo": "Reasignaciones por recodificación: la entidad que cambia de código oficial conserva su identidad con un id nuevo del bloque y su id_anterior queda registrado."
+    },
+    {
+      "nivel": "barrio",
+      "desde": 2000000000,
+      "hasta": 2999999999,
+      "motivo": "Desborde de barrios: municipios con más de 999 barrios, que no entran en el prefijo municipio*1000+secuencia."
+    }
+  ],
+  "migraciones": [
+    {
+      "de": 9000000001,
+      "a": 2000001,
+      "nivel": "municipio",
+      "nombre_oficial": "Colonia Cerrito",
+      "motivo": "Id de relleno 9000000001 fuera de todo rango (caía en el espacio de barrios). INDEC 2022 lo publica sin cod_indec."
+    },
+    {
+      "de": 9000000002,
+      "a": 2000002,
+      "nivel": "municipio",
+      "nombre_oficial": "Colonia Teresa",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    },
+    {
+      "de": 9000000003,
+      "a": 2000003,
+      "nivel": "municipio",
+      "nombre_oficial": "El Caimán",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    },
+    {
+      "de": 9000000004,
+      "a": 2000004,
+      "nivel": "municipio",
+      "nombre_oficial": "Güer Aike",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    },
+    {
+      "de": 9000000005,
+      "a": 2000005,
+      "nivel": "municipio",
+      "nombre_oficial": "Isla Las Lechiguanas",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    },
+    {
+      "de": 9000000006,
+      "a": 2000006,
+      "nivel": "municipio",
+      "nombre_oficial": "Malvinas",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    },
+    {
+      "de": 9000000007,
+      "a": 2000007,
+      "nivel": "municipio",
+      "nombre_oficial": "Manuel Derqui",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    },
+    {
+      "de": 9000000008,
+      "a": 2000008,
+      "nivel": "municipio",
+      "nombre_oficial": "Salto Encantado",
+      "motivo": "Id de relleno fuera de rango. INDEC 2022 sin cod_indec."
+    }
+  ]
+}

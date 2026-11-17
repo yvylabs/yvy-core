@@ -6,6 +6,11 @@ import { gunzipSync } from 'node:zlib';
 import { PMTiles } from 'pmtiles';
 import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 import { hashCanonico, payloadEntidad, payloadLinaje } from './src/js/canonico.js';
+import {
+  aplicarMigraciones,
+  construirLedger,
+  validarIdentidad,
+} from './src/lib/identidad.js';
 
 const require = createRequire(import.meta.url);
 let VectorTile = null;
@@ -51,13 +56,16 @@ function importarDecodificadorMVT() {
 const DATA_DIR = path.resolve('public/data');
 const REGISTRY_DIR = path.resolve('data/registry');
 const ONTOLOGIA_SRC = path.resolve('data/ontologia.json');
+const IDS_EXCEPCIONES_SRC = path.resolve('data/ids.excepciones.json');
 const RELACIONES_SRC = path.join(DATA_DIR, 'relaciones.json');
 
 const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
 const ZOOM_DEFAULT = { pais: 3.5, provincia: 7, depto: 11, municipio: 13, barrio: 15, concesion: 14 };
 const CENTRO_DEFAULT = [-60, -20];
-// Esquema yvy_id = 1 + código oficial (disjuntos por nivel, chequeables por intervalo)
-const RANGO_YVY = { pais: [0, 999], provincia: [1000, 1999], depto: [100000, 199999], municipio: [1000000, 1999999], barrio: [1000000000, 1999999999], concesion: [30000, 99999] };
+// Esquema yvy_id = offset + código oficial (disjuntos por nivel, chequeables
+// por intervalo). municipio incluye los bloques reservados 2.000.000–2.199.999
+// (ids no derivables: ver src/lib/identidad.js).
+const RANGO_YVY = { pais: [0, 999], provincia: [1000, 1999], depto: [100000, 199999], municipio: [1000000, 2199999], barrio: [1000000000, 1999999999], concesion: [30000, 99999] };
 
 // Zoom de escaneo para el cálculo de centros (detalle suficiente y tiles acotados)
 const ZSCAN = { pais: 4, provincia: 7, depto: 10, municipio: 12, barrio: 14, concesion: 12 };
@@ -553,6 +561,8 @@ async function construirManifest() {
   const fuentes = [];
   const objetos = [];
   const advertencias = [];
+  const excepcionesIds = await cargarExcepcionesIds(advertencias);
+  const idsMigrados = new Set((excepcionesIds.migraciones || []).map((m) => Number(m.de)));
   const entradas = await fs.readdir(REGISTRY_DIR).catch(() => []);
 
   const parquetsPorNivel = entradas.filter((f) => nivelDeArchivo(f)).sort();
@@ -684,7 +694,7 @@ async function construirManifest() {
       filasValidas++;
 
       const [lo, hi] = RANGO_YVY[nivel] || [0, 999999];
-      if (yvyId < lo || yvyId > hi) {
+      if ((yvyId < lo || yvyId > hi) && !idsMigrados.has(yvyId)) {
         advertencias.push(`${archivo}: yvy_id ${yvyId} fuera del rango ${lo}-${hi} del nivel "${nivel}".`);
       }
 
@@ -764,6 +774,25 @@ async function construirManifest() {
   // Padres huérfanos: warning, no bloqueo (un solo parent_yvy_id por objeto, punto).
   // Barrios: además del rango, el prefijo debe ser el yvy_id del padre
   // (1660063xxx → parent 1660063). Estructura, no solo intervalo.
+  // Identidad (contrato de ids): las migraciones declaradas se aplican
+  // ANTES de validar el árbol y de derivar agregados. Si un id cambia,
+  // todo lo que cuelga de él tiene que ver el id nuevo (padres, agregados,
+  // relaciones, certificados).
+  let identidad = { excepciones: excepcionesIds, aplicadas: [], pendientes: [], violaciones: [], ledger: null };
+  try {
+    const m = aplicarMigraciones(objetos, excepcionesIds);
+    identidad.aplicadas = m.aplicadas;
+    identidad.pendientes = m.pendientes;
+    if (m.aplicadas.length) {
+      advertencias.push(`identidad: ${m.aplicadas.length} id(s) migrado(s) a rango reservado (${m.aplicadas.map((x) => `${x.desde}→${x.hasta}`).join(', ')}).`);
+    }
+    identidad.violaciones = validarIdentidad(objetos, excepcionesIds);
+    identidad.ledger = construirLedger(objetos, excepcionesIds);
+  } catch (err) {
+    const msg = String(err?.message || err);
+    identidad.violaciones = [msg.startsWith('identidad:') ? msg : `identidad: ${msg}`];
+  }
+
   {
     const ids = new Set(objetos.map((o) => o.yvy_id));
     let huerfanos = 0;
@@ -782,6 +811,8 @@ async function construirManifest() {
     if (huerfanos > 10) advertencias.push(`...y ${huerfanos - 10} objetos más con padre inexistente.`);
   }
 
+  // Identidad (ya aplicada antes del chequeo de árbol): acá solo se
+  // derivan agregados sobre los ids definitivos.
   const datasets = await construirDatasets(objetos, advertencias);
 
   // Cámara heredada: si el PMTiles del nivel no está en el repo (R2, SPEC §6),
@@ -843,7 +874,7 @@ async function construirManifest() {
     }
   }
 
-  return { fuentes, objetos, datasets, advertencias };
+  return { fuentes, objetos, datasets, advertencias, identidad };
 }
 
 // Categoría temática por tipo (vocabulario fijo SPEC §10; la columna manda si existe)
@@ -923,6 +954,26 @@ async function cargarOntologia(advertencias) {
   } catch (err) {
     advertencias.push(`ontologia.json no se pudo leer (${err?.code || err?.message}): sin validación de contrato.`);
     return null;
+  }
+}
+
+/**
+ * Excepciones de identidad (data/ids.excepciones.json). Si falta el
+ * archivo, se sigue con cero excepciones: el contrato de ids se valida
+ * igual, pero cualquier id en bloque reservado o fuera de rango corta.
+ */
+async function cargarExcepcionesIds(advertencias) {
+  try {
+    const exc = JSON.parse(await fs.readFile(IDS_EXCEPCIONES_SRC, 'utf8'));
+    if (exc.schema !== 'yvy-ids-excepciones-v1') {
+      advertencias.push(`ids.excepciones.json: schema inesperado "${exc.schema}" (se esperaba yvy-ids-excepciones-v1).`);
+    }
+    return exc;
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      advertencias.push(`ids.excepciones.json no se pudo leer (${err?.message || err}): sin excepciones de identidad.`);
+    }
+    return { schema: 'yvy-ids-excepciones-v1', rangos_reservados: [], migraciones: [] };
   }
 }
 
@@ -1192,7 +1243,7 @@ async function escribirManifest() {
   const avisosOntologia = [];
   ontologia = await cargarOntologia(avisosOntologia);
   linaje = await cargarLinaje();
-  const { fuentes, objetos, datasets, advertencias } = await construirManifest();
+  const { fuentes, objetos, datasets, advertencias, identidad } = await construirManifest();
   advertencias.push(...avisosOntologia);
 
   // Contrato: si algo no está declarado (tipo, métrica, unidad, fuente,
@@ -1213,6 +1264,12 @@ async function escribirManifest() {
     relaciones: linaje.crudas,
     agregadosMuestra: muestra,
   });
+  // El contrato de identidad corta el build igual que el de datos: un id
+  // fuera de rango, duplicado o en bloque reservado sin excepción no se
+  // publica nunca.
+  if (identidad && identidad.violaciones?.length) {
+    violaciones.push(...identidad.violaciones);
+  }
   if (violaciones.length) {
     const resumen = violaciones.slice(0, 12).map((v) => `  - ${v}`).join('\n');
     throw new ErrorDeContrato(
@@ -1224,10 +1281,44 @@ async function escribirManifest() {
 
   await publicarOntologia(ontologia);
 
+  // Ledger de identidad: se publica junto al manifest y su hash lo ata.
+  // Es lo que permite verificar que un id no se recicló ni se renumeró.
+  let identidadPublicada = null;
+  if (identidad?.ledger) {
+    const hashCatalogo = await hashCanonico({
+      schema: identidad.ledger.schema,
+      total: identidad.ledger.total,
+      entidades: identidad.ledger.entidades,
+    });
+    const ledger = { ...identidad.ledger, hash_catalogo: hashCatalogo };
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    // Una entidad por línea: diff legible y archivo auditable a mano.
+    const lineas = [
+      '{',
+      `  "schema": ${JSON.stringify(ledger.schema)},`,
+      `  "total": ${ledger.total},`,
+      `  "hash_catalogo": ${JSON.stringify(hashCatalogo)},`,
+      `  "reservados": ${JSON.stringify(ledger.reservados)},`,
+      '  "entidades": [',
+      ledger.entidades.map((e) => `    ${JSON.stringify(e)}`).join(',\n'),
+      '  ]',
+      '}',
+    ];
+    await fs.writeFile(path.join(DATA_DIR, 'ids.json'), lineas.join('\n') + '\n', 'utf8');
+    identidadPublicada = {
+      schema: ledger.schema,
+      archivo: 'data/ids.json',
+      hash_catalogo: hashCatalogo,
+      total: ledger.total,
+      migraciones: identidad.aplicadas,
+    };
+  }
+
   const manifest = {
     generado: Date.now(),
     schema: 'yvy-manifest-v3',
     ontologia: ontologia ? { schema: ontologia.schema, version: ontologia.version, archivo: 'data/ontologia.json' } : null,
+    identidad: identidadPublicada,
     fuentes,
     objetos,
     datasets,
