@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="es" data-dock="oculto">
 <head>
-  <script>try{if(localStorage.getItem('yvy:tema')==='light')document.documentElement.setAttribute('data-theme','light');if(localStorage.getItem('yvy:swap')==='1')document.documentElement.classList.add('layout--swap')}catch(e){}</script>
+  <!-- Yvy Core es un informe: tema claro fijo. El mapa sigue siendo widget dark (R7). -->
+  <script>document.documentElement.setAttribute('data-theme','light');</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Yvy Core | Infraestructura de Datos</title>
@@ -67,7 +68,6 @@
     </a>
 
     <div class="topbar__right">
-      <button class="topbar__tema" id="btn-tema" type="button" aria-pressed="false" aria-label="Cambiar a modo claro" data-tooltip="Modo claro / oscuro"><svg class="tema-ico tema-ico--sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4L19 19M19 5l-1.6 1.6M6.6 17.4L5 19"/></svg><svg class="tema-ico tema-ico--luna" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg></button>
       <a class="topbar__labs" href="https://yvylabs.com" target="_blank" rel="noopener" aria-label="Yvy Labs — versión marca blanca">Labs <span class="topbar__labs-beta">Beta</span> →</a>
       <span class="topbar__fps" id="topbar-fps" title="Cuadros por segundo" hidden></span>
     </div>
@@ -141,21 +141,22 @@
       </div>
     </section>
 
-    <!-- Swap ⇄ (R5): pill circular sobre el divisor Dossier/Grafo.
-         Corre con --dock-ancho (flip en CSS con .layout--swap); en <=768px
-         se oculta (el grafo se cambia por tabs). Conserva id btn-swap: el
-         wiring (inicializarSwap) no cambia y el FOUC del head solo toca la
-         clase layout--swap, no la ubicación del botón. -->
-    <button class="swap-pill" id="btn-swap" type="button" aria-pressed="false" aria-label="Intercambiar Dossier ↔ Grafo" data-tooltip="Intercambiar Dossier ↔ Grafo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h13"/><path d="m14 6 3 3-3 3"/><path d="M20 15H7"/><path d="m10 12-3 3 3 3"/></svg>
-      <span class="swap-pill__label">Intercambiar</span>
-    </button>
+  </div>
 
-    <!-- TABS MOBILE (R4): [Dossier | Grafo] bajo la topbar -->
-    <nav class="dossier-tabs" id="dossier-tabs" aria-label="Vistas móviles">
-      <button type="button" data-tab="dossier" aria-pressed="true">DOSSIER</button>
-      <button type="button" data-tab="grafo" aria-pressed="false">GRAFO</button>
-    </nav>
+  <!-- DRAWER ÚNICO: Linaje (grafo) + Mapa. El panel fijo desaparece;
+       los dos viven acá y se abren desde la cabecera del dossier. -->
+  <div class="drawer" id="drawer" hidden>
+    <div class="drawer__scrim" data-drawer-close></div>
+    <section class="drawer__panel" role="dialog" aria-modal="true" aria-label="Linaje y mapa">
+      <header class="drawer__head">
+        <nav class="drawer__tabs" aria-label="Vistas del drawer">
+          <button type="button" data-drawer-tab="linaje" aria-pressed="true">Linaje</button>
+          <button type="button" data-drawer-tab="mapa" aria-pressed="false">Mapa</button>
+        </nav>
+        <button class="drawer__close" type="button" data-drawer-close aria-label="Cerrar panel">✕</button>
+      </header>
+      <div class="drawer__slot" id="drawer-slot"></div>
+    </section>
   </div>
 
   <!-- PORTADA / COMMAND (R13): una pantalla, una acción. Vive fuera del

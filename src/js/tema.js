@@ -23,11 +23,9 @@ export function aplicarTema(tema) {
 }
 
 export function inicializarTema() {
-  let tema = 'dark';
-  try {
-    if (localStorage.getItem(CLAVE) === 'light') tema = 'light';
-  } catch { /* almacenamiento bloqueado: dark determinista */ }
-  aplicarTema(tema);
+  // Yvy Core es un informe: tema claro fijo, sin toggle. El globo
+  // permanece widget dark (sus tokens --map-widget-* no cambian).
+  aplicarTema('light');
 
   const btn = document.getElementById('btn-tema');
   if (!btn) return;
