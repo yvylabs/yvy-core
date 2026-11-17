@@ -23,7 +23,7 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { escribirManifest } from '../vite.config.js';
+import { escribirManifest } from '../src/lib/catalogo.js';
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const PINES_SRC = path.join(RAIZ, 'data/receta.verificacion.json');

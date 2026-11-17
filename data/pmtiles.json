@@ -27,5 +27,9 @@
       "verificado_en": "2026-11-17T16:27:11.107Z",
       "verificado_como": "Range bytes=0-126 (header PMTiles v3) + sha256 del cuerpo completo"
     }
+  ],
+  "decisiones": [
+    "Las 8 features huérfanas (geometría con id que no es de ninguna entidad) y los 251 municipios sin polígono son datos oficiales: se publican como están. No se inventan entidades ni se recortan features.",
+    "Verificado 2026-11-17 escaneando los tiles (z9): 2.105 features, todas con id MVT; 2.097 con entidad; 251 municipios sin feature."
   ]
 }

@@ -100,3 +100,12 @@ test('la receta detecta un pin movido y sale con código 1', { skip: !hayBuild &
   assert.equal(reporte.ok, false);
   assert.match(reporte.verificacion[0].problemas.join(' | '), /hash_entidad .* ≠ 0000/);
 });
+
+test('catalogo.js corre sin Vite (ninguna importación del bundler)', () => {
+  const codigo = readFileSync(leer('src/lib/catalogo.js'), 'utf8');
+  assert.ok(!/from\s+['"]vite['"]/.test(codigo), 'src/lib/catalogo.js importa vite: la receta ya no corre sin bundler');
+  assert.match(codigo, /export\s+\{[^}]*escribirManifest/);
+  // Y el runner usa la librería, no vite.config.js.
+  const receta = readFileSync(leer('scripts/receta.mjs'), 'utf8');
+  assert.ok(receta.includes("from '../src/lib/catalogo.js'"), 'scripts/receta.mjs debe importar de src/lib/catalogo.js');
+});
