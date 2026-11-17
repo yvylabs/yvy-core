@@ -401,6 +401,8 @@ Milestone `v0.4.0 — Yvy Core`, release al mergear S1 con hash del build.
 - **Worker no ejecuta Python**: límites de CPU, tiempo y disco.
 - **Dos hashes**: uno solo se invalida cada vez que se agrega un vínculo.
 - **Verticales degradadas a dominios**: como menú reproducen el visor de capas que se quiere evitar.
+- **Las 8 features huérfanas y los 251 municipios sin polígono se publican como están (17-nov-2026)**: son datos oficiales del artefacto `municipios.pmtiles`. No se inventan entidades para darles dueño, no se recortan features y no se rellena un centroide donde no hay polígono. El manifest declara la cuenta exacta (`cobertura`) y el motivo por entidad (`sin_feature_en_artefacto`). Un dato oficial incómodo se publica con su motivo; arreglarlo exige reconstruir el artefacto desde su fuente, que no está en este repo.
+- **Boletín Oficial: estacionado (17-nov-2026)**: el usuario pidió no tocarlo. Sigue siendo la fuente de documentos candidata, sin ingesta. No bloquea nada más.
 
 ---
 
@@ -598,9 +600,21 @@ PMTiles.
 (sin `centro_etiqueta`); se acepta v5/v6 validado por tamaño de
 artefacto. Regenerarlo a v6 requiere el PMTiles local.
 
+### Receta sin Vite — completado (17-nov-2026)
+
+`escribirManifest()` y todo el constructor de catálogo (parquets, agregados,
+certificados, identidad, geometría, JSON-LD) salieron de `vite.config.js`
+a `src/lib/catalogo.js`. El archivo de Vite quedó en 34 líneas: solo el
+plugin que dispara la receta en `buildStart`. `scripts/receta.mjs` importa
+directo de la librería, así que la receta corre en Actions/VPS sin
+bundler (test que lo impide: `catalogo.js` no puede importar `vite`).
+
+Cero deriva: los pines de Capital reproducen `48812c29…` / `1dd79167…`
+y el `hash_catalogo` del ledger no se movió. Build verde, 71/71 tests.
+
 ### Pendiente inmediato
-- CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
+- CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages) — **acción manual del usuario, único bloqueo externo**.
 - Repo a privado (después de confirmar que el CNAME funciona).
-- `fix/tiles-r2-cors`: rama vieja no mergeada — decidir (borrar o rescatar).
+- `fix/tiles-r2-cors`: **resuelta** (16-nov) — rama borrada; sus fixes ya estaban absorbidos en `master` (rangos 206, `Vary: Range`, filtro props-antes-que-id, cierre de bienvenida).
 - S1 restante: dossier de 5 categorías, fuente Lora, cargar Capital **a
-  través de la receta** (es el primer caso del pipeline, S2).
+  través de la receta** (el pipeline ya existe: `pnpm run receta` con pines).
