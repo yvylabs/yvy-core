@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { gunzipSync } from 'node:zlib';
 import { PMTiles } from 'pmtiles';
+import { aplicarMetadatosJSON, leerHeaderPMTiles } from './src/lib/pmtiles-header.js';
 import { asyncBufferFromFile, parquetReadObjects } from 'hyparquet';
 import { hashCanonico, payloadEntidad, payloadLinaje } from './src/js/canonico.js';
 import {
@@ -57,6 +58,7 @@ const DATA_DIR = path.resolve('public/data');
 const REGISTRY_DIR = path.resolve('data/registry');
 const ONTOLOGIA_SRC = path.resolve('data/ontologia.json');
 const IDS_EXCEPCIONES_SRC = path.resolve('data/ids.excepciones.json');
+const GEOMETRIA_REGISTRO_SRC = path.resolve('data/pmtiles.json');
 const RELACIONES_SRC = path.join(DATA_DIR, 'relaciones.json');
 
 const ORDEN_NIVEL = ['pais', 'provincia', 'depto', 'municipio', 'barrio', 'concesion'];
@@ -177,43 +179,16 @@ function num(v) {
 }
 
 // --------------------------------------------------------------
-// Header PMTiles v3 (127 bytes, campos u64 fijos) + metadatos JSON
+// Header PMTiles v3: una sola lectura del formato (src/lib/pmtiles-header.js),
+// compartida con la verificación de artefactos remotos.
 // --------------------------------------------------------------
-function leerHeaderPMTiles(buf) {
-  if (buf.length < 127 || buf.toString('latin1', 0, 7) !== 'PMTiles') return null;
-  try {
-    const spec = buf.readUInt8(7);
-    if (spec !== 3) return null;
-    const minZoom = buf.readUInt8(100);
-    const maxZoom = buf.readUInt8(101);
-    const minLon = buf.readInt32LE(102) / 1e7;
-    const minLat = buf.readInt32LE(106) / 1e7;
-    const maxLon = buf.readInt32LE(110) / 1e7;
-    const maxLat = buf.readInt32LE(114) / 1e7;
-    const centerZoom = buf.readUInt8(118);
-    const centerLon = buf.readInt32LE(119) / 1e7;
-    const centerLat = buf.readInt32LE(123) / 1e7;
-    const ok = (n, lo, hi) => Number.isFinite(n) && n >= lo && n <= hi;
-    if (!ok(minLon, -180, 180) || !ok(maxLon, -180, 180) || !ok(minLat, -90, 90) || !ok(maxLat, -90, 90)) return null;
-    if (minZoom < 0 || maxZoom > 22 || maxZoom < minZoom) return null;
-    return {
-      minZoom, maxZoom,
-      bounds: [minLon, minLat, maxLon, maxLat],
-      center: ok(centerLon, -180, 180) && ok(centerLat, -90, 90) ? [centerLon, centerLat] : null,
-      centerZoom,
-    };
-  } catch {
-    return null;
-  }
-}
-
 async function leerMetadatosPMTiles(ruta) {
   try {
     const buf = await fs.readFile(ruta);
     const h = leerHeaderPMTiles(buf);
     if (!h) return null;
-    const off = Number(buf.readBigUInt64LE(24));
-    const len = Number(buf.readBigUInt64LE(32));
+    const off = h.metadataOffset;
+    const len = h.metadataLength;
     if (len > 0 && off + len <= buf.length) {
       try {
         const raw = buf.subarray(off, off + len);
@@ -223,9 +198,7 @@ async function leerMetadatosPMTiles(ruta) {
         } catch {
           json = JSON.parse(raw.toString('utf8'));
         }
-        if (Array.isArray(json.bounds) && json.bounds.length === 4) h.bounds = json.bounds.map(Number);
-        if (Array.isArray(json.center)) h.center = [Number(json.center[0]), Number(json.center[1])];
-        if (Array.isArray(json.vector_layers) && json.vector_layers.length > 0) h.capaInterna = json.vector_layers[0].id;
+        return aplicarMetadatosJSON(h, json);
       } catch {}
     }
     return h;
@@ -524,6 +497,36 @@ async function leerCentrosNivel(nivel, metaNivel) {
   return out;
 }
 
+/**
+ * Centros por objeto de un nivel. Local: se decodifican los tiles del
+ * archivo. Remoto: el archivo no está en el repo, así que se usa el
+ * caché publicado (<nivel>_centros.json) validado por el tamaño del
+ * artefacto declarado — el mismo número que se verificó por Range.
+ * Sin caché válido no se inventan centros: quedan null.
+ */
+async function centrosDeNivel(nivel, metaNivel, advertencias) {
+  if (!metaNivel.remoto) return leerCentrosNivel(nivel, metaNivel);
+  const nombreCache = `${path.basename(metaNivel.rel, '.pmtiles')}_centros.json`;
+  const cachePath = path.join(DATA_DIR, nombreCache);
+  let cache;
+  try {
+    cache = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+  } catch (err) {
+    if (err?.code !== 'ENOENT') advertencias.push(`${nombreCache}: no se pudo leer (${err?.message || err}).`);
+    advertencias.push(`${metaNivel.rel}: geometría remota sin ${nombreCache}; los objetos sin centroide real quedan sin cámara.`);
+    return null;
+  }
+  const tamanoOk = metaNivel.bytes == null || cache.size === metaNivel.bytes;
+  // v5 no traía centro_etiqueta (polylabel): sirve igual para cámara y bounds.
+  const versionOk = cache.v === 5 || cache.v === 6;
+  if (!versionOk || cache.archivo !== metaNivel.rel || !cache.porId || !tamanoOk) {
+    advertencias.push(`${metaNivel.rel}: ${nombreCache} no corresponde al artefacto declarado (caché ${cache.size} bytes / registro ${metaNivel.bytes} bytes); sin centros por objeto.`);
+    return null;
+  }
+  console.log(`[yvy-manifest] centros de ${metaNivel.rel} (remoto): ${Object.keys(cache.porId).length} objetos desde ${nombreCache}.`);
+  return cache;
+}
+
 // --------------------------------------------------------------
 // Búsqueda del PMTiles de un objeto (acepta <nivel>s/ e id/ y
 // carpetas con nombre singular o plural)
@@ -650,6 +653,18 @@ async function construirManifest() {
     }
   }
 
+  // Artefactos remotos declarados y verificados (data/pmtiles.json).
+  // El local gana: si el .pmtiles está en el repo, no hay nada que creer.
+  const geometriaRemota = await cargarArtefactosGeometria(advertencias);
+  for (const a of geometriaRemota.artefactos) {
+    const local = pmtilesPorNivel.get(a.nivel);
+    if (local) {
+      advertencias.push(`pmtiles.json: ${a.archivo} declarado como remoto, pero public/data/${local.rel} existe (se usa el local).`);
+      continue;
+    }
+    pmtilesPorNivel.set(a.nivel, a);
+  }
+
   // Centros reales por nivel (cacheados en <nivel>_centros.json)
   const centrosNivel = new Map();
 
@@ -683,7 +698,7 @@ async function construirManifest() {
     let centrosReales = 0;
     const metaNivel = pmtilesPorNivel.get(nivel);
     if (metaNivel && !centrosNivel.has(nivel)) {
-      centrosNivel.set(nivel, await leerCentrosNivel(nivel, metaNivel));
+      centrosNivel.set(nivel, await centrosDeNivel(nivel, metaNivel, advertencias));
     }
     const centros = metaNivel ? centrosNivel.get(nivel) : null;
     for (let r = 0; r < filas.length; r++) {
@@ -727,22 +742,34 @@ async function construirManifest() {
         if (meta) {
           obj.minzoom = meta.minZoom;
           obj.maxzoom = meta.maxZoom;
-          obj.centro = meta.center || [(meta.bounds[0] + meta.bounds[2]) / 2, (meta.bounds[1] + meta.bounds[3]) / 2];
           obj.zoom = ZOOM_DEFAULT[nivel];
-          obj.bounds = meta.bounds;
+          if (Array.isArray(meta.bounds)) obj.bounds = meta.bounds;
+          // La cámara no se inventa: el centro del artefacto es el del
+          // nivel completo (todo el país, si es un PMTiles nacional), no
+          // el del objeto. Si no hay centroide real, queda null.
+          if (!meta.remoto) {
+            obj.centro = meta.center || [(meta.bounds[0] + meta.bounds[2]) / 2, (meta.bounds[1] + meta.bounds[3]) / 2];
+          }
           obj.capa_interna = obj.capa_interna || meta.capaInterna || null;
+          obj.geometria = { estado: meta.remoto ? 'remota' : 'local', artefacto: pmtiles.rel };
           pmtilesOk++;
         } else {
+          obj.geometria = { estado: 'missing', artefacto: pmtiles.rel };
           advertencias.push(`${archivo}: no se pudo leer el header de ${pmtiles.rel} (¿no es PMTiles v3?).`);
         }
         obj.pmtiles = pmtiles.rel;
         obj.tiene_geometria = true;
       } else {
+        obj.geometria = { estado: 'missing', artefacto: null };
         advertencias.push(`${archivo}: falta geometría para yvy_id ${yvyId} (${obj.nombre_oficial}). Esperado: public/data/${ARCHIVO_NIVEL[nivel] || PLURAL[nivel] || `${nivel}s`}.pmtiles (o ${PLURAL[nivel] || `${nivel}s`}/${yvyId}.pmtiles)`);
       }
 
       if (centros && centros.porId) {
-        const cr = centros.porId[String(yvyId)];
+        // Tras una migración de id, la geometría sigue identificada por el
+        // id viejo hasta que se reconstruya el artefacto: se busca el
+        // anterior en vez de perder la cámara (y queda registrado).
+        const cr = centros.porId[String(yvyId)] || (obj.id_anterior != null ? centros.porId[String(obj.id_anterior)] : null);
+        if (cr && !centros.porId[String(yvyId)]) obj.centro_id_origen = Number(obj.id_anterior);
         if (cr) {
           if (Array.isArray(cr.c)) {
             obj.centro = [cr.c[0], cr.c[1]];
@@ -766,7 +793,7 @@ async function construirManifest() {
         advertencias.push(`${archivo}: ${conGeometria.size}/${filasValidas} features con id coincidente con yvy_id en ${metaNivel.rel}. Esperado: una sola propiedad "id" con el valor de yvy_id (id actual: ${Object.keys(centros?.porId || {}).slice(0, 5).join(', ') || 'ninguna propiedad id/yvy_id'}).`);
       }
     }
-    fuentes.push({ nivel, archivo, filas: filasValidas, pmtiles: pmtilesOk, faltantes: filasValidas - pmtilesOk });
+    fuentes.push({ nivel, archivo, filas: filasValidas, pmtiles: pmtilesOk, faltantes: filasValidas - pmtilesOk, geometria: metaNivel ? (metaNivel.remoto ? 'remota' : 'local') : 'missing' });
   }
 
   objetos.sort((a, b) => ORDEN_NIVEL.indexOf(a.nivel) - ORDEN_NIVEL.indexOf(b.nivel) || a.yvy_id - b.yvy_id);
@@ -829,6 +856,10 @@ async function construirManifest() {
     if (previos) {
       let heredados = 0;
       for (const o of objetos) {
+        // Si el nivel tiene artefacto (local o remoto declarado), la
+        // verdad de la cámara sale de ahí: heredar del manifest previo
+        // sería publicar una coordenada que ya nadie puede verificar.
+        if (pmtilesPorNivel.has(o.nivel)) continue;
         const p = previos.get(Number(o.yvy_id));
         if (!p) continue;
         let tomo = false;
@@ -874,7 +905,7 @@ async function construirManifest() {
     }
   }
 
-  return { fuentes, objetos, datasets, advertencias, identidad };
+  return { fuentes, objetos, datasets, advertencias, identidad, geometria: geometriaRemota };
 }
 
 // Categoría temática por tipo (vocabulario fijo SPEC §10; la columna manda si existe)
@@ -975,6 +1006,71 @@ async function cargarExcepcionesIds(advertencias) {
     }
     return { schema: 'yvy-ids-excepciones-v1', rangos_reservados: [], migraciones: [] };
   }
+}
+
+/**
+ * Artefactos de geometría remotos (data/pmtiles.json). Un PMTiles de
+ * nivel que vive en R2/Pages no puede faltar del manifest solo porque
+ * no está en el repo: el manifest diría `tiene_geometria: false` sobre
+ * datos que el runtime sí pinta. El registro declara el artefacto con
+ * lo que se verificó leyendo su header (127 bytes por Range), y el
+ * build lo trata como geometría de nivel con estado "remota".
+ *
+ * El archivo local siempre gana: si el .pmtiles está en public/data,
+ * se lee de ahí y el registro queda como declaración (con aviso).
+ */
+async function cargarArtefactosGeometria(advertencias) {
+  const vacio = { schema: 'yvy-pmtiles-v1', artefactos: [] };
+  let reg;
+  try {
+    reg = JSON.parse(await fs.readFile(GEOMETRIA_REGISTRO_SRC, 'utf8'));
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      advertencias.push(`pmtiles.json no se pudo leer (${err?.message || err}): sin geometría remota declarada.`);
+    }
+    return vacio;
+  }
+  if (reg.schema !== 'yvy-pmtiles-v1') {
+    advertencias.push(`pmtiles.json: schema inesperado "${reg.schema}" (se esperaba yvy-pmtiles-v1).`);
+    return vacio;
+  }
+  const artefactos = [];
+  for (const a of reg.artefactos || []) {
+    if (!ORDEN_NIVEL.includes(a.nivel)) {
+      advertencias.push(`pmtiles.json: nivel "${a.nivel}" desconocido (se ignoró). Niveles válidos: ${ORDEN_NIVEL.join(', ')}.`);
+      continue;
+    }
+    if (!a.archivo || !a.url) {
+      advertencias.push(`pmtiles.json: artefacto de "${a.nivel}" sin archivo o sin url (se ignoró).`);
+      continue;
+    }
+    const b = a.bounds;
+    if (!Array.isArray(b) || b.length !== 4 || !b.every((n) => Number.isFinite(Number(n)))) {
+      advertencias.push(`pmtiles.json: ${a.archivo} sin bounds válidos (no se puede usar para cámara).`);
+    }
+    const dias = (Date.now() - Date.parse(a.verificado_en || 0)) / 86400000;
+    if (!Number.isFinite(dias)) {
+      advertencias.push(`pmtiles.json: ${a.archivo} sin fecha de verificación.`);
+    } else if (dias > 180) {
+      advertencias.push(`pmtiles.json: ${a.archivo} verificado hace ${Math.round(dias)} días; conviene re-verificar (node scripts/pmtiles.mjs verificar).`);
+    }
+    artefactos.push({
+      nivel: a.nivel,
+      rel: a.archivo,
+      remoto: true,
+      url: a.url,
+      sha256: a.sha256 || null,
+      bytes: a.bytes ?? null,
+      minZoom: Number(a.min_zoom),
+      maxZoom: Number(a.max_zoom),
+      bounds: Array.isArray(b) && b.length === 4 ? b.map(Number) : null,
+      center: Array.isArray(a.center) && a.center.length >= 2 ? [Number(a.center[0]), Number(a.center[1])] : null,
+      tileEntries: a.tile_entries ?? null,
+      capaInterna: a.capa_interna || null,
+      verificadoEn: a.verificado_en || null,
+    });
+  }
+  return { schema: reg.schema, artefactos };
 }
 
 /**
@@ -1243,7 +1339,7 @@ async function escribirManifest() {
   const avisosOntologia = [];
   ontologia = await cargarOntologia(avisosOntologia);
   linaje = await cargarLinaje();
-  const { fuentes, objetos, datasets, advertencias, identidad } = await construirManifest();
+  const { fuentes, objetos, datasets, advertencias, identidad, geometria } = await construirManifest();
   advertencias.push(...avisosOntologia);
 
   // Contrato: si algo no está declarado (tipo, métrica, unidad, fuente,
@@ -1319,6 +1415,28 @@ async function escribirManifest() {
     schema: 'yvy-manifest-v3',
     ontologia: ontologia ? { schema: ontologia.schema, version: ontologia.version, archivo: 'data/ontologia.json' } : null,
     identidad: identidadPublicada,
+    // Artefactos de geometría: qué se publica, con qué hash y qué bounds.
+    // Los objetos del nivel declaran geometria.estado = local | remota | missing.
+    geometria: geometria?.artefactos?.length
+      ? {
+          schema: geometria.schema,
+          archivo: 'data/pmtiles.json',
+          artefactos: geometria.artefactos.map((a) => ({
+            nivel: a.nivel,
+            archivo: a.rel,
+            url: a.url,
+            bytes: a.bytes,
+            sha256: a.sha256,
+            tile_entries: a.tileEntries,
+            min_zoom: a.minZoom,
+            max_zoom: a.maxZoom,
+            bounds: a.bounds,
+            center: a.center,
+            capa_interna: a.capaInterna,
+            verificado_en: a.verificadoEn,
+          })),
+        }
+      : null,
     fuentes,
     objetos,
     datasets,
@@ -1351,6 +1469,7 @@ async function escribirManifest() {
         "capital_centro": { "@id": "yvyont:capitalCentro", "@type": "geo:wktLiteral" },
         "pmtiles": { "@id": "yvyont:pmtiles", "@type": "@id" },
         "tiene_geometria": { "@id": "yvyont:tieneGeometria", "@type": "xsd:boolean" },
+        "geometria": { "@id": "yvyont:geometriaEstado" },
         "bounds_objeto": { "@id": "geo:hasBoundingBox", "@type": "geo:wktLiteral" }
       }
     };
@@ -1361,6 +1480,8 @@ async function escribirManifest() {
   const graph = objetos.map((o) => {
     const n = { "@id": `yvy:${o.yvy_id}`, "@type": `yvyont:${cap(o.nivel)}`, "yvy_id": o.yvy_id, "nombre_oficial": o.nombre_oficial, "nivel": `yvyont:${cap(o.nivel)}`, "tiene_geometria": !!o.tiene_geometria };
     if (o.parent_yvy_id != null) n["parent_yvy_id"] = { "@id": `yvy:${o.parent_yvy_id}` };
+    // De dónde sale la geometría: local, remota (artefacto verificado) o missing.
+    if (o.geometria?.estado) n["geometria"] = o.geometria.estado;
     if (o.georef_id) n["georef_id"] = String(o.georef_id);
     if (o.sup_oficial_km2 != null) n["sup_oficial_km2"] = o.sup_oficial_km2;
     if (o.sup_fuente) n["sup_fuente"] = o.sup_fuente;
