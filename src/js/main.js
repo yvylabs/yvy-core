@@ -21,6 +21,7 @@ import { inicializarBienvenida, cerrarBienvenida, mostrarBienvenida } from './we
 import { inicializarPanelGrafo, refrescarGrafo, setEstadoCatalogo } from './grafo-panel.js';
 import { inicializarTema } from './tema.js';
 import { inicializarDrawer } from './drawer.js';
+import { inicializarModelo } from './modelo.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -480,6 +481,7 @@ inicializarUIPaneles();
 // Tema claro/oscuro (persistente; el globo permanece widget dark)
 inicializarTema();
 inicializarDrawer();
+inicializarModelo();
 
 map.on('load', async () => {
   map.resize();

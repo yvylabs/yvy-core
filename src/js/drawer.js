@@ -7,7 +7,7 @@
 // elementos y con los mismos ids.
 // ==============================================================
 
-const ABIERTA = new Set(['linaje', 'mapa']);
+const ABIERTA = new Set(['linaje', 'mapa', 'modelo']);
 let actual = null;
 let movido = null; // { nodo, padre, siguiente }
 
@@ -47,7 +47,7 @@ export function abrirDrawer(cual) {
   if (actual === cual) { cerrarDrawer(); return; }
   if (actual) retornar();
 
-  const idNodo = cual === 'linaje' ? 'panel-grafo' : 'mapa-col';
+  const idNodo = cual === 'linaje' ? 'panel-grafo' : cual === 'modelo' ? 'panel-modelo' : 'mapa-col';
   const nodo = document.getElementById(idNodo);
   if (!nodo) return;
   movido = { nodo, padre: nodo.parentNode, siguiente: nodo.nextSibling };

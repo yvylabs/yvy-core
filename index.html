@@ -137,11 +137,19 @@
            departamentos no viven acá: aparecen al abrir una provincia. -->
       <div class="panel-grafo__leyenda" aria-hidden="true">
         <span class="gp-key"><i class="gp-key__dot"></i>tamaño = población</span>
-        <span class="gp-key"><i class="gp-key__line"></i>lindero</span>
+        <span class="gp-key"><i class="gp-key__line gp-key__line--lindero"></i>lindero</span>
+        <span class="gp-key"><i class="gp-key__line gp-key__line--cerca"></i>cerca_de</span>
+        <span class="gp-key"><i class="gp-key__line gp-key__line--regula"></i>regula</span>
       </div>
     </section>
 
   </div>
+
+    <!-- MODELO: explorador de la ontología publicada (se mueve al drawer) -->
+    <section class="panel-modelo" id="panel-modelo" aria-label="Modelo de datos">
+      <header class="panel-modelo__top"><span class="panel-grafo__label">MODELO DE DATOS</span></header>
+      <div class="panel-modelo__body" id="modelo-body"></div>
+    </section>
 
   <!-- DRAWER ÚNICO: Linaje (grafo) + Mapa. El panel fijo desaparece;
        los dos viven acá y se abren desde la cabecera del dossier. -->
@@ -152,6 +160,7 @@
         <nav class="drawer__tabs" aria-label="Vistas del drawer">
           <button type="button" data-drawer-tab="linaje" aria-pressed="true">Linaje</button>
           <button type="button" data-drawer-tab="mapa" aria-pressed="false">Mapa</button>
+          <button type="button" data-drawer-tab="modelo" aria-pressed="false">Modelo</button>
         </nav>
         <button class="drawer__close" type="button" data-drawer-close aria-label="Cerrar panel">✕</button>
       </header>
