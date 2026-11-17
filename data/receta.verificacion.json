@@ -1,0 +1,23 @@
+{
+  "schema": "yvy-receta-v1",
+  "descripcion": "Pines de verificación de la receta tabular. Cada entrada fija el certificado que el build TIENE que reproducir. Si cambia un hash sin cambiar el pin en el mismo commit, la receta falla: un dato nuevo no puede mover lo que ya estaba publicado.",
+  "entidades": [
+    {
+      "yvy_id": 1660063,
+      "tipo": "demografia",
+      "nombre_oficial": "Salta",
+      "hash_entidad": "48812c29e0e79d9b0bc984bb483b9683363c4fba40ff8d46326df40a2ac06d12",
+      "hash_linaje": "1dd79167cbff588a78b2aa4e0817e96234ed07164116d5c0b8bc4c26c11ff06c"
+    },
+    {
+      "yvy_id": 1066,
+      "tipo": "demografia",
+      "nombre_oficial": "Salta"
+    },
+    {
+      "yvy_id": 166028,
+      "tipo": "demografia",
+      "nombre_oficial": "Capital"
+    }
+  ]
+}

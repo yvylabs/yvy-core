@@ -23,6 +23,8 @@ public/data.zip
 # Ledger de identidad: derivado determinista del registry + excepciones,
 # se regenera en cada build (el manifest publica su hash).
 public/data/ids.json
+# Reporte de la receta: evidencia de la última corrida, se regenera.
+public/data/receta.json
 data/registry.7z
 data/registry/*.zip
 # Backups locales del pipeline (nunca al repo)
