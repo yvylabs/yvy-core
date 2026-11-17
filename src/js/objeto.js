@@ -157,18 +157,47 @@ export function mostrarObjeto(yvyId) {
 function bloqueHeader(obj) {
   const header = document.createElement('div');
   header.className = 'dossier-header';
+  const izq = document.createElement('div');
+  izq.className = 'dossier-header__izq';
+  const titulo = document.createElement('span');
+  titulo.className = 'dossier-header__titulo';
+  titulo.textContent = obj.nombre_oficial || '—';
   const chip = document.createElement('span');
   chip.className = 'dossier-chip';
   chip.textContent = etiquetaNivel(obj.nivel).toUpperCase();
-  const sup = document.createElement('span');
-  sup.className = 'dossier-superficie';
-  sup.textContent = fmtSup(obj.sup_oficial_km2) || 'Sin superficie';
-  header.appendChild(chip);
-  header.appendChild(sup);
+  izq.appendChild(titulo);
+  izq.appendChild(chip);
+  header.appendChild(izq);
+
+  const acciones = document.createElement('div');
+  acciones.className = 'dossier-acciones';
+  const boton = (texto, cls, icono, fn) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `report-btn ${cls || ''}`;
+    b.innerHTML = icono;
+    b.appendChild(document.createTextNode(texto));
+    b.addEventListener('click', fn);
+    return b;
+  };
+  const icoLinaje = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.2 7.4 15.8 10.8M8.2 16.6l7.6-3.4"/></svg>';
+  const icoMapa = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  const icoExport = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  acciones.appendChild(boton('Ver Linaje', '', icoLinaje, () => window.yvyDrawer?.open('linaje')));
+  acciones.appendChild(boton('Ver Mapa', '', icoMapa, () => window.yvyDrawer?.open('mapa')));
+  acciones.appendChild(boton('Exportar Reporte', 'report-btn--primary', icoExport, () => window.print()));
+  header.appendChild(acciones);
   return header;
 }
 
-function metrica(valor, label) {
+/** Fuente y fecha de corte del dataset demográfico (nada inventado). */
+function fuenteDemografia() {
+  const d = getDatasets().find((x) => x.tipo === 'demografia');
+  if (!d) return null;
+  return { fuente: fuenteHumana(d.fuente).corto || d.fuente || null, fecha: d.fecha_vigencia || null };
+}
+
+function metrica(valor, label, origen) {
   const item = document.createElement('div');
   item.className = 'dossier-metrica';
   const v = document.createElement('div');
@@ -179,6 +208,12 @@ function metrica(valor, label) {
   l.textContent = label;
   item.appendChild(v);
   item.appendChild(l);
+  if (origen) {
+    const src = document.createElement('div');
+    src.className = 'dossier-metrica__source';
+    src.textContent = origen;
+    item.appendChild(src);
+  }
   return item;
 }
 
@@ -190,7 +225,7 @@ function bloqueHero(m, densidadTexto) {
   // R11: el estado `missing` se DICE (SPEC §4). Un guion solo no alcanza:
   // el hero lo declara y la nota dice por qué, sin inventar un cero.
   const sinDatos = !m || m.poblacion == null || m.poblacion === '';
-  num.textContent = sinDatos ? '–' : fmtInt.format(Number(m.poblacion) || 0);
+  num.textContent = sinDatos ? 'Sin dato' : fmtInt.format(Number(m.poblacion) || 0);
   num.classList.toggle('dossier-hero-num--vacio', sinDatos);
   const lab = document.createElement('div');
   lab.className = 'dossier-hero-label';
@@ -205,20 +240,33 @@ function bloqueHero(m, densidadTexto) {
     nota.textContent = 'El Censo 2022 no publica datos para este objeto.';
     hero.appendChild(nota);
   }
+  const origen = fuenteDemografia();
+  if (origen && !sinDatos) {
+    const src = document.createElement('div');
+    src.className = 'dossier-hero__source';
+    src.textContent = `Fuente: ${origen.fuente}${origen.fecha ? ` · Fecha de corte: ${origen.fecha}` : ''}`;
+    hero.appendChild(src);
+  }
   return hero;
 }
 
 function bloqueGrid(obj, m) {
   const grid = document.createElement('div');
   grid.className = 'dossier-grid';
-  const num = (v) => (v == null || v === '' || Number(v) === 0 ? '–' : fmtInt.format(Number(v)));
+  // SPEC §4: el dato que no existe es null/missing. Un CERO REAL (p. ej.
+  // 0 concesiones) se muestra como 0: ocultarlo sería un dato falso.
+  const sinDato = 'Sin dato';
+  const num = (v) => (v == null || v === '' || v === 'missing' ? sinDato : fmtInt.format(Number(v)));
+  const origen = fuenteDemografia();
+  const src = origen ? `Fuente: ${origen.fuente}${origen.fecha ? ` · ${origen.fecha}` : ''}` : null;
   const hijos = resumenHijos(obj);
-  grid.appendChild(metrica(num(m && m.poblacion), 'Población'));
-  grid.appendChild(metrica(num(m && m.viviendas), 'Viviendas'));
-  grid.appendChild(metrica(densidad(obj, Number(m && m.poblacion)) ? `${densidad(obj, Number(m && m.poblacion))} hab/km²` : '–', 'Densidad'));
-  grid.appendChild(metrica(num(m && m.pob_colectivas), 'Población en viviendas colectivas'));
-  grid.appendChild(metrica(num(m && m.pob_calle), 'Población en situación de calle'));
-  grid.appendChild(metrica(hijos ? hijos.texto : '–', 'Jurisdicción'));
+  grid.appendChild(metrica(num(m && m.poblacion), 'Población', src));
+  grid.appendChild(metrica(num(m && m.viviendas), 'Viviendas', src));
+  const dens = m && m.poblacion != null ? densidad(obj, Number(m.poblacion)) : null;
+  grid.appendChild(metrica(dens ? `${dens} hab/km²` : sinDato, 'Densidad', dens && obj.sup_fuente ? `Cálculo propio sobre superficie ${obj.sup_fuente}` : src));
+  grid.appendChild(metrica(num(m && m.pob_colectivas), 'Población en viviendas colectivas', src));
+  grid.appendChild(metrica(num(m && m.pob_calle), 'Población en situación de calle', src));
+  grid.appendChild(metrica(hijos ? hijos.texto : sinDato, 'Jurisdicción', 'Fuente: registro de jurisdicciones'));
   return grid;
 }
 
@@ -1073,6 +1121,7 @@ function abrirGrupoAcordeon(grupo) {
 export async function renderFicha(obj) {
   const contenedor = contenedorFicha();
   if (!contenedor) return;
+  contenedor.classList.add('dossier--report');
   const token = ++renderToken;
   contenedor.innerHTML = '';
 

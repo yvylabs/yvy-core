@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
 /* ==============================================================
    Yvy Core — Sistema de diseño v6 (grafito Palantir Gotham)
@@ -2373,3 +2374,187 @@ html[data-theme="light"] .swap-pill { background: rgba(255, 255, 255, 0.85); }
 
 /* Foco del dataset desde el start screen */
 .dossier-acc--foco { outline: 1px solid rgba(16, 185, 129, 0.55); border-radius: var(--radius); }
+
+/* ==============================================================
+   YVY CORE — SKIN "INFORME" (handoff 17-nov-2026)
+   UI clara fija, tarjeta tipo A4, Lora, verde auditoría.
+   El mapa sigue siendo widget dark (R7): no se cambian sus tokens.
+   ============================================================== */
+
+html[data-theme="light"] {
+  --bg: #F9F9F9;
+  --dock-bg: #F9F9F9;
+  --surface: #FFFFFF;
+  --canvas: #FFFFFF;
+  --border: #EAEAEA;
+  --border-strong: #EAEAEA;
+  --text: #1A1A1A;
+  --text-dim: #5A5A5A;
+  --text-muted: #5A5A5A;
+  --accent: #0F5132;
+  --accent-bright: #0F5132;
+  --accent-dim: rgba(15, 81, 50, 0.10);
+  --accent-glow: rgba(15, 81, 50, 0.05);
+  --font-report: 'Lora', Georgia, 'Times New Roman', serif;
+}
+
+/* Sin panel fijo: el grafo y el mapa esperan en el drawer (fuera de pantalla
+   pero con tamaño real, para que MapLibre no arranque con 0x0). */
+html:not([data-drawer="linaje"]) .panel-grafo,
+html:not([data-drawer="mapa"]) .mapa-col {
+  position: fixed !important;
+  top: -12000px;
+  left: -12000px;
+  width: 460px;
+  height: 680px;
+  opacity: 0.01;
+  pointer-events: none;
+}
+html[data-drawer] .layout { --dock-ancho: 100vw; }
+html[data-drawer] .dock { width: 100vw; }
+
+/* Drawer único: pestañas Linaje / Mapa */
+.drawer[hidden] { display: none; }
+.drawer { position: fixed; inset: 0; z-index: 120; }
+.drawer__scrim { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.28); }
+.drawer__panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: min(620px, 100vw);
+  background: #FFFFFF;
+  border-left: 1px solid var(--border);
+  box-shadow: -20px 0 60px rgba(15, 23, 42, 0.12);
+  display: flex; flex-direction: column;
+}
+.drawer__head {
+  height: 56px; flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; border-bottom: 1px solid var(--border);
+}
+.drawer__tabs { display: flex; gap: 6px; }
+.drawer__tabs button {
+  font: 500 13px var(--font); color: var(--text-dim);
+  background: transparent; border: 1px solid transparent;
+  border-radius: 4px; padding: 7px 14px; cursor: pointer;
+}
+.drawer__tabs button[aria-pressed="true"] {
+  color: var(--accent); border-color: var(--accent-dim); background: var(--accent-glow);
+}
+.drawer__close {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-dim); font-size: 16px; padding: 6px;
+}
+.drawer__slot { flex: 1; min-height: 0; overflow: hidden; }
+.drawer__slot > .panel-grafo,
+.drawer__slot > .mapa-col {
+  position: static !important;
+  width: 100% !important; height: 100% !important;
+  opacity: 1 !important; pointer-events: auto !important;
+  border: none; border-radius: 0; box-shadow: none;
+}
+.drawer__slot > .panel-grafo .panel-grafo__label { color: var(--accent); }
+
+/* Dossier = hoja de informe */
+html[data-dock="dossier"] .floating-panel {
+  width: min(940px, calc(100vw - 40px)) !important;
+  left: 50% !important; right: auto !important;
+  top: calc(var(--topbar-height) + 24px);
+  transform: translateX(-50%);
+  max-height: calc(100dvh - var(--topbar-height) - 48px);
+  background: #FFFFFF;
+  border: 1px solid #EAEAEA;
+  border-radius: 2px;
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.10);
+}
+.dossier--report { padding: 0; color: #1A1A1A; }
+.dossier--report .dossier-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 20px; padding: 36px 52px; border-bottom: 1px solid #EAEAEA;
+  background: #FFFFFF;
+}
+.dossier--report .dossier-header__izq { display: flex; flex-direction: column; gap: 8px; }
+.dossier--report .dossier-header__titulo {
+  font-family: var(--font-report); font-size: 3rem; font-weight: 600;
+  letter-spacing: -0.02em; line-height: 1.08; color: #1A1A1A;
+}
+.dossier--report .dossier-chip {
+  font-family: var(--font); font-size: 0.78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: #5A5A5A; background: transparent; border: none; padding: 0;
+}
+.dossier--report .dossier-acciones { display: flex; gap: 10px; flex-wrap: wrap; }
+.report-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #FFFFFF; border: 1px solid #EAEAEA; border-radius: 4px;
+  color: #1A1A1A; padding: 10px 16px; cursor: pointer;
+  font: 500 0.85rem var(--font); transition: border-color 120ms ease, background 120ms ease;
+}
+.report-btn svg { width: 16px; height: 16px; }
+.report-btn:hover { border-color: #CCC; background: #FAFAFA; }
+.report-btn--primary { background: #1A1A1A; color: #FFFFFF; border-color: #1A1A1A; }
+.report-btn--primary:hover { background: #000000; }
+
+.dossier--report .dossier-hero { padding: 44px 52px 8px; background: #FFFFFF; }
+.dossier--report .dossier-hero-num,
+.dossier--report .dossier-hero .dossier-hero-num {
+  font-family: var(--font); font-size: 5.5rem; font-weight: 500;
+  line-height: 1; letter-spacing: -0.04em; color: #0F5132;
+}
+.dossier--report .dossier-hero-num--vacio { color: #5A5A5A; font-size: 2rem; font-style: italic; }
+.dossier--report .dossier-hero-label { font-size: 1.1rem; font-weight: 500; color: #1A1A1A; }
+.dossier--report .dossier-hero__source,
+.dossier--report .dossier-hero-nota {
+  margin-top: 12px; font-size: 0.85rem; color: #5A5A5A;
+}
+.dossier--report .dossier-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 34px 44px;
+  padding: 36px 52px 44px; margin-top: 32px;
+  border-top: 1px solid #EAEAEA; background: #FFFFFF;
+}
+.dossier--report .dossier-metrica__valor,
+.dossier--report .dossier-metrica:nth-child(n+3) .dossier-metrica__valor {
+  font-size: 1.8rem; font-weight: 500; line-height: 1.15; color: #0F5132;
+}
+.dossier--report .dossier-metrica__label { font-size: 0.9rem; font-weight: 500; color: #1A1A1A; }
+.dossier--report .dossier-metrica__source { font-size: 0.8rem; color: #5A5A5A; margin-top: 2px; }
+.dossier--report .dossier-sintesis,
+.dossier--report .dossier-acc,
+.dossier--report .dossier-grafo-bloque { padding-left: 52px; padding-right: 52px; }
+
+/* Sello de auditoría: el hash sigue visible y verificable */
+.dossier--report .dossier-cert {
+  margin: 20px 52px 48px; padding: 24px;
+  background: #F4F9F5; border: 1px solid rgba(15, 81, 50, 0.14); border-radius: 4px;
+}
+.dossier--report .dossier-cert .dossier-acc__head { background: transparent; border: none; padding: 0 0 12px; }
+.dossier--report .dossier-cert .dossier-acc__head h3,
+.dossier--report .dossier-cert .dossier-acc__head strong {
+  font-family: var(--font-report); font-size: 1.1rem; color: #0F5132;
+}
+.dossier--report .dossier-cert__hash { font-family: var(--font-mono); font-size: 0.75rem; color: #0F5132; }
+
+@media (max-width: 768px) {
+  .dossier--report .dossier-header { padding: 24px; flex-direction: column; }
+  .dossier--report .dossier-header__titulo { font-size: 2.2rem; }
+  .dossier--report .dossier-hero { padding: 28px 24px 8px; }
+  .dossier--report .dossier-hero-num,
+  .dossier--report .dossier-hero .dossier-hero-num { font-size: 3.6rem; }
+  .dossier--report .dossier-grid { grid-template-columns: 1fr; padding: 28px 24px; gap: 24px; }
+  .dossier--report .dossier-cert { margin: 16px 24px 32px; }
+  .dossier--report .dossier-sintesis,
+  .dossier--report .dossier-acc,
+  .dossier--report .dossier-grafo-bloque { padding-left: 24px; padding-right: 24px; }
+}
+
+/* Exportar Reporte = Guardar como PDF desde el navegador */
+@media print {
+  .topbar, .drawer, .toolbar, .welcome, .dossier-tabs, .swap-pill,
+  .dossier-acciones, .floating-panel__head, .mapa-col, .panel-grafo { display: none !important; }
+  html, body { background: #FFFFFF !important; }
+  .floating-panel, html[data-dock="dossier"] .floating-panel {
+    position: static !important; width: 100% !important; max-height: none !important;
+    transform: none !important; border: none !important; box-shadow: none !important;
+  }
+  .floating-panel__body { overflow: visible !important; }
+  .dossier--report .dossier-acc[hidden], .dossier-acc__body[hidden] { display: block !important; }
+  @page { size: A4; margin: 18mm; }
+}
