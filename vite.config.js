@@ -1401,6 +1401,10 @@ function yvyManifest() {
   };
 }
 
+// La receta tabular (scripts/receta.mjs) usa ESTA función: si hubiera una
+// segunda implementación, los hashes podrían divergir sin que nadie lo note.
+export { escribirManifest };
+
 export default defineConfig({
   base: '/',
   plugins: [yvyManifest()],

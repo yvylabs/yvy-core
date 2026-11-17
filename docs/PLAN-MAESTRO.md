@@ -515,6 +515,40 @@ certificado, el bloque no existe.
 Actions. Pages deploya async después del workflow; hacerlo desde CI
 implica sondear y acoplar CI a Pages. Hoy se verifica a mano con `curl`.
 
+### Identidad y receta tabular — completado (17-nov-2026)
+
+El `yvy_id` sigue derivándose (`offset + código oficial`). Lo que faltaba
+era gobernanza, y ahora está en el contrato, no en un script suelto.
+
+| Antes | Ahora |
+|---|---|
+| 8 municipios con id de relleno `9000000001..8` (fuera de rango, sin `cod_indec`) | `2000001..8` en el bloque **indeterminado** declarado, con `id_anterior` |
+| Barrios posicionales (insertar uno renumeraba los posteriores) | Secuencia **append-only** + bloque de desborde |
+| "Confiá en mis ids" | `public/data/ids.json` (una entidad por línea) + `hash_catalogo` en el manifest |
+
+`municipio` pasa a `[1000000, 2199999]`: 1.000.000–1.999.999 es derivable
+y 2.000.000–2.199.999 es reservado, así que ningún `cod_indec` de 6
+dígitos puede colisionar (el intento con 1.900.000 chocaba con municipios
+reales). El build **corta** si hay id fuera de rango, duplicado o en
+bloque reservado sin excepción.
+
+Verificación en producción (`yvy-explorer.pages.dev`): 3.334 entidades,
+`hash_catalogo 559f331f…0438`, 8 migraciones aplicadas, `2000001` →
+Colonia Cerrito y `9000000001` inexistente.
+
+**Receta tabular** (`pnpm run receta`): `escribirManifest()` está exportada
+desde `vite.config.js` y la receta la llama — no hay una segunda
+implementación que pueda divergir. Cargar un parquet nuevo en
+`data/registry/` y correr la receta es todo; los pines de
+`data/receta.verificacion.json` (Capital `1660063`:
+`48812c29…6d12` / `1dd79167…f06c`) fallan si un dato nuevo mueve lo que
+ya estaba publicado. Cada corrida deja `public/data/receta.json`.
+
+**Deuda anotada:** `escribirManifest` vive dentro de `vite.config.js`
+(700 líneas). La receta la reutiliza sin duplicar, pero extraerla a
+`src/lib/` es el paso limpio cuando el runner tenga que correr sin Vite
+en GitHub Actions.
+
 ### Pendiente inmediato
 - CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
 - Repo a privado (después de confirmar que el CNAME funciona).
