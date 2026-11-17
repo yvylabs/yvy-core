@@ -10,7 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from yvy_plantilla import (
     norm_txt, limpiar_txt, to_int, to_float,
     yvy_id_provincia, yvy_id_depto, yvy_id_municipio, yvy_id_barrio,
-    validar_rango, RANGO_YVY, PILOTO_KEYS, CATEGORIA_TIPO,
+    yvy_id_barrio_libre, validar_rango, RANGO_YVY, BLOQUES_RESERVADOS,
+    TOPE_BARRIOS, PILOTO_KEYS, CATEGORIA_TIPO,
 )
 
 
@@ -55,6 +56,26 @@ class TestYvyId(unittest.TestCase):
     def test_prefijo_barrio(self):
         yid, pid = 1660063127, 1660063
         self.assertTrue(str(yid).startswith(str(pid)))
+
+    def test_barrio_libre_es_append_only(self):
+        muni = 1660063
+        ocupados = {muni * 1000 + 1, muni * 1000 + 2, muni * 1000 + 3}
+        self.assertEqual(yvy_id_barrio_libre(muni, ocupados), muni * 1000 + 4)
+        # Un hueco en el medio se rellena, pero nada se renumera.
+        con_hueco = {muni * 1000 + 1, muni * 1000 + 3}
+        self.assertEqual(yvy_id_barrio_libre(muni, con_hueco), muni * 1000 + 2)
+
+    def test_barrio_desborde(self):
+        muni = 1660063
+        ocupados = {muni * 1000 + s for s in range(1, 1000)}
+        nuevo = yvy_id_barrio_libre(muni, ocupados)
+        self.assertGreaterEqual(nuevo, 2000000000)
+        self.assertLessEqual(nuevo, 2999999999)
+        self.assertTrue(validar_rango(nuevo, "barrio"))
+
+    def test_bloque_reservado_municipio_es_valido(self):
+        self.assertTrue(validar_rango(2000001, "municipio"))
+        self.assertFalse(validar_rango(9000000001, "municipio"))
 
 
 class TestContrato(unittest.TestCase):

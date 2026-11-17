@@ -62,9 +62,22 @@ RANGO_YVY = {
     "pais": (0, 999),
     "provincia": (1000, 1999),
     "departamento": (100000, 199999),
-    "municipio": (1000000, 1999999),
+    # 1.000.000–1.999.999 derivados (1.000.000 + cod_indec);
+    # 2.000.000–2.199.999 bloques reservados (ver BLOQUES_RESERVADOS).
+    "municipio": (1000000, 2199999),
     "barrio": (1000000000, 1999999999),
 }
+# Debe coincidir con src/lib/identidad.js (contrato de identidad).
+BLOQUES_RESERVADOS = {
+    "municipio": {
+        "indeterminado": (2000000, 2049999),  # INDEC sin cod_indec
+        "reasignado": (2050000, 2199999),     # recodificación
+    },
+    "barrio": {
+        "desborde": (2000000000, 2999999999),  # municipio con >999 barrios
+    },
+}
+TOPE_BARRIOS = 999
 OFFSET_YVY = {"provincia": 1000, "departamento": 100000, "municipio": 1000000}
 CATEGORIA_TIPO = {
     "demografia": "Sociedad", "escuelas": "Sociedad", "salud": "Sociedad",
@@ -245,13 +258,44 @@ def yvy_id_municipio(cod_indec) -> int:
 
 
 def yvy_id_barrio(yvy_municipio: int, secuencia_1based: int) -> int:
-    """Secuencia sobre orden DETERMINISTA (ordenar por nom_largo antes)."""
+    """Id de barrio a partir de una secuencia ya asignada (no la inventa).
+
+    OJO: la secuencia NO es posicional por orden alfabético. Insertar un
+    barrio "en el medio" renumeraba todos los posteriores y rompía
+    permalinks y certificados. Para asignar un barrio nuevo usar
+    `yvy_id_barrio_libre(..., ocupados)` (append-only).
+    """
     return int(f"{int(yvy_municipio)}{int(secuencia_1based):03d}")
+
+
+def yvy_id_barrio_libre(yvy_municipio: int, ocupados) -> int | None:
+    """Siguiente id de barrio libre del municipio (append-only).
+
+    Nunca renumera ni reutiliza: si los 999 del prefijo están ocupados,
+    pasa al bloque de desborde. `ocupados` es cualquier contenedor con
+    `in` (set, dict, lista).
+    """
+    muni = int(yvy_municipio)
+    for seq in range(1, TOPE_BARRIOS + 1):
+        candidato = muni * 1000 + seq
+        if candidato not in ocupados:
+            return candidato
+    lo, hi = BLOQUES_RESERVADOS["barrio"]["desborde"]
+    for candidato in range(lo, hi + 1):
+        if candidato not in ocupados:
+            return candidato
+    return None
 
 
 def validar_rango(yvy_id: int, nivel: str) -> bool:
     lo, hi = RANGO_YVY[nivel]
-    return lo <= int(yvy_id) <= hi
+    yid = int(yvy_id)
+    if lo <= yid <= hi:
+        return True
+    if nivel == "barrio":
+        dlo, dhi = BLOQUES_RESERVADOS["barrio"]["desborde"]
+        return dlo <= yid <= dhi
+    return False
 
 
 # ============================================================
