@@ -1,0 +1,31 @@
+{
+  "schema": "yvy-pmtiles-v1",
+  "artefactos": [
+    {
+      "nivel": "municipio",
+      "archivo": "municipios.pmtiles",
+      "url": "https://yvy-explorer.pages.dev/data/municipios.pmtiles",
+      "bytes": 26504594,
+      "sha256": "e8b2eca94329fe8c13f79cbb3edb83dafbbfcdd0c9b3f437fa6a0b770a139d16",
+      "tile_entries": 341073,
+      "addressed_tiles": 534287,
+      "min_zoom": 8,
+      "max_zoom": 14,
+      "bounds": [
+        -72.900653,
+        -54.858385,
+        -53.637369,
+        -21.780857
+      ],
+      "center": [
+        -62.281494,
+        -39.3088
+      ],
+      "center_zoom": 14,
+      "capa_interna": "municipios",
+      "version": 3,
+      "verificado_en": "2026-11-17T16:27:11.107Z",
+      "verificado_como": "Range bytes=0-126 (header PMTiles v3) + sha256 del cuerpo completo"
+    }
+  ]
+}

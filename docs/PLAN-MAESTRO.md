@@ -549,6 +549,44 @@ ya estaba publicado. Cada corrida deja `public/data/receta.json`.
 `src/lib/` es el paso limpio cuando el runner tenga que correr sin Vite
 en GitHub Actions.
 
+### Verdad sobre la geometría — completado (17-nov-2026)
+
+El manifest decía `tiene_geometria: false` para los 2.348 municipios
+mientras `municipios.pmtiles` (26,5 MB, z8–14) se servía en producción.
+No era un dato faltante: era un dato falso, y encima la cámara de esos
+municipios se "heredaba" del manifest anterior (coordenadas que nadie
+podía verificar; varias caían en el centro del país).
+
+| Antes | Ahora |
+|---|---|
+| 2.348 municipios "sin geometría" | `geometria.estado = remota` + `pmtiles: municipios.pmtiles` |
+| `faltantes: 2348` en `fuentes` | `faltantes: 0` |
+| Centro heredado del manifest previo | Centroide del caché validado por tamaño; sin dato ⇒ `null` |
+| "confiá en que el PMTiles está" | `data/pmtiles.json` con `sha256`, bytes, zooms y bounds leídos por Range |
+
+`scripts/pmtiles.mjs` (o `pnpm run pmtiles verificar --nivel municipio
+--url … --sha256 --escribir`) pide 127 bytes de header con HTTP Range —
+con `Accept-Encoding: identity`, porque con gzip los offsets del PMTiles
+mienten — y, opcionalmente, hashea el artefacto completo. Eso queda en
+`data/pmtiles.json`, que es fuente commiteada: el build no depende de la
+red.
+
+Estados por objeto: `local` (archivo en el repo), `remota` (artefacto
+declarado y verificado; el feature se resuelve al render) y `missing`.
+`tiene_geometria` ahora significa "hay geometría publicada y servible",
+y `geometria.estado` dice dónde. Nada de eso es fe: el header del
+artefacto está en el manifest con su hash.
+
+Efecto medido: 2.348/2.348 municipios con geometría; **251 sin
+centroide** (el artefacto no tiene feature con ese `id`), que quedan
+`null` en vez de una coordenada inventada. Los 8 ids migrados
+conservan su centroide vía `centro_id_origen` cuando el artefacto aún
+usa el id viejo, hasta que se reconstruya el PMTiles.
+
+**Deuda anotada:** el caché `municipios_centros.json` está en `v: 5`
+(sin `centro_etiqueta`); se acepta v5/v6 validado por tamaño de
+artefacto. Regenerarlo a v6 requiere el PMTiles local.
+
 ### Pendiente inmediato
 - CNAME `explorer.yvylabs.com` (Custom domains del proyecto Pages).
 - Repo a privado (después de confirmar que el CNAME funciona).
