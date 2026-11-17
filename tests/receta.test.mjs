@@ -87,7 +87,7 @@ test('la receta detecta un pin movido y sale con código 1', { skip: !hayBuild &
   let codigo = 0;
   let salida = '';
   try {
-    salida = execFileSync(process.execPath, [join(RAIZ, 'scripts/receta.mjs'), '--sin-regenerar', '--pines', archivo, '--json'], {
+    salida = execFileSync(process.execPath, [join(RAIZ, 'scripts/receta.mjs'), '--sin-regenerar', '--pines', archivo, '--sin-reporte', '--json'], {
       cwd: RAIZ,
       encoding: 'utf8',
     });

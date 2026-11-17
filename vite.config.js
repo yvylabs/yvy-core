@@ -701,6 +701,15 @@ async function construirManifest() {
       centrosNivel.set(nivel, await centrosDeNivel(nivel, metaNivel, advertencias));
     }
     const centros = metaNivel ? centrosNivel.get(nivel) : null;
+    // Cobertura real del artefacto remoto: ids de feature vistos al
+    // construirlo (centros.observados). El build no necesita la red para
+    // saber qué entidad NO tiene geometría en el artefacto.
+    const observados = metaNivel?.remoto && Array.isArray(centros?.observados)
+      ? new Set(centros.observados.map(Number))
+      : null;
+    const idsEntidad = new Set();
+    let conFeature = 0;
+    let sinFeature = 0;
     for (let r = 0; r < filas.length; r++) {
       const f = filas[r];
       const c = aColumnas(encabezados, f);
@@ -736,8 +745,21 @@ async function construirManifest() {
         tiene_geometria: false,
       };
 
+      idsEntidad.add(yvyId);
+      if (obj.id_anterior != null) idsEntidad.add(Number(obj.id_anterior));
+
       const pmtiles = metaNivel || (await buscarPMTiles(nivel, yvyId));
-      if (pmtiles) {
+      // ¿El artefacto remoto tiene una feature para esta entidad? Se mira
+      // el id actual y, si hubo migración, el anterior (los tiles todavía
+      // no se reconstruyeron con los ids nuevos).
+      const cubierto = !observados
+        || observados.has(yvyId)
+        || (obj.id_anterior != null && observados.has(Number(obj.id_anterior)));
+      if (pmtiles && !cubierto) {
+        sinFeature++;
+        obj.geometria = { estado: 'missing', artefacto: pmtiles.rel, motivo: 'sin_feature_en_artefacto' };
+      } else if (pmtiles) {
+        conFeature++;
         const meta = metaNivel || (await leerMetadatosPMTiles(path.join(DATA_DIR, pmtiles.rel)));
         if (meta) {
           obj.minzoom = meta.minZoom;
@@ -789,8 +811,20 @@ async function construirManifest() {
     }
     if (metaNivel && filasValidas > 0) {
       const conGeometria = new Set([...Object.keys(centros?.porId || {}), ...(centros?.observados || [])]);
-      if (conGeometria.size < filasValidas) {
+      if (!observados && conGeometria.size < filasValidas) {
         advertencias.push(`${archivo}: ${conGeometria.size}/${filasValidas} features con id coincidente con yvy_id en ${metaNivel.rel}. Esperado: una sola propiedad "id" con el valor de yvy_id (id actual: ${Object.keys(centros?.porId || {}).slice(0, 5).join(', ') || 'ninguna propiedad id/yvy_id'}).`);
+      }
+      if (metaNivel.remoto && observados) {
+        // Quién tiene y quién no tiene feature: el número, no la promesa.
+        const huerfanos = [...observados].filter((id) => !idsEntidad.has(id)).sort((a, b) => a - b);
+        metaNivel.cobertura = {
+          features_con_id: observados.size,
+          entidades_con_feature: conFeature,
+          entidades_sin_feature: sinFeature,
+          ids_huerfanos: huerfanos,
+          verificado_con: `${path.basename(metaNivel.rel, '.pmtiles')}_centros.json#observados`,
+        };
+        advertencias.push(`${metaNivel.rel}: ${conFeature} entidad(es) con feature, ${sinFeature} sin feature en el artefacto${huerfanos.length ? `, ${huerfanos.length} feature(s) con id que no es de ninguna entidad` : ''}.`);
       }
     }
     fuentes.push({ nivel, archivo, filas: filasValidas, pmtiles: pmtilesOk, faltantes: filasValidas - pmtilesOk, geometria: metaNivel ? (metaNivel.remoto ? 'remota' : 'local') : 'missing' });
@@ -1433,6 +1467,7 @@ async function escribirManifest() {
             bounds: a.bounds,
             center: a.center,
             capa_interna: a.capaInterna,
+            cobertura: a.cobertura || null,
             verificado_en: a.verificadoEn,
           })),
         }

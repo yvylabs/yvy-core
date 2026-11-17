@@ -559,10 +559,11 @@ podía verificar; varias caían en el centro del país).
 
 | Antes | Ahora |
 |---|---|
-| 2.348 municipios "sin geometría" | `geometria.estado = remota` + `pmtiles: municipios.pmtiles` |
-| `faltantes: 2348` en `fuentes` | `faltantes: 0` |
+| 2.348 municipios "sin geometría" | `geometria.estado = remota` (2.097) o `missing` con motivo (251) |
+| `faltantes: 2348` en `fuentes` | `faltantes: 251`, medidos contra las features del artefacto |
 | Centro heredado del manifest previo | Centroide del caché validado por tamaño; sin dato ⇒ `null` |
 | "confiá en que el PMTiles está" | `data/pmtiles.json` con `sha256`, bytes, zooms y bounds leídos por Range |
+| "todas tienen geometría" | `cobertura` por artefacto: features, entidades con feature, sin feature e ids huérfanos |
 
 `scripts/pmtiles.mjs` (o `pnpm run pmtiles verificar --nivel municipio
 --url … --sha256 --escribir`) pide 127 bytes de header con HTTP Range —
@@ -577,11 +578,21 @@ declarado y verificado; el feature se resuelve al render) y `missing`.
 y `geometria.estado` dice dónde. Nada de eso es fe: el header del
 artefacto está en el manifest con su hash.
 
-Efecto medido: 2.348/2.348 municipios con geometría; **251 sin
-centroide** (el artefacto no tiene feature con ese `id`), que quedan
-`null` en vez de una coordenada inventada. Los 8 ids migrados
-conservan su centroide vía `centro_id_origen` cuando el artefacto aún
-usa el id viejo, hasta que se reconstruya el PMTiles.
+**Medición, no intuición.** Se auditaron los tiles reales (z9, vía
+`getZxy`): 2.105 features, **todas con id de feature MVT**, 2.097 con
+`id` de una entidad del catálogo y **8 con id que no es de ninguna**
+(`1309005`, `1309030`, `1309075`, `1309580`, `1309680`, `1309720`,
+`1386164`, `1540199` → geometría sin entidad). Los 251 municipios
+restantes **no tienen feature en el artefacto**: no es que el centroide
+caiga fuera del polígono (el cálculo es ponderado y siempre existe), es
+que no hay polígono con su `id`. Quedan `missing` con
+`motivo: sin_feature_en_artefacto`, `pmtiles: null` y `centro: null`.
+La cobertura se publica en `geometria.artefactos[].cobertura` y se
+verifica sin red con `municipios_centros.json#observados`.
+
+Los 8 ids migrados conservan su centroide vía `centro_id_origen`
+cuando el artefacto aún usa el id viejo, hasta que se reconstruya el
+PMTiles.
 
 **Deuda anotada:** el caché `municipios_centros.json` está en `v: 5`
 (sin `centro_etiqueta`); se acepta v5/v6 validado por tamaño de
