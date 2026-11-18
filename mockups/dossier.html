@@ -1,0 +1,54 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Yvy Core — mockup</title>
+<style>
+:root{--paper:#F9F9F9;--sheet:#FFF;--line:#EAEAEA;--ink:#1A1A1A;--mute:#5A5A5A;--green:#0F5132;--sage:#F4F9F5}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px Inter,system-ui,sans-serif;padding:48px 20px;display:flex;justify-content:center}
+.sheet{background:var(--sheet);border:1px solid var(--line);width:min(940px,100%);padding:40px 52px;box-shadow:0 20px 40px -10px #0f172a14}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--mute)}
+h1{font:600 46px Lora,Georgia,serif;letter-spacing:-.02em;margin:6px 0 18px}
+h2{font:600 19px Lora,Georgia,serif;margin:0}
+h3{font:600 11px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:0 0 8px}
+.top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:26px}
+.brand{display:flex;gap:10px;align-items:center;font-weight:700}.brand img{width:28px;height:28px}
+.brand small{display:block;font-weight:400;font-size:11px;color:var(--mute);letter-spacing:.04em}
+.tag{color:var(--green);border:1px solid #b7d6c3;background:var(--sage);padding:4px 10px;border-radius:3px;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.actions{display:flex;gap:8px}.btn{border:1px solid var(--line);background:#fff;padding:8px 12px;border-radius:4px;font:500 12px Inter,sans-serif}.btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.hero{border:1px solid #cfe4d5;border-radius:4px;padding:26px;margin-bottom:28px;background:#fcfefc}
+.value{font-size:74px;font-weight:500;color:var(--green);line-height:1;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.label{font-size:15px;font-weight:500;margin-top:10px}.src{font-size:12px;color:var(--mute);margin-top:8px}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:18px 0;margin-bottom:26px}
+.strip div b{display:block;font-size:22px;color:var(--green);font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;margin-bottom:26px;font-size:13px}
+th{text-align:left;font:600 10px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);padding:8px 4px}
+td{border-bottom:1px solid #F1F1F1;padding:9px 4px;font-variant-numeric:tabular-nums}
+td.hash{font:11px ui-monospace,monospace;color:var(--green)}
+.missing{font-style:italic;color:#999}
+.seal{background:var(--sage);border:1px solid #cfe4d5;padding:18px;border-radius:4px;display:flex;gap:14px;align-items:flex-start}
+.seal b{font:600 15px Lora,Georgia,serif;color:var(--green)}
+code{font:11px ui-monospace,monospace;color:var(--green);overflow-wrap:anywhere}
+.note{font-size:11px;color:var(--mute);font-style:italic;margin-top:20px}
+ul.tree{list-style:none;padding-left:18px;border-left:1px solid var(--line);margin:8px 0 8px 8px}
+ul.tree li{padding:5px 0;font-size:13px}.tree li b{color:var(--green)}
+.rel{display:flex;justify-content:space-between;border-bottom:1px solid #F1F1F1;padding:8px 0;font-size:13px}
+.rel span:last-child{color:var(--green);font:11px ui-monospace,monospace}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.tabs span{padding:8px 14px;font-size:12px;color:var(--mute)}.tabs span.on{color:var(--green);border-bottom:2px solid var(--green)}
+</style><body><div class="sheet">
+<div class="top"><div class="brand"><img src="../public/assets/yvy_logo.png" alt=""><div>Yvy Core<small>Infraestructura de datos</small></div></div><div class="actions"><span class="btn">Ver linaje</span><span class="btn">Ver esquema</span><span class="btn primary">Exportar reporte</span></div></div>
+<div class="eyebrow">Argentina / Salta / Capital · yvy_id 166028</div>
+<h1>Capital</h1><span class="tag">depto</span>
+<div class="hero"><div class="value">627.704</div><div class="label">Habitantes · 365.8 hab/km²</div>
+<div class="src">Fuente: Censo 2022 - censo.gob.ar/gobiernos-locales · corte 2022-05 · v1.1</div></div>
+<div class="strip">
+<div><b>7</b> métricas verificadas</div>
+<div><b>0</b> métricas missing</div>
+<div><b>9</b> relaciones · 2 hijos</div>
+</div>
+<h3>Evidencia · clic en el hash → fuente → dato → hash</h3>
+<table><thead><tr><th>Métrica</th><th>Valor</th><th>Fuente</th><th>Corte</th><th>hash_entidad</th></tr></thead>
+<tbody><tr><td>poblacion</td><td>627.704 habitantes</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr><tr><td>viviendas</td><td>200.749 viviendas</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr><tr><td>viv_particulares</td><td>200.640 viviendas</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr><tr><td>pob_particulares</td><td>624.003 habitantes</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr><tr><td>viv_colectivas</td><td>109 viviendas</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr><tr><td>pob_colectivas</td><td>3.474 habitantes</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr><tr><td>pob_calle</td><td>227 habitantes</td><td>Censo 2022 - censo.gob.ar/gobiernos-locales</td><td>2022-05</td><td class='hash'>✓ 7038c8a31ba6…</td></tr></tbody></table>
+<h3>Ficha del modelo</h3>
+<p style="font-size:13px;color:var(--mute)">tipo depto · padre Salta (provincia) · 2 hijos · relaciones: cerca_de, lindero · visibilidad public</p>
+<div class="seal"><div style="font-size:22px">✓</div><div><b>Información auditada y verificada</b>
+<p style="font-size:12px;color:var(--mute);margin:4px 0">Hashes recalculados en el navegador (RFC 8785 / SHA-256).</p>
+<code>7038c8a31ba63e07e5a07ee6419b61aae73afde1048efc4a992c6ee5c7edbaf9</code><br><code>010c4db7aabfa550a5523c946500ec34f37a3f3af1c2dcee384250047fcf1efa</code></div></div>
+<p class="note">Mockup estático generado el 2026-11-17 desde public/data/*.json con datos reales. Sin valores inventados.</p></div></body></html>
