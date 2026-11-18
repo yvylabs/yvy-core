@@ -2674,6 +2674,33 @@ html[data-dock="dossier"] .floating-panel__body { padding: 0; overflow: visible;
 .linaje-rel small { font:10px var(--font-mono); color:#5A5A5A; }
 .linaje-vacio, .linaje-nota { font-size:12px; color:#5A5A5A; font-style:italic; margin-top:10px; }
 
+
+/* Decision strip: QUÉ SÉ / QUÉ FALTA / CÓMO SE CONECTA */
+.dossier-decision { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin:0 52px 26px; padding:18px 0; border-top:1px solid #EAEAEA; border-bottom:1px solid #EAEAEA; }
+.dossier-decision--skeleton { min-height:74px; background:linear-gradient(90deg,#F6F6F6,#EFEFEF,#F6F6F6); border-color:transparent; }
+.dossier-decision div b { display:block; font-size:22px; font-weight:500; color:#0F5132; line-height:1.1; font-variant-numeric:tabular-nums; }
+.dossier-decision div span { font-size:0.75rem; font-weight:500; text-transform:uppercase; letter-spacing:0.08em; color:#5A5A5A; }
+
+/* Tabla EVIDENCIA con drill-down de linaje */
+.dossier-evidencia { margin:0 52px 34px; }
+.dossier-evidencia h3 { font:600 0.68rem var(--font); text-transform:uppercase; letter-spacing:0.12em; color:#5A5A5A; margin-bottom:10px; }
+.dossier-evidencia table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.dossier-evidencia th { text-align:left; font:600 0.62rem var(--font); text-transform:uppercase; letter-spacing:0.1em; color:#5A5A5A; border-bottom:1px solid #EAEAEA; padding:8px 6px; }
+.dossier-evidencia td { border-bottom:1px solid #F1F1F1; padding:9px 6px; font-variant-numeric:tabular-nums; vertical-align:top; }
+.dossier-ev-missing { font-style:italic; color:#999; }
+.dossier-ev-hash { background:none; border:none; padding:0; cursor:pointer; font:0.7rem var(--font-mono); color:#0F5132; }
+.dossier-ev-origen { margin-top:8px; padding:10px 12px; background:#F4F9F5; border:1px solid rgba(15,81,50,0.14); border-radius:3px; font:0.68rem/1.7 var(--font-mono); color:#0F5132; overflow-wrap:anywhere; }
+.dossier-ev-origen[hidden] { display:none; }
+.dossier-ev-origen b { font-weight:600; }
+.dossier-ev-vacio { font-style:italic; color:#999; text-align:center; padding:18px !important; }
+.dossier-sectoriales { margin:0 52px 36px; padding-top:18px; border-top:1px solid #EAEAEA; }
+.dossier-sectoriales h3 { font:600 0.68rem var(--font); text-transform:uppercase; letter-spacing:0.12em; color:#5A5A5A; margin-bottom:10px; }
+.dossier--report .dossier-modelo h3 { font-family:var(--font-report); }
+@media (max-width:768px) {
+  .dossier-decision { margin:0 24px 22px; grid-template-columns:1fr; gap:12px; }
+  .dossier-evidencia, .dossier-sectoriales { margin-left:24px; margin-right:24px; overflow-x:auto; }
+}
+
 /* Exportar Reporte = Guardar como PDF desde el navegador */
 @media print {
   .topbar, .drawer, .toolbar, .welcome, .dossier-tabs, .swap-pill,
