@@ -47,7 +47,7 @@ export function abrirDrawer(cual) {
   if (actual === cual) { cerrarDrawer(); return; }
   if (actual) retornar();
 
-  const idNodo = cual === 'linaje' ? 'panel-grafo' : cual === 'modelo' ? 'panel-modelo' : 'mapa-col';
+  const idNodo = cual === 'linaje' ? 'panel-linaje' : cual === 'modelo' ? 'panel-modelo' : 'mapa-col';
   const nodo = document.getElementById(idNodo);
   if (!nodo) return;
   movido = { nodo, padre: nodo.parentNode, siguiente: nodo.nextSibling };

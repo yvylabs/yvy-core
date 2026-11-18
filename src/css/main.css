@@ -2402,7 +2402,8 @@ html[data-theme="light"] {
    pero con tamaño real, para que MapLibre no arranque con 0x0). */
 html:not([data-drawer="linaje"]) .panel-grafo,
 html:not([data-drawer="mapa"]) .mapa-col,
-html:not([data-drawer="modelo"]) #panel-modelo {
+html:not([data-drawer="modelo"]) #panel-modelo,
+html:not([data-drawer="linaje"]) #panel-linaje {
   position: fixed !important;
   top: -12000px;
   left: -12000px;
@@ -2464,7 +2465,8 @@ html[data-drawer] .dock { padding-right: min(620px, 100vw) !important; }
 .drawer__slot { flex: 1; min-height: 0; overflow: hidden; padding: 12px; background: #EAEAEA; }
 .drawer__slot > .panel-grafo,
 .drawer__slot > .mapa-col,
-.drawer__slot > #panel-modelo {
+.drawer__slot > #panel-modelo,
+.drawer__slot > #panel-linaje {
   position: static !important;
   width: 100% !important; height: 100% !important;
   opacity: 1 !important; pointer-events: auto !important;
@@ -2646,6 +2648,31 @@ html[data-dock="dossier"] .floating-panel__body { padding: 0; overflow: visible;
   .dossier--report .dossier-modelo { margin: 0 24px 32px; }
   .dossier-modelo__grid { grid-template-columns: 1fr; }
 }
+
+
+/* Árbol de linaje: lectura ejecutiva, sin solapes */
+#panel-linaje { background:#FFFFFF; display:flex; flex-direction:column; }
+.panel-linaje__body { flex:1; overflow-y:auto; padding:22px 26px; background:#FFFFFF; }
+.linaje-intro { font:11px var(--font-mono); color:#5A5A5A; margin-bottom:18px; }
+.linaje-arbol, .linaje-arbol ul { list-style:none; margin:0; padding-left:18px; border-left:1px solid #EAEAEA; }
+.linaje-arbol { padding-left:0; border:none; }
+.linaje-arbol li { margin:2px 0; }
+.linaje-nodo { display:flex; align-items:baseline; gap:10px; padding:6px 0; border-bottom:1px solid #F4F4F4; }
+.linaje-nodo--activo { background:#F4F9F5; }
+.linaje-ir { background:none; border:none; cursor:pointer; padding:0; font:500 13px var(--font); color:#1A1A1A; text-align:left; }
+.linaje-ir:hover { color:#0F5132; text-decoration:underline; }
+.linaje-nodo--activo .linaje-ir { color:#0F5132; font-weight:600; }
+.linaje-nodo small { font:10px var(--font-mono); color:#5A5A5A; }
+.linaje-mas { font-size:11px; color:#5A5A5A; font-style:italic; padding:4px 0; }
+.panel-linaje__body h3 { font:600 11px var(--font); letter-spacing:.1em; text-transform:uppercase; color:#5A5A5A; margin:24px 0 8px; }
+.linaje-rel { display:grid; grid-template-columns:84px 1fr auto; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #F4F4F4; }
+.linaje-rel__tipo { font:600 10px var(--font-mono); text-transform:uppercase; color:#0F5132; }
+.linaje-rel__tipo--cerca_de { color:#B7791F; }
+.linaje-rel__tipo--regula { color:#2563EB; }
+.linaje-rel button { background:none; border:none; cursor:pointer; text-align:left; font:13px var(--font); color:#1A1A1A; padding:0; }
+.linaje-rel button:hover { color:#0F5132; text-decoration:underline; }
+.linaje-rel small { font:10px var(--font-mono); color:#5A5A5A; }
+.linaje-vacio, .linaje-nota { font-size:12px; color:#5A5A5A; font-style:italic; margin-top:10px; }
 
 /* Exportar Reporte = Guardar como PDF desde el navegador */
 @media print {

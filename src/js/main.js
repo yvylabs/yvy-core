@@ -22,6 +22,7 @@ import { inicializarPanelGrafo, refrescarGrafo, setEstadoCatalogo } from './graf
 import { inicializarTema } from './tema.js';
 import { inicializarDrawer } from './drawer.js';
 import { inicializarModelo } from './modelo.js';
+import { inicializarLinaje } from './linaje.js';
 import { track } from './telemetry.js';
 
 const YVY_STYLE = './styles/yvy-dark.json';
@@ -482,6 +483,7 @@ inicializarUIPaneles();
 inicializarTema();
 inicializarDrawer();
 inicializarModelo();
+inicializarLinaje();
 
 map.on('load', async () => {
   map.resize();

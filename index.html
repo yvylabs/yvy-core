@@ -145,6 +145,12 @@
 
   </div>
 
+    <!-- Linaje: árbol jerárquico con sangría (reemplaza al force graph) -->
+    <section class="panel-linaje" id="panel-linaje" aria-label="Linaje de la entidad">
+      <header class="panel-modelo__top"><span class="panel-grafo__label">LINAJE DEL TERRITORIO</span></header>
+      <div class="panel-linaje__body" id="linaje-body"></div>
+    </section>
+
     <!-- MODELO: explorador de la ontología publicada (se mueve al drawer) -->
     <section class="panel-modelo" id="panel-modelo" aria-label="Modelo de datos">
       <header class="panel-modelo__top"><span class="panel-grafo__label">MODELO DE DATOS</span></header>
@@ -160,7 +166,7 @@
         <nav class="drawer__tabs" aria-label="Vistas del drawer">
           <button type="button" data-drawer-tab="linaje" aria-pressed="true">Linaje</button>
           <button type="button" data-drawer-tab="mapa" aria-pressed="false">Mapa</button>
-          <button type="button" data-drawer-tab="modelo" aria-pressed="false">Modelo</button>
+          <button type="button" data-drawer-tab="modelo" aria-pressed="false">Esquema</button>
         </nav>
         <button class="drawer__close" type="button" data-drawer-close aria-label="Cerrar panel">✕</button>
       </header>
