@@ -1224,13 +1224,10 @@ export async function renderFicha(obj) {
   // el grafo (padre, contiene, vecinos) aunque falte el dato demográfico.
   contenedor.appendChild(bloqueSintesis(obj, null, limita));
 
-  // ---- Grafo de relaciones: acordeón de relaciones, junto a "Contiene" ----
-  contenedor.appendChild(bloqueGrafo(obj, navegarA));
-
-  // ---- Contiene ----
-  const cont = seccionContiene(obj);
+  // El mini-grafo y los acordeones sueltos del visor viejo se fueron:
+  // las relaciones se ven en el drawer (Linaje) y en la Ficha del modelo.
+  const cont = null;  // se conserva el cálculo de extras para síntesis/copia
   if (cont) {
-    contenedor.appendChild(cont);
     const partes = [];
     const grupos = gruposHijos(obj);
     for (const g of grupos) {
@@ -1244,8 +1241,7 @@ export async function renderFicha(obj) {
     if (partes.length > 0) extras.contiene = partes.join(' · ');
   }
 
-  // ---- Vecinos (lindero / cerca de) ----
-  for (const s of seccionesVecinos(obj)) contenedor.appendChild(s);
+  // ---- Vecinos (lindero / cerca de): se reportan en síntesis y Linaje ----
   if (limita) {
     const nombres = [];
     const vistos = new Set();

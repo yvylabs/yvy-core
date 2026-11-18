@@ -2660,3 +2660,7 @@ html[data-dock="dossier"] .floating-panel__body { padding: 0; overflow: visible;
   .dossier--report .dossier-acc[hidden], .dossier-acc__body[hidden] { display: block !important; }
   @page { size: A4; margin: 18mm; }
 }
+
+/* Limpieza PR1: nada del visor viejo dentro del informe. */
+.dossier-grafo-bloque { display: none !important; }
+.drawer__slot .mapa-col__cerrar { display: none !important; }
