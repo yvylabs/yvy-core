@@ -186,6 +186,7 @@ function bloqueHeader(obj) {
   const icoExport = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
   acciones.appendChild(boton('Ver Linaje', '', icoLinaje, () => window.yvyDrawer?.open('linaje')));
   acciones.appendChild(boton('Ver Mapa', '', icoMapa, () => window.yvyDrawer?.open('mapa')));
+  acciones.appendChild(boton('Ver esquema', '', icoLinaje, () => window.yvyDrawer?.open('modelo')));
   acciones.appendChild(boton('Exportar Reporte', 'report-btn--primary', icoExport, () => window.print()));
   header.appendChild(acciones);
   return header;
@@ -281,6 +282,111 @@ function bloqueHero(m, densidadTexto) {
   return hero;
 }
 
+/**
+ * Decision strip: QUÉ SÉ / QUÉ FALTA / CÓMO SE CONECTA. Es el bloque
+ * que convierte la ficha en herramienta: en tres números se ve si el
+ * dato sirve para decidir.
+ */
+function bloqueDecisionStrip(obj, ag) {
+  const strip = document.createElement('div');
+  strip.className = 'dossier-decision';
+  const celdas = [
+    { n: (ag?.metricas && Object.values(ag.metricas).filter((v) => v != null).length) || 0, t: 'métricas verificadas' },
+    { n: (ag?.metricas_missing || []).length, t: 'métricas missing' },
+    { n: getRelaciones(obj.yvy_id).length, t: `relaciones · ${getHijos(obj.yvy_id).length} hijos` },
+  ];
+  for (const c of celdas) {
+    const d = document.createElement('div');
+    const b = document.createElement('b');
+    b.textContent = String(c.n);
+    const t = document.createElement('span');
+    t.textContent = c.t;
+    d.append(b, t);
+    strip.appendChild(d);
+  }
+  return strip;
+}
+
+/**
+ * Tabla EVIDENCIA con la cadena completa fuente → dato → hash.
+ * El hash es clicable: despliega el detalle y verifica en cliente.
+ */
+function bloqueEvidencia(obj, ag) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dossier-evidencia';
+  const h = document.createElement('h3');
+  h.textContent = 'Evidencia · clic en el hash → fuente → dato → hash';
+  wrap.appendChild(h);
+  const tabla = document.createElement('table');
+  tabla.innerHTML = '<thead><tr><th>Métrica</th><th>Valor</th><th>Fuente</th><th>Corte</th><th>hash_entidad</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  tabla.appendChild(tbody);
+  wrap.appendChild(tabla);
+
+  const pintar = (unidades) => {
+    tbody.innerHTML = '';
+    const m = ag?.metricas || {};
+    const claves = Object.keys(m);
+    if (!claves.length) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="5" class="dossier-ev-vacio">Sin métricas publicadas para esta entidad.</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+    for (const k of claves) {
+      const v = m[k];
+      const tr = document.createElement('tr');
+      const tdK = document.createElement('td');
+      tdK.textContent = unidades[k]?.etiqueta || k;
+      const tdV = document.createElement('td');
+      tdV.textContent = v == null ? 'Sin dato' : `${fmtInt.format(Number(v))} ${unidades[k]?.unidad || ''}`.trim();
+      if (v == null) tdV.className = 'dossier-ev-missing';
+      const tdF = document.createElement('td');
+      tdF.textContent = ag.fuente || 'sin fuente';
+      const tdC = document.createElement('td');
+      tdC.textContent = ag.fecha_vigencia || 'no declarada';
+      const tdH = document.createElement('td');
+      const hash = ag.certificado?.hash_entidad;
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'dossier-ev-hash';
+      boton.textContent = hash ? `✓ ${String(hash).slice(0, 12)}…` : 'sin certificado';
+      boton.disabled = !hash;
+      const detalle = document.createElement('div');
+      detalle.className = 'dossier-ev-origen';
+      detalle.hidden = true;
+      boton.addEventListener('click', async () => {
+        detalle.hidden = !detalle.hidden;
+        if (detalle.hidden || detalle.dataset.listos) return;
+        detalle.dataset.listos = '1';
+        try {
+          const [he, hl] = await Promise.all([
+            hashCanonico(payloadEntidad(ag)),
+            hashCanonico(payloadLinaje(obj.yvy_id, getRelaciones(obj.yvy_id).map((r) => ({ tipo: r.tipo, destino: r.destino_yvy_id })), [])),
+          ]);
+          detalle.innerHTML = [
+            `<b>FUENTE</b> ${ag.fuente || 'sin fuente'} · corte ${ag.fecha_vigencia || 'no declarada'} · v${ag.version || '?'}`,
+            `<b>DATO</b> ${unidades[k]?.etiqueta || k} = ${v == null ? 'null (estado missing)' : `${fmtInt.format(Number(v))} ${unidades[k]?.unidad || ''}`}`,
+            `<b>hash_entidad</b> ${hash} ${he === hash ? '✓ recalculado' : '⚠ no coincide'}`,
+            `<b>hash_linaje</b> ${ag.certificado?.hash_linaje || '—'} ${hl === ag.certificado?.hash_linaje ? '✓' : '⚠'}`,
+          ].map((x) => `<div>${x}</div>`).join('');
+        } catch (err) {
+          detalle.textContent = `No se pudo verificar: ${err?.message || err}`;
+        }
+      });
+      tdH.appendChild(boton);
+      tdH.appendChild(detalle);
+      tr.append(tdK, tdV, tdF, tdC, tdH);
+      tbody.appendChild(tr);
+    }
+  };
+
+  cargarOntologia()
+    .then((ont) => pintar(Object.fromEntries(metricasDeclaradas(ont).map((m) => [m.clave, m]))))
+    .catch(() => pintar({}));
+  return wrap;
+}
+
 function bloqueGrid(obj, m) {
   const grid = document.createElement('div');
   grid.className = 'dossier-grid';
@@ -309,7 +415,7 @@ function bloqueGrid(obj, m) {
 function bloqueModelo(obj) {
   const sec = document.createElement('section');
   sec.className = 'dossier-modelo';
-  sec.innerHTML = '<h3>Modelo de datos</h3><p class="dossier-modelo__cargando">cargando esquema…</p>';
+  sec.innerHTML = '<h3>Ficha del modelo</h3><p class="dossier-modelo__cargando">cargando esquema…</p>';
   cargarOntologia().then((ont) => {
     const tipo = tipoDe(ont, obj.nivel);
     const padre = getPadre(obj);
@@ -318,7 +424,7 @@ function bloqueModelo(obj) {
     const metrics = metricasDeclaradas(ont).filter((m) => !m.previsto).slice(0, 8);
     const fila = (k, v) => `<div class="dossier-modelo__fila"><span>${k}</span><strong>${v}</strong></div>`;
     sec.innerHTML = [
-      '<h3>Modelo de datos</h3>',
+      '<h3>Ficha del modelo</h3>',
       '<div class="dossier-modelo__grid">',
       fila('Tipo', tipo?.nivel != null ? `nivel ${tipo.nivel}` : etiquetaNivel(obj.nivel)),
       fila('Padre', padre ? padre.nombre_oficial : 'ninguno (raíz)'),
@@ -332,7 +438,7 @@ function bloqueModelo(obj) {
       '<p class="dossier-modelo__nota">Esquema publicado en <code>data/ontologia.json</code> · el mismo modelo que consume el Dossier.</p>',
     ].join('');
   }).catch((err) => {
-    sec.innerHTML = `<h3>Modelo de datos</h3><p class="dossier-modelo__nota">No se pudo cargar el esquema: ${err?.message || err}</p>`;
+    sec.innerHTML = `<h3>Ficha del modelo</h3><p class="dossier-modelo__nota">No se pudo cargar el esquema: ${err?.message || err}</p>`;
   });
   return sec;
 }
@@ -1216,7 +1322,10 @@ export async function renderFicha(obj) {
   // Hero + grid: pulso mientras responde el censo (fetch lazy).
   const heroEl = bloqueHeroSkeleton();
   const gridSkeleton = bloqueSkeleton(3);
+  const stripSkeleton = document.createElement('div');
+  stripSkeleton.className = 'dossier-decision dossier-decision--skeleton';
   contenedor.appendChild(heroEl);
+  contenedor.appendChild(stripSkeleton);
   contenedor.appendChild(gridSkeleton);
   contenedor.appendChild(bloqueModelo(obj));
 
@@ -1276,12 +1385,18 @@ export async function renderFicha(obj) {
     focoHecho = true;
   };
 
+  const sectoriales = document.createElement('section');
+  sectoriales.className = 'dossier-sectoriales';
+  const tituloSector = document.createElement('h3');
+  tituloSector.textContent = 'Datos sectoriales';
+  sectoriales.appendChild(tituloSector);
+  contenedor.appendChild(sectoriales);
   for (const tipoD of ['catastro', 'mineria']) {
     const dsMeta = ds[tipoD];
     if (!dsMeta) continue;
     const aplicableNivel = (dsMeta.niveles || []).includes(obj.nivel);
     if (!aplicableNivel && obj.nivel !== 'provincia') continue;
-    contenedor.appendChild(seccionDatasetSkeleton(dsMeta));
+    sectoriales.appendChild(seccionDatasetSkeleton(dsMeta));
   }
 
   const refsEl = bloqueReferencias(extras.refs);
@@ -1302,12 +1417,14 @@ export async function renderFicha(obj) {
       estadoAg.m = ag.metricas;
       const m = ag.metricas;
       heroEl.replaceWith(bloqueHero(m, densidad(obj, Number(m.poblacion))));
-      gridSkeleton.replaceWith(bloqueGrid(obj, m));
+      stripSkeleton.replaceWith(bloqueDecisionStrip(obj, ag));
+      gridSkeleton.replaceWith(bloqueEvidencia(obj, ag));
       if (ag.fuente) insertarRefItem(refsEl, fuenteHumana(ag.fuente));
     } else {
       // Censo sin datos: el pulso sale y la huella honesta queda.
       heroEl.replaceWith(bloqueHero(null, null));
-      gridSkeleton.replaceWith(bloqueGrid(obj, null));
+      stripSkeleton.replaceWith(bloqueDecisionStrip(obj, ag));
+      gridSkeleton.replaceWith(bloqueEvidencia(obj, ag));
     }
     cert.registrar(ag).catch(() => {});
     cert.cerrarSiVacio();
@@ -1321,14 +1438,14 @@ export async function renderFicha(obj) {
     if (!aplicableNivel && obj.nivel !== 'provincia') continue;
     getAgregado(tipoD, obj.yvy_id).then((ag) => {
       if (token !== renderToken) return;
-      const sk = contenedor.querySelector(`.dossier-acc[data-tipo="${tipoD}"]`);
+      const sk = sectoriales.querySelector(`.dossier-acc[data-tipo="${tipoD}"]`) || contenedor.querySelector(`.dossier-acc[data-tipo="${tipoD}"]`);
       if (!ag) {
         if (sk) sk.remove(); // 404: sin datos, no se muestra (no se grita)
         return;
       }
       const real = seccionDataset(dsMeta, ag);
       if (sk && real) sk.replaceWith(real);
-      else if (real) contenedor.appendChild(real);
+      else if (real) sectoriales.appendChild(real);
       const f = fuenteHumana(ag.fuente || dsMeta.fuente);
       agregarRefItem(refsEl, { nombre: `${TITULO_DATASET[tipoD]}: ${f.nombre}` });
       const mA = ag.metricas || {};
